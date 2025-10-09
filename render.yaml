@@ -1,0 +1,73 @@
+services:
+  - type: web
+    name: mss-n8n
+    env: docker
+    plan: starter
+    autoDeploy: true
+    dockerfilePath: Dockerfile
+    healthCheckPath: /webhook/version
+    envVars:
+      - key: N8N_HOST
+        value: 0.0.0.0
+      - key: N8N_PORT
+        value: ${PORT}
+      - key: N8N_TZ
+        value: UTC
+      - key: N8N_DIAGNOSTICS_ENABLED
+        value: "false"
+      - key: N8N_ENCRYPTION_KEY
+        sync: false
+      - key: WEBHOOK_URL
+        # After first deploy, set this to your Render URL (https://mss-n8n.onrender.com)
+        value: https://REPLACE-ME
+      - key: N8N_BASIC_AUTH_ACTIVE
+        value: "true"
+      - key: N8N_BASIC_AUTH_USER
+        sync: false
+      - key: N8N_BASIC_AUTH_PASSWORD
+        sync: false
+      # API keys and workflow env vars (set values in dashboard or here)
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL_SEO
+        value: gpt-4o-mini
+      - key: OPENAI_MODEL_SCRIPT
+        value: gpt-4o-mini
+      - key: MSS_BRAND
+        value: Many Sources Say
+      - key: NEWS_API_KEY
+        sync: false
+      - key: SHOTSTACK_API_KEY
+        sync: false
+      - key: GSHEET_ID
+        sync: false
+      - key: DRIVE_AUDIO_FOLDER
+        sync: false
+      - key: DRIVE_RENDERS_FOLDER
+        sync: false
+      - key: YOUTUBE_PRIVACY_STATUS
+        value: unlisted
+      - key: SCHEDULE_PUBLISH_ISO
+        value: ""
+      - key: APP_VERSION
+        value: 0.1.1
+      - key: WEBSITE_VERSION
+        value: 0.1.1
+      - key: VERSION_UPDATED_AT
+        value: ""
+      - key: N8N_CORS_ALLOW_ORIGINS
+        # Allow the topic-picker site origin here (e.g., https://mss-topic-picker.onrender.com)
+        value: "*"
+    disk:
+      name: n8n-data
+      mountPath: /home/node/.n8n
+
+  - type: static
+    name: mss-topic-picker
+    env: static
+    buildCommand: ""
+    publishPath: web/topic-picker
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-store

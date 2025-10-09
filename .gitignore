@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Env & tokens
+.env
+token.pickle
+token.drive.pickle
+token.sheets.pickle
+client_secrets.json
+gcp-service-account.json
+drive-service-account.json
+json.txt
+*.json.json
+
+# Outputs
+out/
+public_audio/
+intro_outro_library.json
+
+# Temp & backups
+tmp/
+backups/
+*.tmp
+*_tail.txt
+bundle.json
+remember.txt
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Large generated files
+thumbnails/*.png
+logos/*.png
+avatars/*.png
+public_audio/*.mp3
+out/*.mp4
+out/*.mov
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,13 @@
+{
+  "selectedVariation": 1,
+  "template": "bold",
+  "logoUrl": "http://localhost:5000/logos/logo_1759640880.png",
+  "logoPosition": "bottom-left",
+  "thumbnailPrompt": "Create a vibrant, eye-catching YouTube thumbnail for a video titled: {{title}}\n\nStyle: Bold, high-contrast, professional\nElements: Large readable text, dramatic visuals, bright colors\nEmotion: Exciting, curiosity-inducing, click-worthy\nFormat: 1280x720 pixels, 16:9 aspect ratio\n\nMake it stand out in search results and suggested videos.",
+  "persistentText": "",
+  "bgColor": "#0b0f19",
+  "persistentColor": "#ffd700",
+  "titleColor": "#e8ebff",
+  "persistentSize": 72,
+  "titleSize": 96
+}

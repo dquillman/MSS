@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python test:*)",
+      "Bash(python:*)",
+      "Bash(tasklist)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(dir:*)",
+      "Bash(ffprobe:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git remote add:*)",
+      "Bash(git rm:*)",
+      "Bash(git filter-branch:*)",
+      "Bash(netstat:*)",
+      "Bash(curl:*)",
+      "Bash(\"C:\\users\\daveq\\appdata\\local\\programs\\python\\python313\\Lib\\site-packages\\imageio_ffmpeg\\binaries\\ffmpeg-win-x86_64-v7.1.exe\" -i \"G:/Users/daveq/MSS/out/final_with_intro_outro_1759590884.mp4\")",
+      "Bash(\"C:\\users\\daveq\\appdata\\local\\programs\\python\\python313\\Lib\\site-packages\\imageio_ffmpeg\\binaries\\ffmpeg-win-x86_64-v7.1.exe\" -i \"G:/Users/daveq/MSS/out/intro_1759590884.mp4\")",
+      "Bash(\"C:\\users\\daveq\\appdata\\local\\programs\\python\\python313\\Lib\\site-packages\\imageio_ffmpeg\\binaries\\ffmpeg-win-x86_64-v7.1.exe\" -i \"G:/Users/daveq/MSS/out/video_with_avatar_1759590831.mp4\")",
+      "Bash(git log:*)",
+      "Bash(timeout:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

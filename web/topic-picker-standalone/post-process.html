@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Post-Process Video - MSS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0B0F19 0%, #1a2332 100%);
+            color: #E8EBFF;
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: #FFD700;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #94a3b8;
+            margin-bottom: 40px;
+            font-size: 1.1rem;
+        }
+
+        .upload-section {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px dashed #FFD700;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-input-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .file-input-label {
+            background: #FFD700;
+            color: #0B0F19;
+            padding: 15px 40px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            display: inline-block;
+            transition: all 0.3s;
+        }
+
+        .file-input-label:hover {
+            background: #FFC700;
+            transform: translateY(-2px);
+        }
+
+        .file-name {
+            margin-top: 15px;
+            color: #94a3b8;
+            font-style: italic;
+        }
+
+        .options-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+
+        .option-group {
+            margin-bottom: 20px;
+        }
+
+        .option-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #E8EBFF;
+            font-weight: 500;
+        }
+
+        .option-group input[type="checkbox"] {
+            margin-right: 10px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .submit-btn {
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+            color: #0B0F19;
+            border: none;
+            padding: 18px 50px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s;
+        }
+
+        .submit-btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(255, 215, 0, 0.3);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status-message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            display: none;
+        }
+
+        .status-message.success {
+            background: rgba(52, 211, 153, 0.2);
+            border: 1px solid #34d399;
+            color: #34d399;
+        }
+
+        .status-message.error {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+        }
+
+        .status-message.loading {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid #3b82f6;
+            color: #3b82f6;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            margin-top: 10px;
+            overflow: hidden;
+            display: none;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: #FFD700;
+            width: 0%;
+            transition: width 0.3s;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .result-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 30px;
+            margin-top: 30px;
+            display: none;
+        }
+
+        .video-preview {
+            width: 100%;
+            max-width: 600px;
+            margin: 20px auto;
+            display: block;
+            border-radius: 8px;
+        }
+
+        .download-btn {
+            background: #34d399;
+            color: white;
+            padding: 12px 30px;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 15px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .download-btn:hover {
+            background: #2dd38b;
+            transform: translateY(-2px);
+        }
+
+        .back-link {
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        .back-link a {
+            color: #FFD700;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .back-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+  <script src="version.js" defer></script>
+</head>
+<body>
+  <script>
+    (function(){
+      const group = document.querySelector("div[style*='gap: 10px']");
+      if (group && !group.querySelector('[data-nav-studio]')) {
+        const studio = document.createElement('button');
+        studio.setAttribute('data-nav-studio','1');
+        studio.textContent = 'Studio';
+        studio.style.padding = '8px 16px'; studio.style.margin = '0';
+        studio.onclick = () => { window.location.href = 'notebooklm.html'; };
+        group.prepend(studio);
+        const viewer = document.createElement('button');
+        viewer.textContent = 'Viewer';
+        viewer.style.padding = '8px 16px'; viewer.style.margin = '0';
+        viewer.onclick = () => { window.location.href = 'viewer.html'; };
+        group.prepend(viewer);
+      }
+    })();
+  </script>
+    <div class="container">
+        <!-- Header with navigation -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px;">
+            <h1 style="margin: 0; font-size: 2rem;">🎬 Post-Process Video <span style="font-size:0.9rem; color:#64748b; font-weight:400;">v3.0.0</span></h1>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button onclick="window.location.href='notebooklm.html'" style="padding: 8px 16px; margin: 0; background: #334; border: 1px solid #334; color: #E8EBFF; border-radius: 6px; cursor: pointer; font-size: 14px;" data-nav-studio="1">Studio</button>
+                <button onclick="window.location.href='index.html'" style="padding: 8px 16px; margin: 0; background: #334; border: 1px solid #334; color: #E8EBFF; border-radius: 6px; cursor: pointer; font-size: 14px;">🎬 Topic Picker</button>
+                <button onclick="window.location.href='avatar-manager.html'" style="padding: 8px 16px; margin: 0; background: #334; border: 1px solid #334; color: #E8EBFF; border-radius: 6px; cursor: pointer; font-size: 14px;">👤 Avatars</button>
+                <button onclick="window.location.href='intro-outro.html'" style="padding: 8px 16px; margin: 0; background: #334; border: 1px solid #334; color: #E8EBFF; border-radius: 6px; cursor: pointer; font-size: 14px;">🎬 Intro/Outro</button>
+                <button onclick="window.location.href='video-composer.html'" style="padding: 8px 16px; margin: 0; background: #FFD700; border: 1px solid #FFD700; color: #0B0F19; border-radius: 6px; cursor: pointer; font-size: 14px;">🎞️ Composer</button>
+                <button onclick="window.location.href='preview.html'" style="padding: 8px 16px; margin: 0; background: #334; border: 1px solid #334; color: #E8EBFF; border-radius: 6px; cursor: pointer; font-size: 14px;">📺 Preview</button>
+            </div>
+        </div>
+        <p class="subtitle">Upload your video → Add talking avatar + intro/outro → Download final video</p>
+
+        <!-- Recent Videos Section -->
+        <div class="options-section" id="recentVideosSection" style="display: none;">
+            <h3 style="margin-bottom: 15px;">📂 Recent Videos</h3>
+            <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 15px;">Click to download or re-use for post-processing</p>
+            <div id="recentVideosList" style="display: flex; flex-direction: column; gap: 10px;">
+                <!-- Videos will be loaded here -->
+            </div>
+        </div>
+
+        <form id="postProcessForm" enctype="multipart/form-data">
+            <!-- Video Upload -->
+            <div class="upload-section">
+                <div class="file-input-wrapper">
+                    <label class="file-input-label">
+                        📹 Choose Video File
+                        <input type="file" id="videoFile" name="video" accept="video/mp4,video/quicktime" required>
+                    </label>
+                </div>
+                <div class="file-name" id="videoFileName">No file chosen</div>
+            </div>
+
+            <!-- Options -->
+            <div class="options-section">
+                <h3 style="margin-bottom: 20px;">Options</h3>
+
+                <div class="option-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="useDID" name="use_did" checked>
+                        <span>Use D-ID for talking avatar (uses credits)</span>
+                    </label>
+                </div>
+
+                <div class="option-group">
+                    <label>Intro Text (optional)</label>
+                    <input type="text" id="introText" name="intro_text" placeholder="e.g., Welcome to Many Sources Say" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #94a3b8; background: rgba(255,255,255,0.05); color: #E8EBFF;">
+                </div>
+
+                <div class="option-group">
+                    <label>Outro Text (optional)</label>
+                    <input type="text" id="outroText" name="outro_text" placeholder="e.g., Thanks for watching!" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #94a3b8; background: rgba(255,255,255,0.05); color: #E8EBFF;">
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="submit-btn" id="submitBtn">
+                🚀 Process Video
+            </button>
+
+            <!-- Progress -->
+            <div class="progress-bar" id="progressBar">
+                <div class="progress-bar-fill"></div>
+            </div>
+
+            <!-- Status Message -->
+            <div class="status-message" id="statusMessage"></div>
+        </form>
+
+        <!-- Result Section -->
+        <div class="result-section" id="resultSection">
+            <h3>✓ Video Processed Successfully!</h3>
+            <video class="video-preview" id="videoPreview" controls></video>
+            <div style="text-align: center;">
+                <a href="#" class="download-btn" id="downloadBtn" download>📥 Download Final Video</a>
+            </div>
+        </div>
+
+        <div class="back-link">
+            <a href="index.html">← Back to Topic Picker</a>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000';
+
+        // Load recent videos on page load
+        async function loadRecentVideos() {
+            try {
+                const response = await fetch(`${API_BASE}/get-recent-videos`);
+                const data = await response.json();
+
+                if (data.success && data.videos.length > 0) {
+                    const section = document.getElementById('recentVideosSection');
+                    const list = document.getElementById('recentVideosList');
+
+                    list.innerHTML = data.videos.map(video => `
+                        <div style="background: rgba(255,255,255,0.03); padding: 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-weight: 600;">${video.name}</div>
+                                <div style="color: #94a3b8; font-size: 0.85rem;">${video.size} - ${video.date}</div>
+                            </div>
+                            <div style="display: flex; gap: 10px;">
+                                <a href="${API_BASE}/out/${video.name}" class="download-btn" style="margin: 0; padding: 8px 20px; font-size: 0.9rem;" download>📥 Download</a>
+                                <button onclick="deleteVideo('${video.name}')" style="background: #ef4444; color: white; border: none; padding: 8px 20px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: bold;">🗑️ Delete</button>
+                            </div>
+                        </div>
+                    `).join('');
+
+                    section.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Failed to load recent videos:', error);
+            }
+        }
+
+        // Load recent videos when page loads
+        window.addEventListener('DOMContentLoaded', loadRecentVideos);
+
+        // Delete video with confirmation
+        async function deleteVideo(filename) {
+            // Confirm deletion
+            const confirmed = confirm(`Are you sure you want to delete "${filename}"?\n\nThis action cannot be undone.`);
+
+            if (!confirmed) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/delete-video`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ filename: filename })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Reload the recent videos list
+                    await loadRecentVideos();
+                    alert(`✓ Video "${filename}" deleted successfully`);
+                } else {
+                    alert(`❌ Failed to delete video: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Error deleting video:', error);
+                alert(`❌ Error deleting video: ${error.message}`);
+            }
+        }
+
+        // File input handler
+        document.getElementById('videoFile').addEventListener('change', function(e) {
+            const fileName = e.target.files[0]?.name || 'No file chosen';
+            document.getElementById('videoFileName').textContent = fileName;
+        });
+
+        // Form submission
+        document.getElementById('postProcessForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const submitBtn = document.getElementById('submitBtn');
+            const statusMessage = document.getElementById('statusMessage');
+            const progressBar = document.getElementById('progressBar');
+            const resultSection = document.getElementById('resultSection');
+
+            // Disable submit button
+            submitBtn.disabled = true;
+            submitBtn.textContent = '⏳ Processing...';
+
+            // Show progress
+            progressBar.style.display = 'block';
+            statusMessage.style.display = 'block';
+            statusMessage.className = 'status-message loading';
+            statusMessage.textContent = 'Uploading video and extracting audio...';
+
+            // Hide previous results
+            resultSection.style.display = 'none';
+
+            try {
+                // Create FormData
+                const formData = new FormData();
+                const videoFile = document.getElementById('videoFile').files[0];
+                const useDID = document.getElementById('useDID').checked;
+                const introText = document.getElementById('introText').value;
+                const outroText = document.getElementById('outroText').value;
+
+                formData.append('video', videoFile);
+                formData.append('use_did', useDID ? 'true' : 'false');
+                if (introText) formData.append('intro_text', introText);
+                if (outroText) formData.append('outro_text', outroText);
+
+                // Update status
+                statusMessage.textContent = useDID
+                    ? 'Generating talking avatar with D-ID... This may take 1-2 minutes...'
+                    : 'Processing video...';
+
+                // Send request
+                const response = await fetch(`${API_BASE}/post-process-video`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Success!
+                    statusMessage.className = 'status-message success';
+                    statusMessage.textContent = '✓ Video processed successfully!';
+                    progressBar.style.display = 'none';
+
+                    // Show result
+                    resultSection.style.display = 'block';
+                    const videoUrl = `${API_BASE}/out/${result.files.final_video}`;
+                    document.getElementById('videoPreview').src = videoUrl;
+                    document.getElementById('downloadBtn').href = videoUrl;
+
+                    // Re-enable button
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = '🚀 Process Another Video';
+                } else {
+                    throw new Error(result.error || 'Unknown error occurred');
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                statusMessage.className = 'status-message error';
+                statusMessage.textContent = `❌ Error: ${error.message}`;
+                progressBar.style.display = 'none';
+
+                submitBtn.disabled = false;
+                submitBtn.textContent = '🚀 Process Video';
+            }
+        });
+    </script>
+</body>
+</html>
+
+

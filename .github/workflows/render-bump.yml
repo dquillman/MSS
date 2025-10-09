@@ -1,0 +1,61 @@
+name: Bump Render Env + Deploy
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - version.json
+      - render.yaml
+      - Dockerfile
+      - n8n/workflows/**
+      - web/topic-picker/**
+      - scripts/**
+
+jobs:
+  bump-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      RENDER_API_URL: https://api.render.com/v1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse version.json
+        id: ver
+        run: |
+          APP=$(jq -r .app version.json)
+          WEB=$(jq -r .website version.json)
+          UPDATED=$(jq -r .updated_at version.json)
+          if [ -z "$UPDATED" ] || [ "$UPDATED" = "null" ]; then
+            UPDATED=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          fi
+          echo "app=$APP" >> $GITHUB_OUTPUT
+          echo "web=$WEB" >> $GITHUB_OUTPUT
+          echo "updated=$UPDATED" >> $GITHUB_OUTPUT
+
+      - name: Update Render env vars
+        env:
+          TOKEN: ${{ secrets.RENDER_API_KEY }}
+          SERVICE: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          if [ -z "$TOKEN" ] || [ -z "$SERVICE" ]; then
+            echo "RENDER_API_KEY and/or RENDER_SERVICE_ID not set in repo secrets" >&2
+            exit 1
+          fi
+          payload=$(jq -n --arg app "${{ steps.ver.outputs.app }}" --arg web "${{ steps.ver.outputs.web }}" --arg upd "${{ steps.ver.outputs.updated }}" '{ envVars: [ {key:"APP_VERSION", value:$app}, {key:"WEBSITE_VERSION", value:$web}, {key:"VERSION_UPDATED_AT", value:$upd} ] }')
+          echo "Payload:"; echo "$payload"
+          curl -sS -X PUT "$RENDER_API_URL/services/$SERVICE/env-vars" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$payload"
+
+      - name: Trigger Render deploy
+        env:
+          TOKEN: ${{ secrets.RENDER_API_KEY }}
+          SERVICE: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          curl -sS -X POST "$RENDER_API_URL/services/$SERVICE/deploys" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+

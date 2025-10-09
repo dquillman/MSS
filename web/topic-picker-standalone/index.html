@@ -1,0 +1,132 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>MSS Topic Picker - Standalone</title>
+  <style>
+    body { font-family: Inter, Arial, sans-serif; background:#0B0F19; color:#E8EBFF; margin:0; padding:20px; }
+    h1 { margin:0 0 8px 0; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+    input, select, button { padding:10px 12px; border-radius:6px; border:1px solid #334; background:#121826; color:#E8EBFF; }
+    button { background:#2563eb; border-color:#2563eb; font-weight:600; cursor:pointer; }
+    .button-secondary { background:#334; border-color:#334; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(320px,1fr)); gap:12px; }
+    .card { background:#121826; border:1px solid #2a3550; border-radius:10px; padding:14px; }
+    .title { font-weight:700; margin-bottom:6px; }
+    .muted { color:#A8B3CF; }
+    .status { margin-top:10px; padding:10px; border-left:4px solid #3b82f6; background:#1e293b; border-radius:6px; }
+    .ok { border-left-color:#22c55e; background:#14532d; }
+    .err { border-left-color:#ef4444; background:#7f1d1d; }
+    /* Loading bar */
+    .loading-bar { position:fixed; top:0; left:0; height:3px; width:100%; background:linear-gradient(90deg,#3b82f6,#22c55e,#f59e0b); background-size:300% 100%; animation:loadbar 1.2s linear infinite; display:none; z-index:9999; }
+    .loading-bar.active { display:block; }
+    @keyframes loadbar { 0%{background-position:0 0} 100%{background-position:300% 0} }
+  </style>
+  <script src="version.js" defer></script>
+  <script>
+    function testAPI(){
+      (async()=>{
+        try{
+          const r = await fetch('http://127.0.0.1:5000/health', { cache:'no-store' });
+          const j = await r.json();
+          alert('API health ok: v'+(j.version||'?'));
+        }catch(e){ alert('API health failed: '+(e&&e.message||e)); }
+      })();
+    }
+  </script>
+</head>
+<body>
+  <div id="loadingBar" class="loading-bar"></div>
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+    <h1>MSS Topic Picker - Standalone <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="button-secondary" onclick="location.href='notebooklm.html'">Studio</button>
+      <button class="button-secondary" onclick="testAPI()">Test API</button>
+    </div>
+  </div>
+
+  <div class="row">
+    <label>Brand <input id="brand" value="Many Sources Say" /></label>
+    <label>Seed <input id="seed" placeholder="(optional)" /></label>
+    <label>Limit
+      <select id="limit">
+        <option value="5" selected>5</option>
+        <option value="3">3</option>
+        <option value="7">7</option>
+      </select>
+    </label>
+    <button id="btnGenerate" onclick="window.gen && window.gen()">Generate Topics</button>
+  </div>
+
+  <div id="status" class="status">Ready.</div>
+  <div id="topics" class="grid"></div>
+
+  <script>
+    // Force fresh load
+    (function(){ if ('caches' in window) { try { caches.keys().then(keys=>keys.forEach(k=>caches.delete(k))); } catch(e){} } })();
+
+    const API = 'http://127.0.0.1:5000';
+    const $s = document.getElementById('status');
+    const $wrap = document.getElementById('topics');
+    const $bar = document.getElementById('loadingBar');
+    const $btn = document.getElementById('btnGenerate');
+    function setStatus(t, ok){ $s.textContent=t; $s.className='status ' + (ok?'ok':''); }
+    function showLoading(on){ if($bar) $bar.classList.toggle('active', !!on); if($btn) $btn.disabled=!!on; document.body.style.cursor = on? 'progress':'default'; }
+
+    window.gen = async function(){
+      try {
+        const brand = (document.getElementById('brand').value || 'Many Sources Say').trim();
+        const seed = (document.getElementById('seed').value || '').trim();
+        const limit = document.getElementById('limit').value || '5';
+        setStatus('GET /generate-topics ...');
+        $wrap.innerHTML='';
+        const qs = new URLSearchParams({ brand, seed, limit: String(parseInt(limit)||5) }).toString();
+        const url = API + '/generate-topics?' + qs;
+        console.log('[Picker] Requesting:', url);
+        showLoading(true);
+        const r = await fetch(url, { cache:'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json();
+        console.log('[Picker] Received:', j);
+        const topics = j.topics || [];
+        if (!topics.length) throw new Error('No topics');
+        const meta = `Source: ${j.source||'?'}${j.model? ' ('+j.model+')':''} • Seed: ${(j.seed||seed||'(none)')}`;
+        setStatus('OK ' + topics.length + ' topics — ' + meta, true);
+        console.log('[Picker] Seed used:', (j.seed||seed||''));
+        topics.forEach((t,i)=>{
+          const card = document.createElement('div'); card.className='card';
+          const title = document.createElement('div'); title.className='title'; title.textContent = `${i+1}. ${t.yt_title||t.title}`; card.appendChild(title);
+          const angle = document.createElement('div'); angle.className='muted'; angle.textContent = t.angle||''; card.appendChild(angle);
+          const row = document.createElement('div'); row.style.marginTop='8px'; row.style.display='flex'; row.style.gap='8px';
+          // Use in Notebook
+          const btnUse = document.createElement('button'); btnUse.textContent='Use in Notebook'; btnUse.style.background='#10b981'; btnUse.style.borderColor='#10b981';
+          btnUse.onclick = async () => {
+            try { try { localStorage.setItem('editingTopic', JSON.stringify(t)); } catch {}
+              try { await fetch(API + '/set-selected-topic', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(t) }); } catch {}
+              location.href = 'notebooklm.html';
+            } catch(e){ setStatus('Failed to handoff: ' + e.message); }
+          };
+          // Create Video
+          const btnCreate = document.createElement('button'); btnCreate.textContent='Create Video';
+          btnCreate.onclick = async () => {
+            try { setStatus('Starting video creation...'); const r2 = await fetch(API + '/create-video', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ topic: t, include_avatar: true, include_logo: true }) }); const j2 = await r2.json().catch(()=>({success:false,error:'Invalid JSON'})); if (!r2.ok || !j2.success) throw new Error(j2.error || r2.statusText); setStatus('Video creation started.', true); } catch(e){ setStatus('Create failed: ' + e.message); }
+          };
+          // Copy JSON
+          const btnCopy = document.createElement('button'); btnCopy.textContent='Copy JSON'; btnCopy.className='button-secondary';
+          btnCopy.onclick = async () => { try { await navigator.clipboard.writeText(JSON.stringify(t, null, 2)); setStatus('Copied topic JSON.', true); } catch(e){ setStatus('Copy failed: ' + e.message); } };
+          row.appendChild(btnUse); row.appendChild(btnCreate); row.appendChild(btnCopy);
+          card.appendChild(row);
+          $wrap.appendChild(card);
+        });
+      } catch(e){ setStatus('Generate failed: ' + (e && e.message || e)); console.error(e); }
+      finally { showLoading(false); }
+    }
+
+  </script>
+</body>
+</html>
+

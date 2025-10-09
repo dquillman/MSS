@@ -1,0 +1,185 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MSS Video Composer (Lite)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#0B0F19; color:#E8EBFF; margin:0; padding:24px; }
+    .card { max-width: 900px; margin: 0 auto; background: rgba(255,255,255,0.05); border:1px solid #334; border-radius: 10px; padding: 20px; }
+    h1 { margin: 0 0 12px 0; font-size: 22px; }
+    .row { margin: 10px 0; }
+    .btn { background:#2563eb; color:#fff; border:0; padding:10px 16px; border-radius:6px; cursor:pointer; }
+    .btn:disabled { opacity:.5; cursor:not-allowed; }
+    .status { margin-top:10px; padding:10px; border-radius:6px; font-size: 14px; display:none; }
+    .ok { background: rgba(52, 211, 153, 0.15); border:1px solid #34d399; color:#34d399; }
+    .err { background: rgba(239, 68, 68, 0.15); border:1px solid #ef4444; color:#ef4444; }
+    .info { background: rgba(59, 130, 246, 0.15); border:1px solid #3b82f6; color:#93c5fd; }
+    video { width:100%; max-width: 600px; border-radius:8px; background:#000; margin-top:10px; }
+    label { display:inline-block; margin-bottom:6px; }
+    input[type=file] { display:block; }
+  </style>
+  <script src="version.js" defer></script>
+</head>
+<body>
+  <script>
+    (function(){
+      const group = document.querySelector("div[style*='gap: 10px']");
+      if (group && !group.querySelector('[data-nav-studio]')) {
+        const studio = document.createElement('button');
+        studio.setAttribute('data-nav-studio','1');
+        studio.textContent = 'Studio';
+        studio.style.padding = '8px 16px'; studio.style.margin = '0';
+        studio.onclick = () => { window.location.href = 'notebooklm.html'; };
+        group.prepend(studio);
+        const viewer = document.createElement('button');
+        viewer.textContent = 'Viewer';
+        viewer.style.padding = '8px 16px'; viewer.style.margin = '0';
+        viewer.onclick = () => { window.location.href = 'viewer.html'; };
+        group.prepend(viewer);
+      }
+    })();
+  </script>
+  <div class="card">
+    <h1>MSS Video Composer (Lite)</h1>
+    <div class="row" style="display:flex; justify-content:flex-end; gap:10px; margin-bottom:8px;">
+      <button class="btn" onclick="window.location.href='notebooklm.html'" data-nav-studio="1">Studio</button>
+    </div>
+    <div class="row" id="activeIO">
+      <div style="margin-bottom:8px; font-weight:600;">Active Intro/Outro</div>
+      <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;">
+        <div style="flex:1; min-width:260px;">
+          <div style="font-weight:600; margin-bottom:4px;">Intro</div>
+          <video id="activeIntroVideo" controls style="display:none; width:100%; max-width:280px; background:#000; border-radius:6px;"></video>
+          <div id="activeIntroText" style="font-size:14px; color:#93c5fd; display:none;"></div>
+        </div>
+        <div style="flex:1; min-width:260px;">
+          <div style="font-weight:600; margin-bottom:4px;">Outro</div>
+          <video id="activeOutroVideo" controls style="display:none; width:100%; max-width:280px; background:#000; border-radius:6px;"></video>
+          <div id="activeOutroText" style="font-size:14px; color:#93c5fd; display:none;"></div>
+        </div>
+      </div>
+      <div id="activeIONote" style="margin-top:8px; font-size:13px; color:#94a3b8;">
+        Using the active Intro/Outro from the library. If an item is HTML-only, the backend renders an approximation (font/position may differ). To match exactly, upload a video file for the intro/outro in the Intro/Outro Manager.
+      </div>
+    </div>
+    <div class="row">
+      <label for="mainFile">Main Video (required):</label>
+      <input type="file" id="mainFile" accept="video/*">
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="includeIO" checked> Include Intro/Outro</label>
+    </div>
+    <div class="row">
+      <button id="uploadBtn" class="btn" disabled>Upload + Merge</button>
+    </div>
+    <div id="status" class="status"></div>\n    <div class="row" id="linkRow" style="display:none;">\n      <a id="videoLink" class="btn" href="#" target="_blank">Open Video</a>\n    </div>\n    <div class="row">\n      <video id="preview" controls style="display:none;"></video>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:5000';
+    const mainInput = document.getElementById('mainFile');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const statusBox = document.getElementById('status');
+    const preview = document.getElementById('preview');
+    const includeIO = document.getElementById('includeIO');
+
+    function setStatus(text, kind) {
+      statusBox.style.display = 'block';
+      statusBox.className = 'status ' + (kind || 'info');
+      statusBox.textContent = text;
+    }
+
+    function clearStatus() { statusBox.style.display = 'none'; }
+
+    mainInput.addEventListener('change', () => {
+      const f = mainInput.files && mainInput.files[0];
+      uploadBtn.disabled = !f;
+      if (f) {
+        try {
+          const url = URL.createObjectURL(f);
+          preview.src = url; preview.style.display = 'block'; preview.load();
+        } catch {}
+      }
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+      const f = mainInput.files && mainInput.files[0];
+      if (!f) { alert('Pick a main video'); return; }
+      uploadBtn.disabled = true;
+      setStatus('Uploading...', 'info');
+      try {
+        const fd = new FormData();
+        fd.append('video', f);
+        fd.append('add_intro_outro', includeIO.checked ? 'true' : 'false');
+        const resp = await fetch(`${API_BASE}/post-process-video`, { method: 'POST', body: fd });
+        if (!resp.ok) {
+          const t = await resp.text();
+          throw new Error(`HTTP ${resp.status} ${resp.statusText}: ${t.slice(0,200)}`);
+        }
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || 'Unknown error');
+        setStatus('Videos merged successfully!', 'ok');
+        const videoUrl = `${API_BASE}/out/${data.files.final_video}`;
+        console.log('[LITE] videoUrl:', videoUrl); preview.preload = 'metadata'; preview.src = videoUrl; preview.style.display = 'block'; try { preview.play(); } catch (e) {}; document.getElementById('videoLink').href = videoUrl; document.getElementById('linkRow').style.display = 'block';
+      } catch (e) {
+        console.error(e);
+        setStatus(`Error: ${e.message}`, 'err');
+      } finally { uploadBtn.disabled = false; }
+    });
+
+    // Ping API
+    fetch(`${API_BASE}/`).catch(() => setStatus(`API unreachable at ${API_BASE}. Start the API server.`, 'err'));
+
+    // Show active intro/outro from the library
+    (async function loadActiveIO() {
+      try {
+        const res = await fetch(`${API_BASE}/get-intro-outro-library`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const intros = Array.isArray(data.intros) ? data.intros : [];
+        const outros = Array.isArray(data.outros) ? data.outros : [];
+        const activeIntro = intros.find(i => i && i.active);
+        const activeOutro = outros.find(o => o && o.active);
+
+        function stripHtml(html) {
+          const tmp = document.createElement('div');
+          tmp.innerHTML = html || '';
+          return tmp.textContent || tmp.innerText || '';
+        }
+
+        // Intro
+        const introVid = document.getElementById('activeIntroVideo');
+        const introTxt = document.getElementById('activeIntroText');
+        if (activeIntro) {
+          if (activeIntro.videoUrl) {
+            introVid.src = activeIntro.videoUrl; introVid.style.display = 'block'; introTxt.style.display = 'none';
+          } else {
+            const text = stripHtml(activeIntro.html || '').split(/\n+/).map(s=>s.trim()).filter(Boolean).slice(0,2);
+            introTxt.textContent = text.join(' | ') || 'HTML template (no videoUrl)';
+            introTxt.style.display = 'block'; introVid.style.display = 'none';
+          }
+        }
+
+        // Outro
+        const outroVid = document.getElementById('activeOutroVideo');
+        const outroTxt = document.getElementById('activeOutroText');
+        if (activeOutro) {
+          if (activeOutro.videoUrl) {
+            outroVid.src = activeOutro.videoUrl; outroVid.style.display = 'block'; outroTxt.style.display = 'none';
+          } else {
+            const text = stripHtml(activeOutro.html || '').split(/\n+/).map(s=>s.trim()).filter(Boolean).slice(0,2);
+            outroTxt.textContent = text.join(' | ') || 'HTML template (no videoUrl)';
+            outroTxt.style.display = 'block'; outroVid.style.display = 'none';
+          }
+        }
+      } catch (e) {
+        console.warn('Active IO load failed:', e);
+      }
+    })();
+  </script>
+</body>
+</html>
+

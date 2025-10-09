@@ -1,0 +1,14 @@
+requests
+beautifulsoup4
+openai>=1.0.0
+mutagen
+google-api-python-client
+google-auth
+google-auth-oauthlib
+google-cloud-texttospeech
+python-dotenv
+tenacity>=8.0.0
+Pillow>=10.0.0
+flask>=3.0.0
+flask-cors>=4.0.0
+imageio-ffmpeg

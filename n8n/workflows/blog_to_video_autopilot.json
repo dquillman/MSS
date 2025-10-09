@@ -1,0 +1,534 @@
+{
+  "name": "Blog-to-Video Autopilot",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manualTrigger1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "blog2video",
+        "responseMode": "lastNode",
+        "options": {
+          "responseData": "json"
+        }
+      },
+      "id": "webhook1",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "wait",
+        "output": "input1"
+      },
+      "id": "merge1",
+      "name": "Merge Triggers",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        420,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "propertyName": "source_type",
+        "dataType": "string"
+      },
+      "id": "switch1",
+      "name": "Switch source_type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        640,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.source_value}}",
+        "responseFormat": "string"
+      },
+      "id": "httpFetch1",
+      "name": "Fetch URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        860,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Naive HTML → text\nconst html = $json.body || $json;\nconst text = typeof html === 'string' ? html.replace(/<[^>]+>/g, ' ') : JSON.stringify(html);\nreturn [{ source_text: text.replace(/\\s+/g, ' ').trim() }];"
+      },
+      "id": "fnHtmlToText",
+      "name": "Extract Main Text",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "chat",
+        "options": {
+          "responseFormat": "jsonObject",
+          "systemMessage": "You write tight, factual narration for 90–150 seconds. Return JSON only.",
+          "temperature": 0.5
+        },
+        "messages": {
+          "message": [
+            {
+              "text": "Produce JSON with keys: narration (string, 90-150s), overlays (array of 6-10 short strings), title (string), description (string), keywords (array of strings).\n\nSource text: {{$json.source_text || $json.text || $json}}",
+              "type": "user"
+            }
+          ]
+        }
+      },
+      "id": "openai1",
+      "name": "OpenAI Draft",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 4,
+      "position": [
+        1260,
+        40
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai_credential_placeholder",
+          "name": "OpenAI API (set in n8n)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.elevenlabs.io/v1/text-to-speech/{{$env.ELEVENLABS_VOICE_ID}}",
+        "responseFormat": "file",
+        "jsonParameters": true,
+        "options": {
+          "bodyContentType": "json",
+          "headers": {
+            "xi-api-key": "={{$env.ELEVENLABS_API_KEY}}",
+            "accept": "audio/mpeg",
+            "content-type": "application/json"
+          }
+        },
+        "bodyParametersJson": "={ \"text\": $json.narration }"
+      },
+      "id": "tts1",
+      "name": "ElevenLabs TTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1460,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "binaryData": true,
+        "additionalFields": {
+          "acl": "public-read"
+        },
+        "fileName": "={{$json.title || 'voiceover'}}.mp3",
+        "propertyName": "data",
+        "bucketName": "={{$env.S3_BUCKET}}"
+      },
+      "id": "s3upload1",
+      "name": "S3 Upload (audio)",
+      "type": "n8n-nodes-base.amazonS3",
+      "typeVersion": 2,
+      "position": [
+        1660,
+        40
+      ],
+      "credentials": {
+        "amazonS3": {
+          "id": "aws_s3_credential_placeholder",
+          "name": "AWS S3 (set in n8n)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Build Shotstack JSON using public S3 URL\nconst fileName = $json.fileName || 'voiceover.mp3';\nconst bucket = $env.S3_BUCKET;\nconst region = $env.AWS_DEFAULT_REGION || 'us-east-1';\nconst url = region==='us-east-1' ? `https://${bucket}.s3.amazonaws.com/${fileName}` : `https://${bucket}.s3.${region}.amazonaws.com/${fileName}`;\nconst overlays = Array.isArray(items[0].json.overlays) ? items[0].json.overlays : [];\nreturn [{ audio_url: url, overlays, title: items[0].json.title || 'Video' }];"
+      },
+      "id": "fnBuildAudioUrl",
+      "name": "Build Audio URL",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        1860,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Construct minimal Shotstack payload\nconst overlays = $json.overlays || [];\nconst clips = [];\nlet t = 1.5;\nconst slot = 3;\noverlays.forEach((line) => {\n  clips.push({\n    asset: { type: 'title', text: String(line).slice(0,120), style: 'minimal' },\n    start: t,\n    length: 2.5,\n    position: 'center',\n    transition: { in: 'fade', out: 'fade' }\n  });\n  t += slot;\n});\nreturn [{ payload: {\n  timeline: { background: '#000000', soundtrack: { src: $json.audio_url, effect: 'fadeInFadeOut' }, tracks: [{ clips }] },\n  output: { format: 'mp4', resolution: 'hd', fps: 30 },\n  title: $json.title || 'Video'\n}}];"
+      },
+      "id": "fnBuildShotstack",
+      "name": "Build Shotstack JSON",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        2060,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.shotstack.io/{{$env.SHOTSTACK_ENV === 'production' ? 'v1' : 'stage'}}/render",
+        "jsonParameters": true,
+        "options": {
+          "headers": {
+            "x-api-key": "={{$env.SHOTSTACK_API_KEY}}",
+            "content-type": "application/json"
+          }
+        },
+        "bodyParametersJson": "={{$json.payload}}"
+      },
+      "id": "shotstackRender1",
+      "name": "Shotstack Render",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2260,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract render id\nconst id = $json.response?.id || $json.id;\nreturn [{ render_id: id }];"
+      },
+      "id": "fnRenderId",
+      "name": "Get Render ID",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        2460,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "interval": 10
+      },
+      "id": "wait1",
+      "name": "Wait 10s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        2660,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.shotstack.io/{{$env.SHOTSTACK_ENV === 'production' ? 'v1' : 'stage'}}/render/{{$json.render_id}}",
+        "options": {
+          "headers": {
+            "x-api-key": "={{$env.SHOTSTACK_API_KEY}}"
+          }
+        }
+      },
+      "id": "shotstackPoll1",
+      "name": "Shotstack Poll",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2860,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.response?.status || $json.status}}",
+              "operation": "notEqual",
+              "value2": "done"
+            }
+          ]
+        }
+      },
+      "id": "if1",
+      "name": "If Not Done",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3060,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "render_id",
+              "value": "={{$json.response?.id || $json.id || $json.render_id}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "setLoop",
+      "name": "Set Loop ID",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        3260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "binaryData": true,
+        "videoOperation": "upload",
+        "additionalFields": {
+          "title": "={{$json.title}}",
+          "description": "={{$json.description}}",
+          "privacyStatus": "={{$env.YOUTUBE_PRIVACY_STATUS || 'unlisted'}}",
+          "tags": "={{($json.keywords || []).join(',')}}"
+        },
+        "binaryProperty": "data"
+      },
+      "id": "youtubeUpload1",
+      "name": "YouTube Upload",
+      "type": "n8n-nodes-base.youtube",
+      "typeVersion": 2,
+      "position": [
+        3460,
+        140
+      ],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "youtube_oauth_placeholder",
+          "name": "YouTube OAuth (set in n8n)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Merge Triggers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Merge Triggers",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Triggers": {
+      "main": [
+        [
+          {
+            "node": "Switch source_type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch source_type": {
+      "main": [
+        [
+          {
+            "node": "Fetch URL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        []
+      ]
+    },
+    "Fetch URL": {
+      "main": [
+        [
+          {
+            "node": "Extract Main Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Main Text": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Draft": {
+      "main": [
+        [
+          {
+            "node": "ElevenLabs TTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ElevenLabs TTS": {
+      "main": [
+        [
+          {
+            "node": "S3 Upload (audio)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S3 Upload (audio)": {
+      "main": [
+        [
+          {
+            "node": "Build Audio URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Audio URL": {
+      "main": [
+        [
+          {
+            "node": "Build Shotstack JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Shotstack JSON": {
+      "main": [
+        [
+          {
+            "node": "Shotstack Render",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shotstack Render": {
+      "main": [
+        [
+          {
+            "node": "Get Render ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Render ID": {
+      "main": [
+        [
+          {
+            "node": "Wait 10s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 10s": {
+      "main": [
+        [
+          {
+            "node": "Shotstack Poll",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shotstack Poll": {
+      "main": [
+        [
+          {
+            "node": "If Not Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Not Done": {
+      "main": [
+        [
+          {
+            "node": "Set Loop ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "YouTube Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Loop ID": {
+      "main": [
+        [
+          {
+            "node": "Wait 10s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
+

@@ -1,0 +1,53 @@
+{
+  "avatars": [
+    {
+      "id": "avatar_1759458422",
+      "name": "Julie",
+      "type": "image",
+      "image_url": "http://localhost:5000/avatars/avatar_1759460837.png",
+      "video_url": "",
+      "position": "bottom-right",
+      "scale": 18,
+      "opacity": 100,
+      "voice": "en-US-News-K",
+      "active": false
+    },
+    {
+      "id": "avatar_1759547791",
+      "name": "Tim",
+      "type": "image",
+      "image_url": "http://localhost:5000/avatars/avatar_1759547756.png",
+      "video_url": "",
+      "position": "bottom-right",
+      "scale": 18,
+      "opacity": 100,
+      "voice": "en-US-News-L",
+      "gender": "male",
+      "active": false
+    },
+    {
+      "id": "avatar_1759589828",
+      "name": "Casual Mike",
+      "type": "image",
+      "image_url": "http://localhost:5000/avatars/casual_male_no_bg_1759589826.png",
+      "video_url": "",
+      "position": "bottom-right",
+      "scale": 18,
+      "opacity": 100,
+      "voice": "en-US-News-L",
+      "active": true
+    },
+    {
+      "id": "avatar_1759589855",
+      "name": "Casual Sarah",
+      "type": "image",
+      "image_url": "http://localhost:5000/avatars/casual_female_no_bg_1759589854.png",
+      "video_url": "",
+      "position": "bottom-right",
+      "scale": 18,
+      "opacity": 100,
+      "voice": "en-US-News-K",
+      "active": false
+    }
+  ]
+}
