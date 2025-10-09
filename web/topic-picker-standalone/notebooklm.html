@@ -14,11 +14,9 @@
     <div style="display:flex; gap:10px; flex-wrap:wrap; position:relative;">
       <button class="btn" onclick="window.location.href='index.html'">Topics</button>
       <button class="btn" onclick="window.location.href='avatar-manager.html'">Avatars</button>
+      <button class="btn" onclick="window.location.href='logo-manager.html'">Logos</button>
       <button class="btn" onclick="window.location.href='thumbnail-manager.html'">Thumbnails</button>
-      
       <button class="btn" onclick="window.location.href='intro-outro.html'">Intro/Outro</button>
-      
-      
       <button class="btn" onclick="window.location.href='viewer.html'">Viewer</button>
       <div class="dropdown" style="position:relative;">
         <button class="btn" id="oldMenusBtn">Old Menus</button>
@@ -32,31 +30,11 @@
   </div>
 
 <script>(function(){ const btn=document.getElementById("oldMenusBtn"); const menu=document.getElementById("oldMenus"); if(btn&&menu){ btn.addEventListener("click",(e)=>{ e.stopPropagation(); menu.style.display=(menu.style.display==="block"?"none":"block");}); document.addEventListener("click",()=>{ menu.style.display="none";}); menu.addEventListener("click",(e)=>e.stopPropagation()); }})();</script>
-  <div class="card" id="headerStatus" style="display:none; gap:12px; align-items:center; flex-wrap:wrap;">
-    <div>Active Logo: <span id="activeLogoName" style="color:#93c5fd; font-weight:600;">(loading)</span></div>
-    <label>Position
-      <select id="logoPos" style="padding:6px 10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;">
-        <option value="bottom-left">Bottom-Left</option>
-        <option value="bottom-right">Bottom-Right</option>
-        <option value="top-left">Top-Left</option>
-        <option value="top-right">Top-Right</option>
-        <option value="center">Center</option>
-      </select>
-    </label>
-    <button class="btn" id="refreshLogo">Refresh</button>
-    <div style="display:flex; align-items:center; gap:12px;">
-      <div style="display:flex; align-items:center; gap:8px;">
-        <span class="muted" style="font-size:12px;">Active Logo:</span>
-        <img id="activeLogoImg" alt="Active Logo" style="width:64px; height:64px; border-radius:8px; object-fit:contain; border:1px solid #334; background:#0B0F19; display:none;"/>
-      </div>
-    </div>
-  </div>
 
   <div class="card">
-    <h1>Topic Picker (Inline)</h1>
+    <h1>Topic Picker</h1>
     <div class="row" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
       <button class="btn" id="liteLoadLast">Load Last Topic</button>
-      <button class="btn" id="refillFromSelected">Refill Selected Topic</button>
       <a class="btn" href="index.html?return=notebooklm.html" id="openFullPicker">Open Full Topic Picker</a>
       <span id="liteStatus" class="status info" style="display:none;"></span>
     </div>
@@ -74,19 +52,6 @@
         <input id="liteKeywords" placeholder="ai, 2025, automation, future of work" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
       </div>
     </div>
-    <div class="controls">
-      <button class="btn" id="liteUseManual">Use This Topic</button>
-    </div>
-    <details class="row">
-      <summary style="cursor:pointer;">Fetch topics from n8n (optional)</summary>
-      <div class="row" style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-        <label>n8n Base <input id="liteBase" size="32" placeholder="http://localhost:5678" style="padding:8px 10px; border-radius:6px; border:1px solid #334; background:#121826; color:#E8EBFF;"/></label>
-        <label>Brand <input id="liteBrand" size="24" placeholder="Many Sources Say" style="padding:8px 10px; border-radius:6px; border:1px solid #334; background:#121826; color:#E8EBFF;"/></label>
-        <label>Seed <input id="liteSeed" size="20" placeholder="(optional)" style="padding:8px 10px; border-radius:6px; border:1px solid #334; background:#121826; color:#E8EBFF;"/></label>
-        <button class="btn" id="liteFetch">Fetch Topics</button>
-      </div>
-      <div id="liteTopicsGrid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px; margin-top:10px;"></div>
-    </details>
   </div>
   <script>
     (function(){
@@ -192,7 +157,7 @@
   </script>
 
   <div class="card">
-    <h1>NotebookLM video Loader</h1>
+    <h1>Video w/Audio Loader</h1>
     <div class="row">
       <label for="mainFile">NotebookLM video (required):</label>
       <input type="file" id="mainFile" accept="video/*">
@@ -217,8 +182,23 @@
       </label>
       <label style="display:flex; align-items:center; gap:8px;">
         <input type="checkbox" id="toggleLogo" checked>
-        Include logo (bottom-left)
+        Include logo
       </label>
+      <div id="logoSelectWrap" style="display:flex; align-items:center; gap:6px;">
+        <span style="font-size:13px; color:#94a3b8;">Logo:</span>
+        <select id="logoSelect" style="padding:6px 10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;"></select>
+        <img id="activeLogoImg" alt="Active Logo" style="width:48px; height:48px; border-radius:8px; object-fit:contain; border:1px solid #334; background:#0B0F19; display:none; vertical-align:middle;"/>
+      </div>
+      <div id="logoPositionWrap" style="display:flex; align-items:center; gap:6px;">
+        <span style="font-size:13px; color:#94a3b8;">Position:</span>
+        <select id="logoPos" style="padding:6px 10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;">
+          <option value="bottom-left">Bottom-Left</option>
+          <option value="bottom-right">Bottom-Right</option>
+          <option value="top-left">Top-Left</option>
+          <option value="top-right">Top-Right</option>
+          <option value="center">Center</option>
+        </select>
+      </div>
       <label style="display:flex; align-items:center; gap:8px;">
         <input type="checkbox" id="toggleIntroOutro">
         Include intro/outro
@@ -231,30 +211,6 @@
     <div class="row">
       <video id="preview" controls style="display:none;"></video>
     </div>
-  </div>
-
-    <div class="card" style="margin-top:16px;">
-      <h1>Logo Picker</h1>
-      <div class="row" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-        <div>Active Logo: <span id="activeLogoName" style="color:#93c5fd; font-weight:600;">(loading)</span></div>
-        <label>Position
-          <select id="logoPos" style="padding:6px 10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;">
-            <option value="bottom-left">Bottom-Left</option>
-            <option value="bottom-right">Bottom-Right</option>
-            <option value="top-left">Top-Left</option>
-            <option value="top-right">Top-Right</option>
-            <option value="center">Center</option>
-          </select>
-        </label>
-        <button class="btn" id="refreshLogo">Refresh</button>
-      </div>
-    <div class="controls">
-      <label>Upload Logo: <input type="file" id="logoUpload" accept="image/png,image/jpeg,image/svg+xml"></label>
-      <button class="btn" id="logoUploadBtn">Upload</button>
-      <button class="btn" id="logoRefreshBtn">Refresh</button>
-    </div>
-    <div class="row" id="logoStatus" class="status" style="display:none;"></div>
-    <div id="logoGrid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap:12px; margin-top:12px;"></div>
   </div>
 
   <div class="card" style="margin-top:16px;">
@@ -421,37 +377,13 @@ Make it stand out in search results and suggested videos.`;
       });
     })();
 
-    // Active logo banner + persistence of logo position and toggles
-    (async function initHeader(){
-      const nameEl = document.getElementById('activeLogoName');
-      const imgEl = document.getElementById('activeLogoImg');
+    // Persistence of logo position and toggles
+    (function initHeader(){
       const posEl = document.getElementById('logoPos');
       // restore saved position
       const savedPos = localStorage.getItem('logo_position');
       if (savedPos) posEl.value = savedPos;
       posEl.addEventListener('change', ()=> localStorage.setItem('logo_position', posEl.value));
-      async function loadActive(){
-        try{
-          const lib = await fetch(`${API_BASE}/get-logo-library`).then(r=>r.json());
-          const active = (lib && Array.isArray(lib.logos)) ? lib.logos.find(l=>l.active) : null;
-          if (active) {
-            nameEl.textContent = active.name || active.filename || '(unnamed)';
-            if (imgEl) {
-              imgEl.src = active.url;
-              imgEl.style.display = 'block';
-            }
-          } else {
-            nameEl.textContent = '(none)';
-            if (imgEl) imgEl.style.display = 'none';
-          }
-        }catch(e){
-          console.error('Error loading active logo:', e);
-          nameEl.textContent = '(error)';
-          if (imgEl) imgEl.style.display = 'none';
-        }
-      }
-      document.getElementById('refreshLogo').addEventListener('click', loadActive);
-      loadActive();
       // Persist toggles
       const persist = (id)=>{ const el = document.getElementById(id); const k = 'persist_'+id; const sv = localStorage.getItem(k); if(sv!==null) el.checked = (sv==='true'); el.addEventListener('change', ()=> localStorage.setItem(k, el.checked)); };
       persist('toggleAvatar');
@@ -597,52 +529,6 @@ Make it stand out in search results and suggested videos.`;
       const link = document.getElementById('memeDownload');
       try { link.href = canvas.toDataURL('image/png'); link.style.display = 'inline-block'; } catch {}
       setStatus('Meme rendered.', 'ok');
-    });
-    document.getElementById('liteUseManual').addEventListener('click', () => {
-      const title = document.getElementById('liteTitle').value.trim();
-      const hook = document.getElementById('liteHook').value.trim();
-      const kws = parseKeywords(document.getElementById('liteKeywords').value);
-      if (!title) { liteStatus('Enter a title', 'err'); return; }
-      const topic = { title, angle: hook, keywords: kws, yt_title: title, yt_description: '', yt_tags: kws };
-      applyTopicToUI(topic);
-    });
-
-    document.getElementById('liteFetch').addEventListener('click', async () => {
-      const grid = document.getElementById('liteTopicsGrid');
-      grid.innerHTML = '';
-      const base = document.getElementById('liteBase').value.trim().replace(/\/$/, '');
-      const brand = document.getElementById('liteBrand').value.trim() || 'Many Sources Say';
-      const seed = document.getElementById('liteSeed').value.trim();
-      if (!base) { liteStatus('Enter n8n base URL', 'err'); return; }
-      liteStatus('Fetching topics from n8n...', 'info');
-      try {
-        const payload = { brand, seed, limit: 5 };
-        const r = await fetch(`${base}/webhook-test/topics-ideation`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-        });
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        const j = await r.json();
-        const topics = (j.topics || []).slice(0, 5);
-        if (!topics.length) { liteStatus('No topics returned.', 'err'); return; }
-        topics.forEach((t, idx) => {
-          const card = document.createElement('div-');
-          card.style.cssText = 'background: rgba(255,255,255,0.05); border:1px solid #334; border-radius:8px; padding:10px;';
-          const title = document.createElement('div-');
-          title.style.cssText = 'font-weight:700; margin-bottom:6px;';
-          title.textContent = `${idx+1}. ${t.yt_title || t.title || 'Untitled'}`;
-          const angle = document.createElement('div-');
-          angle.style.cssText = 'color:#A8B3CF; font-size:13px; margin-bottom:8px;';
-          angle.textContent = t.angle || '';
-          const btn = document.createElement('button');
-          btn.className = 'btn'; btn.textContent = 'Use';
-          btn.onclick = () => applyTopicToUI(t);
-          card.appendChild(title); card.appendChild(angle); card.appendChild(btn);
-          grid.appendChild(card);
-        });
-        liteStatus('Pick a topic abov-e.', 'ok');
-      } catch (e) {
-        liteStatus('Error: ' + e.message, 'err');
-      }
     });
 
     const mainInput = document.getElementById('mainFile');
@@ -905,63 +791,80 @@ Make it stand out in search results and suggested videos.`;
       }
     });
 
-    // Load logos
+    // Load logos dropdown
+    const logoSelect = document.getElementById('logoSelect');
     async function loadLogos() {
-      const grid = document.getElementById('logoGrid');
-      const s = document.getElementById('logoStatus');
       try {
         const res = await fetch(`${API_BASE}/get-logo-library`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        const logos = (data && data.logos) ? data.logos : [];
-        if (logos.length === 0) {
-          grid.innerHTML = '<div style="color:#94a3b8;">No logos found. Use Thumbnail Manager to upload one.</div>';
+        logoSelect.innerHTML = '';
+        const list = (data && data.logos) ? data.logos : [];
+        if (list.length === 0) {
+          logoSelect.innerHTML = '<option value="">No logos found</option>';
           return;
         }
-        grid.innerHTML = '';
-        logos.forEach(logo => {
-          const card = document.createElement('div-');
-          card.style.cssText = 'background: rgba(255,255,255,0.05); border:1px solid #334; border-radius:8px; padding:10px; text-align:center;';
-          const img = document.createElement('img');
-          img.src = logo.url; img.style.maxWidth = '120px'; img.style.maxHeight = '80px'; img.style.objectFit = 'contain'; img.alt = logo.name || 'logo';
-          const name = document.createElement('div-');
-          name.textContent = logo.name || logo.filename || 'Logo';
-          name.style.cssText = 'margin-top:6px; color:#E8EBFF; font-size:13px;';
-          const btn = document.createElement('button');
-          btn.className = 'btn'; btn.textContent = logo.active ? 'Active' : 'Use';
-          btn.disabled = !!logo.active;
-          btn.style.marginTop = '8px';
-          btn.onclick = async () => {
-            try {
-              const r = await fetch(`${API_BASE}/set-active-logo`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: logo.id }) });
-              const j = await r.json();
-              if (j.success) { s.style.display = 'block'; s.className = 'status ok'; s.textContent = 'Logo set Active.'; loadLogos(); }
-              else { s.style.display = 'block'; s.className = 'status err'; s.textContent = j.error || 'Failed to set logo.'; }
-            } catch (e) { s.style.display = 'block'; s.className = 'status err'; s.textContent = 'Error: ' + e.message; }
-          };
-          card.appendChild(img); card.appendChild(name); card.appendChild(btn);
-          grid.appendChild(card);
+
+        const activeLogoImg = document.getElementById('activeLogoImg');
+        let activeLogo = null;
+
+        list.forEach(logo => {
+          const opt = document.createElement('option');
+          opt.value = logo.id;
+          opt.textContent = logo.name || logo.filename || logo.id;
+          if (logo.active) {
+            opt.selected = true;
+            activeLogo = logo;
+          }
+          logoSelect.appendChild(opt);
         });
+
+        // Display active logo image
+        if (activeLogo && activeLogoImg) {
+          activeLogoImg.src = activeLogo.url;
+          activeLogoImg.style.display = 'inline-block';
+          console.log('Active logo loaded:', activeLogo.name, activeLogo.url);
+        } else if (activeLogoImg) {
+          activeLogoImg.style.display = 'none';
+        }
       } catch (e) {
-        grid.innerHTML = '<div style="color:#ef4444;">Failed to load logo library.</div>';
+        console.error('Error loading logos:', e);
+        logoSelect.innerHTML = '<option value="">Error loading logos</option>';
+        const activeLogoImg = document.getElementById('activeLogoImg');
+        if (activeLogoImg) activeLogoImg.style.display = 'none';
       }
     }
     loadLogos();
-    document.getElementById('logoRefreshBtn').addEventListener('click', loadLogos);
-    document.getElementById('logoUploadBtn').addEventListener('click', async () => {
-      const s = document.getElementById('logoStatus');
-      const inp = document.getElementById('logoUpload');
-      const f = inp.files && inp.files[0];
-      if (!f) { s.style.display='block'; s.className='status err'; s.textContent='Please choose a file'; return; }
-      s.style.display='block'; s.className='status info'; s.textContent='Uploading logo...';
+
+    // Update logo image when selection changes
+    logoSelect.addEventListener('change', async () => {
+      const activeLogoImg = document.getElementById('activeLogoImg');
+      if (!activeLogoImg) return;
+
+      const selectedId = logoSelect.value;
+      if (!selectedId) {
+        activeLogoImg.style.display = 'none';
+        return;
+      }
+
       try {
-        const fd = new FormData();
-        fd.append('file', f);
-        fd.append('name', f.name);
-        const r = await fetch(`${API_BASE}/upload-logo-to-library`, { method:'POST', body: fd });
-        const j = await r.json();
-        if (j.success) { s.className='status ok'; s.textContent='Logo uploaded.'; inp.value=''; loadLogos(); }
-        else { s.className='status err'; s.textContent = j.error || 'Upload failed'; }
-      } catch(e){ s.className='status err'; s.textContent = 'Error: '+e.message; }
+        const res = await fetch(`${API_BASE}/get-logo-library`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const list = (data && data.logos) ? data.logos : [];
+        const selectedLogo = list.find(logo => logo.id === selectedId);
+
+        if (selectedLogo && selectedLogo.url) {
+          activeLogoImg.src = selectedLogo.url;
+          activeLogoImg.style.display = 'inline-block';
+          console.log('Logo changed to:', selectedLogo.name, selectedLogo.url);
+        } else {
+          activeLogoImg.style.display = 'none';
+        }
+      } catch (e) {
+        console.error('Error loading logo image:', e);
+        activeLogoImg.style.display = 'none';
+      }
     });
 
     // Load topic keywords/tags from localStorage or API fallback
