@@ -284,7 +284,7 @@
         studio.setAttribute('data-nav-studio','1');
         studio.textContent = 'Studio';
         studio.style.padding = '8px 16px'; studio.style.margin = '0';
-        studio.onclick = () => { window.location.href = 'notebooklm.html'; };
+        studio.onclick = () => { window.location.href = 'studio.html'; };
         group.prepend(studio);
         const viewer = document.createElement('button');
         viewer.textContent = 'Viewer';
@@ -299,7 +299,7 @@
         <div class="header">
             <h1> Video Composer <span class="version">v3.0.0</span></h1>
             <div class="nav-buttons">
-                <button onclick="window.location.href='notebooklm.html'" class="nav-btn" data-nav-studio="1">Studio</button>
+                <button onclick="window.location.href='studio.html'" class="nav-btn" data-nav-studio="1">Studio</button>
                 <button onclick="window.location.href='index.html'" class="nav-btn"> Topic Picker</button>
                 <button onclick="window.location.href='avatar-manager.html'" class="nav-btn"> Avatars</button>
                 <button onclick="window.location.href='intro-outro.html'" class="nav-btn"> Intro/Outro</button>

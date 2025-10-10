@@ -54,7 +54,7 @@ Return JSON only: [{ title, angle, keywords[] }].`;
               try {
                 try { localStorage.setItem('editingTopic', JSON.stringify(t)); } catch {}
                 try { await fetch(`${API_BASE}/set-selected-topic`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(t) }); } catch {}
-                window.location.href = '../topic-picker-standalone/notebooklm.html';
+                window.location.href = '../topic-picker-standalone/studio.html';
               } catch (e) { $status.textContent = `Error: ${e.message}`; }
             }
           })

@@ -44,7 +44,7 @@
   <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
     <h1>MSS Topic Picker - Standalone <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
     <div style="display:flex; gap:10px; flex-wrap:wrap;">
-      <button class="button-secondary" onclick="location.href='notebooklm.html'">Studio</button>
+      <button class="button-secondary" onclick="location.href='studio.html'">Studio</button>
       <button class="button-secondary" onclick="testAPI()">Test API</button>
     </div>
   </div>
@@ -107,7 +107,7 @@
           btnUse.onclick = async () => {
             try { try { localStorage.setItem('editingTopic', JSON.stringify(t)); } catch {}
               try { await fetch(API + '/set-selected-topic', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(t) }); } catch {}
-              location.href = 'notebooklm.html';
+              location.href = 'studio.html';
             } catch(e){ setStatus('Failed to handoff: ' + e.message); }
           };
           // Create Video
