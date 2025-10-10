@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meme Library - MSS Studio</title>
+  <link rel="stylesheet" href="studio.css">
+  <script src="version.js" defer></script>
+</head>
+<body>
+  <div id="loadingBar" class="loading-bar"></div>
+  <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+    <h1 style="margin:0;">Meme Library <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; position:relative;">
+      <button class="btn" onclick="window.location.href='index.html'">Topics</button>
+      <button class="btn" onclick="window.location.href='avatar-manager.html'">Avatars</button>
+      <button class="btn" onclick="window.location.href='logo-manager.html'">Logos</button>
+      <button class="btn" onclick="window.location.href='meme-library.html'">Memes</button>
+      <button class="btn" onclick="window.location.href='intro-outro.html'">Intro/Outro</button>
+      <button class="btn" onclick="window.location.href='viewer.html'">Viewer</button>
+      <button class="btn" onclick="window.location.href='notebooklm.html'">Studio</button>
+      <div class="dropdown" style="position:relative;">
+        <button class="btn" id="oldMenusBtn">Old Menus</button>
+        <div class="dropdown-content" id="oldMenus" style="display:none; position:absolute; top:110%; left:0; background:#0B0F19; border:1px solid #334; border-radius:8px; min-width:180px; z-index:20; box-shadow:0 6px 18px rgba(0,0,0,0.4);">
+          <a href="thumbnail-manager.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Thumbnails</a>
+          <a href="video-composer.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Composer</a>
+          <a href="post-process.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Post-Process</a>
+          <a href="preview.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Preview</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>(function(){ const btn=document.getElementById("oldMenusBtn"); const menu=document.getElementById("oldMenus"); if(btn&&menu){ btn.addEventListener("click",(e)=>{ e.stopPropagation(); menu.style.display=(menu.style.display==="block"?"none":"block");}); document.addEventListener("click",()=>{ menu.style.display="none";}); menu.addEventListener("click",(e)=>e.stopPropagation()); }})();</script>
+
+  <div class="card">
+    <h1>Topic Picker</h1>
+    <div class="row" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+      <button class="btn" id="liteLoadLast">Load Last Topic</button>
+      <a class="btn" href="index.html?return=meme-library.html" id="openFullPicker">Open Full Topic Picker</a>
+      <span id="liteStatus" class="status info" style="display:none;"></span>
+    </div>
+    <div class="row" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+      <div>
+        <label>Title</label>
+        <input id="liteTitle" placeholder="video Title" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
+      </div>
+      <div>
+        <label>Angle / Hook</label>
+        <input id="liteHook" placeholder="Hook / Angle" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
+      </div>
+      <div style="grid-column: 1 / span 2;">
+        <label>Keywords (comma or space separated)</label>
+        <input id="liteKeywords" placeholder="ai, 2025, automation, future of work" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h1>AI Meme Prompt</h1>
+    <div class="row">
+      <label>Prompt (persists locally; only changes if you edit it)</label>
+      <textarea id="memePrompt" class="large" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF; height:140px;"></textarea>
+    </div>
+    <div class="row" style="color:#94a3b8; font-size:12px;">Tip: {{title}} will be replaced with the Title above.</div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+      <h1 style="margin:0;">Meme Creator (Quick)</h1>
+      <div style="display:flex; gap:8px;">
+        <button class="btn" id="saveTemplateBtn" style="font-size:12px; padding:6px 12px; background:#7c3aed; border-color:#7c3aed;">💾 Save Template</button>
+        <button class="btn" id="loadTemplateBtn" style="font-size:12px; padding:6px 12px; background:#7c3aed; border-color:#7c3aed;">📁 Templates</button>
+        <button class="btn" id="showRecentBtn" style="font-size:12px; padding:6px 12px;">Recent ▾</button>
+        <button class="btn" id="exportBtn" style="font-size:12px; padding:6px 12px; background:#0891b2; border-color:#0891b2;">⬇ Export</button>
+        <button class="btn" id="importBtn" style="font-size:12px; padding:6px 12px; background:#0891b2; border-color:#0891b2;">⬆ Import</button>
+      </div>
+    </div>
+    <input type="file" id="importFileInput" accept=".json" style="display:none;">
+    <div id="templatePanel" style="display:none; background:rgba(124,58,237,0.1); border:1px solid #7c3aed; border-radius:6px; padding:12px; margin-bottom:12px; max-height:250px; overflow-y:auto;">
+      <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">Saved Templates (click to load):</div>
+      <div id="templateList"></div>
+    </div>
+    <div id="recentTopics" style="display:none; background:rgba(59,130,246,0.1); border:1px solid var(--accent-blue); border-radius:6px; padding:12px; margin-bottom:12px; max-height:200px; overflow-y:auto;">
+      <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">Recent topics (click to load):</div>
+      <div id="recentList"></div>
+    </div>
+    <div class="row">
+      <label>Title</label>
+      <input id="topicTitle" placeholder="video Title" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
+    </div>
+    <div class="row">
+      <label>Angle / Hook</label>
+      <input id="topicHook" placeholder="Hook / Angle" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
+    </div>
+    <div class="row">
+      <label>YouTube Description</label>
+      <textarea id="topicDesc" class="large" placeholder="YouTube description" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;"></textarea>
+    </div>
+    <div class="row">
+      <label>Top Text</label>
+      <input id="memeTop" placeholder="MANY SOURCES SAY" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
+    </div>
+    <div class="row">
+      <label>Bottom Text</label>
+      <input id="memeBottom" placeholder="Because one source is never enough" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
+    </div>
+    <div class="row">
+      <label>Font Style</label>
+      <select id="memeFont" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;">
+        <option value="Impact">Impact (Classic Meme)</option>
+        <option value="Arial Black">Arial Black (Bold)</option>
+        <option value="Bebas Neue">Bebas Neue (Modern)</option>
+        <option value="Anton">Anton (Heavy)</option>
+        <option value="Oswald">Oswald (Clean)</option>
+        <option value="Archivo Black">Archivo Black (Strong)</option>
+      </select>
+    </div>
+    <div class="controls">
+      <label>Background Image: <input type="file" id="memeBg" accept="image/*"></label>
+      <div style="color:var(--text-muted); font-size:12px;">Or drag & drop image onto canvas</div>
+      <button class="btn" id="memeGenBg">Generate Background (AI)</button>
+      <button class="btn" id="batchGenBg" style="background:#059669; border-color:#059669;">Generate 5 Variants</button>
+      <label style="display:flex; align-items:center; gap:6px;">
+        <input type="checkbox" id="forceCleanBg" checked> Force clean (no text)
+      </label>
+      <button class="btn" id="memeGenerate">Render Meme</button>
+      <a class="btn" id="memeDownload" download="meme.png" style="display:none;">Download</a>
+    </div>
+    <div class="row" id="topicTokensRow" style="display:none;">
+      <label>Topic Keywords (click to insert):</label>
+      <div id="topicTokens" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+    </div>
+    <div class="row">
+      <canvas id="memecanvas" width="1280" height="720" style="width:100%; max-width:720px; border-radius:8px; background:#000;"></canvas>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://127.0.0.1:5000';
+    const DEFAULT_PROMPT = `Create a vibrant, eye-catching YouTube thumbnail for a video titled: {{title}}
+
+Style: Bold, high-contrast, professional
+Elements: Large readable text, dramatic visuals, bright colors
+Emotion: Exciting, curiosity-inducing, click-worthy
+Format: 1280x720 pixels, 16:9 aspect ratio
+
+Make it stand out in search results and suggested videos.`;
+
+    function liteStatus(msg, kind='info') {
+      const el = document.getElementById('liteStatus');
+      el.style.display = 'inline-block';
+      el.className = 'status ' + (kind || 'info');
+      el.textContent = msg;
+    }
+
+    function parseKeywords(str) {
+      if (!str) return [];
+      const raw = str.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+      // de-dup while preserving order
+      const seen = new Set(); const out = [];
+      for (const w of raw) { if (!seen.has(w.toLowerCase())) { seen.add(w.toLowerCase()); out.push(w); } }
+      return out.slice(0, 50);
+    }
+
+    // Load & persist prompt
+    (function initMemePrompt(){
+      const ta = document.getElementById('memePrompt');
+      const saved = localStorage.getItem('memePrompt');
+      ta.value = saved && saved.trim() ? saved : DEFAULT_PROMPT;
+      ta.addEventListener('input', () => {
+        localStorage.setItem('memePrompt', ta.value);
+      });
+    })();
+
+    // Fetch and display Version from API
+    (function loadVersion(){
+      fetch(`${API_BASE}/health`).then(r => r.json()).then(j => {
+        const el = document.getElementById('appVersion');
+        if (el && j && j.Version) el.textContent = 'v-' + j.Version;
+      }).catch(()=>{
+        const el = document.getElementById('appVersion');
+        if (el) el.textContent = 'v-2.3.1';
+      });
+    })();
+
+    // Persist Force Clean preference (default true)
+    (function initForceClean(){
+      const cb = document.getElementById('forceCleanBg');
+      const saved = localStorage.getItem('forceCleanBg');
+      if (saved !== null) cb.checked = (saved === 'true');
+      cb.addEventListener('change', () => localStorage.setItem('forceCleanBg', cb.checked));
+    })();
+
+    function applyTopicToUI(topic) {
+      try {
+        localStorage.setItem('editingTopic', JSON.stringify(topic));
+      } catch {}
+      // Populate Meme Creator fields
+      const title = topic.title || topic.yt_title || '';
+      const hook = topic.angle || topic.hook || '';
+      const desc = topic.yt_description || topic.description || '';
+      const kw = topic.keywords || topic.yt_tags || [];
+      const uniq = Array.from(new Set([...(kw||[])]));
+        const tTitle = document.getElementById('topicTitle'); if (tTitle) tTitle.value = title;
+        const tHook = document.getElementById('topicHook'); if (tHook) tHook.value = hook;
+        const tDesc = document.getElementById('topicDesc'); if (tDesc) tDesc.value = desc;
+        // Populate Inline Picker fields
+        const lTitle = document.getElementById('liteTitle'); if (lTitle) lTitle.value = title;
+        const lHook = document.getElementById('liteHook'); if (lHook) lHook.value = hook;
+        const lKw = document.getElementById('liteKeywords'); if (lKw) lKw.value = uniq.join(', ');
+        // Populate Meme Creator text fields
+        const mTop = document.getElementById('memeTop'); if (mTop && title) mTop.value = title.toUpperCase();
+        const mBottom = document.getElementById('memeBottom'); if (mBottom && hook) mBottom.value = hook;
+      // Render keyword chips
+      const tokensEl = document.getElementById('topicTokens');
+      const tokensRow = document.getElementById('topicTokensRow');
+      if (tokensEl) {
+        tokensEl.innerHTML = '';
+          const target = () => (document.querySelector('input[name="memeTarget"]:checked')?.value || 'bottom');
+        uniq.slice(0, 50).forEach(t => {
+          const chip = document.createElement('span');
+          chip.textContent = t;
+          chip.style.cssText = 'background:#1e3a8a; border-radius:14px; padding:6px 10px; font-size:12px; cursor:pointer;';
+          chip.onclick = () => {
+            const which = target();
+            const input = which === 'top' ? document.getElementById('memeTop') : document.getElementById('memeBottom');
+            const sep = input.value && !input.value.endsWith(' ') ? ' ' : '';
+            input.value = input.value + sep + t;
+            updateLivePreview();
+          };
+          tokensEl.appendChild(chip);
+        });
+        if (uniq.length > 0 && tokensRow) {
+          tokensRow.style.display = 'block';
+        }
+      }
+      // Persist to backend (best-effort)
+      fetch(`${API_BASE}/set-selected-topic`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(topic)
+      }).catch(()=>{});
+      liteStatus('Topic applied.', 'ok');
+      updateLivePreview();
+    }
+
+    // Wire Inline Picker controls
+    document.getElementById('liteLoadLast').addEventListener('click', async () => {
+      liteStatus('Loading last topic...', 'info');
+      try {
+        const r = await fetch(`${API_BASE}/get-selected-topic`);
+        const j = await r.json();
+        if (!j.success) throw new Error(j.error || 'Not found');
+        applyTopicToUI(j.topic || {});
+      } catch (e) {
+        liteStatus('Error: ' + e.message, 'err');
+      }
+    });
+
+    // Render meme text overlay (Top/Bottom) on the current canvas and enable download
+    function drawGradientBG(ctx, w, h) {
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, '#101827');
+      g.addColorStop(1, '#0b0f19');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+      ctx.globalAlpha = 0.08; ctx.strokeStyle = '#ffffff';
+      for (let x = 0; x < w; x += 10) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x - 220, h); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+    }
+
+    function drawWrapped(ctx, text, opts) {
+      const { x, y, maxWidth, align = 'center', base = 'top', maxLines = 3, fontSize = 96, color = '#fff', stroke = '#000', strokeW = 6, lineGap = 0.9, fontFamily } = opts || {};
+      let size = fontSize;
+      const selectedFont = fontFamily || document.getElementById('memeFont')?.value || 'Impact';
+      ctx.textAlign = align; ctx.textBaseline = base; ctx.fillStyle = color; ctx.strokeStyle = stroke; ctx.lineJoin = 'round';
+
+      function measureLines(sz) {
+        ctx.font = `900 ${sz}px ${selectedFont}, sans-serif`;
+        const words = (text || '').split(/\s+/).filter(Boolean);
+        const lines = []; let cur = '';
+        for (const w of words) {
+          const test = cur ? cur + ' ' + w : w;
+          if (ctx.measureText(test).width <= maxWidth || !cur) cur = test; else { lines.push(cur); cur = w; }
+        }
+        if (cur) lines.push(cur);
+        return lines.slice(0, maxLines);
+      }
+
+      let lines = measureLines(size);
+      while (lines.length > 0 && lines.some(l => ctx.measureText(l).width > maxWidth) && size > 28) {
+        size -= 4; lines = measureLines(size);
+      }
+      ctx.font = `900 ${size}px ${selectedFont}, sans-serif`;
+      const lh = size * lineGap;
+      lines.forEach((line, i) => {
+        const yy = y + i * lh;
+        if (strokeW) { ctx.lineWidth = strokeW; ctx.strokeText(line, x, yy); }
+        ctx.fillText(line, x, yy);
+      });
+    }
+
+    function setStatus(text, kind) {
+      showToast(text, kind, 3000);
+    }
+
+    document.getElementById('memeGenerate').addEventListener('click', () => {
+      const canvas = document.getElementById('memecanvas');
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+
+      // If canvas is blank, lay down a gradient first
+      try {
+        const p = ctx.getImageData(0, 0, 1, 1).data; // if all zeros, assume blank
+        if ((p[0]|p[1]|p[2]|p[3]) === 0) drawGradientBG(ctx, w, h);
+      } catch { drawGradientBG(ctx, w, h); }
+
+      const topInput = document.getElementById('memeTop');
+      const bottomInput = document.getElementById('memeBottom');
+      const top = (topInput.value || topInput.getAttribute('placeholder') || 'MANY SOURCES SAY').trim();
+      const bottom = (bottomInput.value || bottomInput.getAttribute('placeholder') || 'Because one source is never enough').trim();
+
+      // Safe zones and max widths
+      const padX = Math.round(w * 0.06);
+      const topY = Math.round(h * 0.10);
+      const botY = Math.round(h * 0.78);
+      const maxW = w - padX * 2;
+
+      if (top) drawWrapped(ctx, top.toUpperCase(), { x: w/2, y: topY, maxWidth: maxW, align: 'center', base: 'top', fontSize: 96, strokeW: 12, color: '#FFD700' });
+      if (bottom) drawWrapped(ctx, bottom, { x: w/2, y: botY, maxWidth: maxW, align: 'center', base: 'top', fontSize: 80, strokeW: 10 });
+
+      const link = document.getElementById('memeDownload');
+      try { link.href = canvas.toDataURL('image/png'); link.style.display = 'inline-block'; } catch {}
+      setStatus('Meme rendered.', 'ok');
+      trackEvent('thumbnail_generated', {
+        hasBackground: !!document.getElementById('memeBg').files?.length
+      });
+    });
+
+    // Toast Notification System
+    function showToast(message, type = 'info', duration = 4000) {
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `
+        <span>${message}</span>
+        <span class="toast-close">✕</span>
+      `;
+
+      document.body.appendChild(toast);
+
+      const close = () => {
+        toast.style.animation = 'slideIn 0.3s ease reverse';
+        setTimeout(() => toast.remove(), 300);
+      };
+
+      toast.querySelector('.toast-close').addEventListener('click', close);
+
+      if (duration > 0) {
+        setTimeout(close, duration);
+      }
+
+      return toast;
+    }
+
+    // Enhanced error handling with retry
+    async function fetchWithRetry(url, options = {}, retries = 2) {
+      for (let i = 0; i <= retries; i++) {
+        try {
+          const res = await fetch(url, options);
+          if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            throw new Error(`HTTP ${res.status}: ${text.slice(0, 100) || res.statusText}`);
+          }
+          return res;
+        } catch (e) {
+          if (i === retries) throw e;
+          await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+          showToast(`Retrying... (${i + 1}/${retries})`, 'info', 2000);
+        }
+      }
+    }
+
+    // Undo/Redo System
+    const undoStack = [];
+    const redoStack = [];
+    let currentState = null;
+
+    function captureState() {
+      return {
+        title: document.getElementById('topicTitle')?.value || '',
+        hook: document.getElementById('topicHook')?.value || '',
+        desc: document.getElementById('topicDesc')?.value || '',
+        memeTop: document.getElementById('memeTop')?.value || '',
+        memeBottom: document.getElementById('memeBottom')?.value || ''
+      };
+    }
+
+    function saveStateToUndo() {
+      const newState = captureState();
+      if (JSON.stringify(newState) === JSON.stringify(currentState)) return;
+
+      if (currentState) undoStack.push(currentState);
+      currentState = newState;
+      redoStack.length = 0; // Clear redo stack on new change
+
+      if (undoStack.length > 50) undoStack.shift(); // Limit history
+    }
+
+    function undo() {
+      if (undoStack.length === 0) {
+        showToast('Nothing to undo', 'info', 2000);
+        return;
+      }
+
+      redoStack.push(currentState);
+      currentState = undoStack.pop();
+
+      document.getElementById('topicTitle').value = currentState.title;
+      document.getElementById('topicHook').value = currentState.hook;
+      document.getElementById('topicDesc').value = currentState.desc;
+      document.getElementById('memeTop').value = currentState.memeTop;
+      document.getElementById('memeBottom').value = currentState.memeBottom;
+
+      showToast('↶ Undo', 'info', 1500);
+      updateLivePreview();
+    }
+
+    function redo() {
+      if (redoStack.length === 0) {
+        showToast('Nothing to redo', 'info', 2000);
+        return;
+      }
+
+      undoStack.push(currentState);
+      currentState = redoStack.pop();
+
+      document.getElementById('topicTitle').value = currentState.title;
+      document.getElementById('topicHook').value = currentState.hook;
+      document.getElementById('topicDesc').value = currentState.desc;
+      document.getElementById('memeTop').value = currentState.memeTop;
+      document.getElementById('memeBottom').value = currentState.memeBottom;
+
+      showToast('↷ Redo', 'info', 1500);
+      updateLivePreview();
+    }
+
+    // Save state on input with debounce
+    let undoTimer = null;
+    ['topicTitle', 'topicHook', 'topicDesc', 'memeTop', 'memeBottom'].forEach(id => {
+      document.getElementById(id)?.addEventListener('input', () => {
+        clearTimeout(undoTimer);
+        undoTimer = setTimeout(saveStateToUndo, 1000);
+      });
+    });
+
+    // Initialize current state
+    currentState = captureState();
+
+    // Keyboard Shortcuts
+    document.addEventListener('keydown', (e) => {
+      // Ctrl+Z for Undo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+
+      // Ctrl+Shift+Z or Ctrl+Y for Redo
+      if (((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') ||
+          ((e.ctrlKey || e.metaKey) && e.key === 'y')) {
+        e.preventDefault();
+        redo();
+      }
+
+      // Ctrl+G to generate background
+      if ((e.ctrlKey || e.metaKey) && e.key === 'g') {
+        e.preventDefault();
+        const genBgBtn = document.getElementById('memeGenBg');
+        if (genBgBtn) {
+          genBgBtn.click();
+        }
+      }
+
+      // Ctrl+R to render meme
+      if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+        e.preventDefault();
+        const renderBtn = document.getElementById('memeGenerate');
+        if (renderBtn) {
+          renderBtn.click();
+        }
+      }
+
+      // Escape to cancel/hide loading bar
+      if (e.key === 'Escape') {
+        const loadingBar = document.getElementById('loadingBar');
+        if (loadingBar && loadingBar.style.display === 'block') {
+          loadingBar.style.display = 'none';
+          showToast('Operation cancelled', 'info', 2000);
+        }
+      }
+    });
+
+    // Load topic keywords/tags from localStorage or API fallback
+    (function loadTopicMeta() {
+      const tokensEl = document.getElementById('topicTokens');
+      const tokensRow = document.getElementById('topicTokensRow');
+      function renderTokens(arr){
+        tokensEl.innerHTML = '';
+        const target = () => (document.querySelector('input[name="memeTarget"]:checked')?.value || 'bottom');
+        arr.slice(0, 50).forEach(t => {
+          const chip = document.createElement('span');
+          chip.textContent = t;
+          chip.style.cssText = 'background:#1e3a8a; border-radius:14px; padding:6px 10px; font-size:12px; cursor:pointer;';
+          chip.onclick = () => {
+            const which = target();
+            const input = which === 'top' ? document.getElementById('memeTop') : document.getElementById('memeBottom');
+            const sep = input.value && !input.value.endsWith(' ') ? ' ' : '';
+            input.value = input.value + sep + t;
+            updateLivePreview();
+          };
+          tokensEl.appendChild(chip);
+        });
+        if (arr.length > 0 && tokensRow) {
+          tokensRow.style.display = 'block';
+        }
+      }
+
+      try {
+        let arr = [];
+        const saved = localStorage.getItem('editingTopic');
+        if (saved) {
+          const topic = JSON.parse(saved);
+          applyTopicToUI(topic);
+          const kw = topic.keywords || [];
+          const yt = topic.yt_tags || [];
+          arr = [...new Set([...(kw||[]), ...(yt||[])])];
+        }
+        if (arr.length > 0) { renderTokens(arr); return; }
+      } catch {}
+      // Fallback: ask API for last selected topic
+      fetch(`${API_BASE}/get-selected-topic`).then(r => r.json()).then(d => {
+        if (d && d.success && d.topic) {
+          const t = d.topic;
+          applyTopicToUI(t);
+          const kw = t.keywords || [];
+          const yt = t.yt_tags || [];
+          const arr = [...new Set([...(kw||[]), ...(yt||[])])];
+          if (arr.length) renderTokens(arr);
+        }
+      }).catch(()=>{});
+    })();
+
+    // Generate AI background
+    document.getElementById('memeGenBg').addEventListener('click', async () => {
+      const title = document.getElementById('topicTitle').value.trim();
+      const hook = document.getElementById('topicHook').value.trim();
+      const desc = document.getElementById('topicDesc').value.trim();
+      // Collect tokens
+      const chips = Array.from(document.getElementById('topicTokens').children || []);
+      const keywords = chips.map(ch => ch.textContent).slice(0, 20);
+      const loadingBar = document.getElementById('loadingBar');
+      if (loadingBar) loadingBar.style.display = 'block';
+      setStatus('Generating background...', 'info');
+      try {
+        // Prepare user prompt
+          const ta = document.getElementById('memePrompt');
+          let userPrompt = (ta && ta.value ? ta.value : DEFAULT_PROMPT);
+          userPrompt = userPrompt.replace(/\{\{\s*title\s*\}\}/g, title || '');
+          userPrompt = userPrompt.replace(/\{\{\s*hook\s*\}\}/g, hook || '');
+          userPrompt = userPrompt.replace(/\{\{\s*description\s*\}\}/g, desc || '');
+
+        // Prefer new clean background route; fallback to legacy if not available
+        let res = await fetch(`${API_BASE}/generate-clean-bg`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, hook, description: desc, keywords, prompt: userPrompt, enforce_no_text: document.getElementById('forceCleanBg').checked })
+        }).catch(()=>null);
+        if (!res || !res.ok) {
+          res = await fetch(`${API_BASE}/generate-meme-bg`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, hook, description: desc, keywords })
+          });
+        }
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to generate');
+
+        const drawClean = () => {
+          const canvas = document.getElementById('memecanvas');
+          const ctx = canvas.getContext('2d');
+          const w = canvas.width, h = canvas.height;
+          // gradient background
+          const g = ctx.createLinearGradient(0, 0, 0, h);
+          g.addColorStop(0, '#101827');
+          g.addColorStop(1, '#0b0f19');
+          ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+          // soft vignette stripes
+          ctx.globalAlpha = 0.08; ctx.strokeStyle = '#ffffff';
+          for (let x = 0; x < w; x += 10) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x - 220, h); ctx.stroke(); }
+          ctx.globalAlpha = 1;
+        };
+
+        const forceClean = document.getElementById('forceCleanBg').checked;
+        const looksLikeOld = !data.source && /thumb_variant/i.test(data.file || data.url || '');
+        // Fallback to local gradient only if the backend clearly returned the old text overlay or failed
+        if (looksLikeOld) {
+          drawClean();
+          if (loadingBar) loadingBar.style.display = 'none';
+          setStatus('Clean background (local fallback).', 'ok');
+          return;
+        }
+
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          const canvas = document.getElementById('memecanvas');
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          if (loadingBar) loadingBar.style.display = 'none';
+          setStatus('Background generated.', 'ok');
+        };
+        img.src = data.url;
+        trackEvent('background_generated', { type: 'single' });
+      } catch (e) {
+        // If backend request failed and user asked for force clean, render local gradient
+        if (document.getElementById('forceCleanBg').checked) {
+          const canvas = document.getElementById('memecanvas');
+          const ctx = canvas.getContext('2d');
+          // drawClean inline (avoid referencing above scope if error path)
+          const w = canvas.width, h = canvas.height;
+          const g = ctx.createLinearGradient(0, 0, 0, h);
+          g.addColorStop(0, '#101827'); g.addColorStop(1, '#0b0f19');
+          ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+          ctx.globalAlpha = 0.08; ctx.strokeStyle = '#ffffff';
+          for (let x = 0; x < w; x += 10) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x - 220, h); ctx.stroke(); }
+          ctx.globalAlpha = 1;
+          if (loadingBar) loadingBar.style.display = 'none';
+          setStatus('Clean background (local fallback).', 'ok');
+        } else {
+          if (loadingBar) loadingBar.style.display = 'none';
+          setStatus('Error: ' + e.message, 'err');
+        }
+      }
+    });
+
+    // Auto-save workspace every 30 seconds
+    let autoSaveTimer = null;
+    let lastSaved = null;
+
+    function saveWorkspace() {
+      const workspace = {
+        title: document.getElementById('topicTitle')?.value || '',
+        hook: document.getElementById('topicHook')?.value || '',
+        desc: document.getElementById('topicDesc')?.value || '',
+        memeTop: document.getElementById('memeTop')?.value || '',
+        memeBottom: document.getElementById('memeBottom')?.value || '',
+        timestamp: Date.now()
+      };
+
+      localStorage.setItem('mss_autosave', JSON.stringify(workspace));
+      lastSaved = new Date();
+
+      // Save to recent topics
+      const recent = JSON.parse(localStorage.getItem('mss_recent_topics') || '[]');
+      if (workspace.title || workspace.hook) {
+        const exists = recent.findIndex(r => r.title === workspace.title && r.hook === workspace.hook);
+        if (exists >= 0) recent.splice(exists, 1);
+        recent.unshift(workspace);
+        localStorage.setItem('mss_recent_topics', JSON.stringify(recent.slice(0, 10)));
+      }
+
+      console.log('Workspace auto-saved:', new Date().toLocaleTimeString());
+    }
+
+    function loadWorkspace() {
+      const saved = localStorage.getItem('mss_autosave');
+      if (!saved) return false;
+
+      try {
+        const workspace = JSON.parse(saved);
+        const age = Date.now() - workspace.timestamp;
+
+        // Only restore if less than 24 hours old
+        if (age < 24 * 60 * 60 * 1000) {
+          if (workspace.title && !document.getElementById('topicTitle').value) {
+            document.getElementById('topicTitle').value = workspace.title;
+          }
+          if (workspace.hook && !document.getElementById('topicHook').value) {
+            document.getElementById('topicHook').value = workspace.hook;
+          }
+          if (workspace.desc && !document.getElementById('topicDesc').value) {
+            document.getElementById('topicDesc').value = workspace.desc;
+          }
+          if (workspace.memeTop && !document.getElementById('memeTop').value) {
+            document.getElementById('memeTop').value = workspace.memeTop;
+          }
+          if (workspace.memeBottom && !document.getElementById('memeBottom').value) {
+            document.getElementById('memeBottom').value = workspace.memeBottom;
+          }
+          return true;
+        }
+      } catch (e) {
+        console.error('Failed to load workspace:', e);
+      }
+      return false;
+    }
+
+    // Auto-save on input changes
+    ['topicTitle', 'topicHook', 'topicDesc', 'memeTop', 'memeBottom'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('input', () => {
+          clearTimeout(autoSaveTimer);
+          autoSaveTimer = setTimeout(saveWorkspace, 30000); // 30 seconds
+        });
+        // Also save on blur (when user leaves field)
+        el.addEventListener('blur', saveWorkspace);
+      }
+    });
+
+    // Load workspace on page load
+    setTimeout(() => {
+      if (loadWorkspace()) {
+        showToast('📝 Previous draft restored', 'success', 3000);
+      }
+    }, 500);
+
+    // Live thumbnail preview
+    let previewTimer = null;
+    function updateLivePreview() {
+      clearTimeout(previewTimer);
+      previewTimer = setTimeout(() => {
+        const top = document.getElementById('memeTop').value;
+        const bottom = document.getElementById('memeBottom').value;
+
+        if (top || bottom) {
+          const canvas = document.getElementById('memecanvas');
+          const ctx = canvas.getContext('2d');
+          const w = canvas.width, h = canvas.height;
+
+          // Only update if canvas is mostly empty (no background loaded)
+          const imageData = ctx.getImageData(0, 0, w, h);
+          const isEmpty = imageData.data.every((val, i) => i % 4 === 3 || val === 0);
+
+          if (isEmpty || !document.getElementById('memeBg').files?.length) {
+            // Gradient background
+            const g = ctx.createLinearGradient(0, 0, 0, h);
+            g.addColorStop(0, '#101827');
+            g.addColorStop(1, '#0b0f19');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, w, h);
+
+            // Draw text preview
+            const selectedFont = document.getElementById('memeFont')?.value || 'Impact';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#fff';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 8;
+            ctx.font = `bold 72px ${selectedFont}, sans-serif`;
+
+            if (top) {
+              ctx.strokeText(top.toUpperCase(), w/2, 120);
+              ctx.fillText(top.toUpperCase(), w/2, 120);
+            }
+            if (bottom) {
+              ctx.strokeText(bottom.toUpperCase(), w/2, h - 60);
+              ctx.fillText(bottom.toUpperCase(), w/2, h - 60);
+            }
+          }
+        }
+      }, 500);
+    }
+
+    document.getElementById('memeTop')?.addEventListener('input', updateLivePreview);
+    document.getElementById('memeBottom')?.addEventListener('input', updateLivePreview);
+    document.getElementById('memeFont')?.addEventListener('change', updateLivePreview);
+
+    // Drag and Drop for Canvas
+    const canvas = document.getElementById('memecanvas');
+
+    canvas.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      canvas.style.borderColor = 'var(--accent-blue)';
+      canvas.style.opacity = '0.7';
+    });
+
+    canvas.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      canvas.style.borderColor = '';
+      canvas.style.opacity = '1';
+    });
+
+    canvas.addEventListener('drop', (e) => {
+      e.preventDefault();
+      canvas.style.borderColor = '';
+      canvas.style.opacity = '1';
+
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            showToast('🖼️ Background loaded', 'success', 2000);
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      } else {
+        showToast('Please drop an image file', 'error', 2000);
+      }
+    });
+
+    // Recent Topics Toggle
+    const recentBtn = document.getElementById('showRecentBtn');
+    const recentPanel = document.getElementById('recentTopics');
+    const recentList = document.getElementById('recentList');
+
+    function renderRecentTopics() {
+      const recent = JSON.parse(localStorage.getItem('mss_recent_topics') || '[]');
+      if (recent.length === 0) {
+        recentList.innerHTML = '<div style="color:var(--text-muted); font-size:12px;">No recent topics yet</div>';
+        return;
+      }
+
+      recentList.innerHTML = recent.map((item, idx) => {
+        const time = new Date(item.timestamp).toLocaleString();
+        return `
+          <div class="recent-item" data-index="${idx}" style="padding:8px; margin:4px 0; background:rgba(255,255,255,0.05); border-radius:4px; cursor:pointer; transition:background 0.15s;">
+            <div style="font-weight:600; font-size:13px;">${item.title || 'Untitled'}</div>
+            <div style="font-size:11px; color:var(--text-muted);">${item.hook || ''}</div>
+            <div style="font-size:10px; color:var(--text-version); margin-top:4px;">${time}</div>
+          </div>
+        `;
+      }).join('');
+
+      // Add click handlers
+      recentList.querySelectorAll('.recent-item').forEach(el => {
+        el.addEventListener('click', () => {
+          const idx = parseInt(el.dataset.index);
+          const item = recent[idx];
+          document.getElementById('topicTitle').value = item.title || '';
+          document.getElementById('topicHook').value = item.hook || '';
+          document.getElementById('topicDesc').value = item.desc || '';
+          document.getElementById('memeTop').value = item.memeTop || '';
+          document.getElementById('memeBottom').value = item.memeBottom || '';
+          recentPanel.style.display = 'none';
+          showToast('📂 Topic loaded', 'success', 2000);
+          updateLivePreview();
+        });
+        el.addEventListener('mouseenter', () => {
+          el.style.background = 'rgba(59,130,246,0.2)';
+        });
+        el.addEventListener('mouseleave', () => {
+          el.style.background = 'rgba(255,255,255,0.05)';
+        });
+      });
+    }
+
+    recentBtn?.addEventListener('click', () => {
+      const isVisible = recentPanel.style.display === 'block';
+      recentPanel.style.display = isVisible ? 'none' : 'block';
+      if (!isVisible) renderRecentTopics();
+    });
+
+    // Batch Background Generation
+    document.getElementById('batchGenBg')?.addEventListener('click', async () => {
+      const title = document.getElementById('topicTitle').value.trim();
+      const hook = document.getElementById('topicHook').value.trim();
+      const desc = document.getElementById('topicDesc').value.trim();
+      const chips = Array.from(document.getElementById('topicTokens')?.children || []);
+      const keywords = chips.map(ch => ch.textContent).slice(0, 20);
+      const loadingBar = document.getElementById('loadingBar');
+
+      if (!title && !hook) {
+        showToast('Please enter a title or hook first', 'error', 3000);
+        return;
+      }
+
+      if (loadingBar) loadingBar.style.display = 'block';
+      showToast('🎨 Generating 5 variants... this may take a minute', 'info', 3000);
+
+      const variants = [];
+      for (let i = 0; i < 5; i++) {
+        try {
+          const ta = document.getElementById('memePrompt');
+          let userPrompt = (ta && ta.value ? ta.value : DEFAULT_PROMPT);
+          userPrompt = userPrompt.replace(/\{\{\s*title\s*\}\}/g, title || '');
+          userPrompt = userPrompt.replace(/\{\{\s*hook\s*\}\}/g, hook || '');
+          userPrompt = userPrompt.replace(/\{\{\s*description\s*\}\}/g, desc || '');
+
+          // Add variety to each variant
+          const styleVariants = [
+            'vibrant and energetic',
+            'professional and clean',
+            'dramatic and bold',
+            'modern and minimalist',
+            'warm and inviting'
+          ];
+          userPrompt += `\n\nStyle emphasis: ${styleVariants[i]}`;
+
+          const res = await fetch(`${API_BASE}/generate-clean-bg`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title, hook, description: desc, keywords,
+              prompt: userPrompt,
+              enforce_no_text: document.getElementById('forceCleanBg').checked
+            })
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success) {
+              variants.push(data.url);
+              showToast(`✓ Variant ${i + 1}/5 generated`, 'success', 2000);
+            }
+          }
+        } catch (e) {
+          console.error('Variant generation error:', e);
+        }
+      }
+
+      if (loadingBar) loadingBar.style.display = 'none';
+
+      if (variants.length > 0) {
+        // Display all variants below the canvas
+        let variantHTML = '<div style="margin-top:16px;"><h3 style="margin-bottom:8px;">Generated Variants (click to use):</h3><div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">';
+        variants.forEach((url, idx) => {
+          variantHTML += `<img src="${url}" onclick="
+            const canvas = document.getElementById('memecanvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              showToast('Variant ${idx + 1} applied', 'success', 2000);
+            };
+            img.src = '${url}';
+          " style="width:100%; border-radius:8px; cursor:pointer; border:2px solid transparent; transition:border-color 0.2s;" onmouseenter="this.style.borderColor='var(--accent-blue)'" onmouseleave="this.style.borderColor='transparent'">`;
+        });
+        variantHTML += '</div></div>';
+
+        const canvasRow = document.getElementById('memecanvas').parentElement;
+        const existing = canvasRow.querySelector('.variants-grid');
+        if (existing) existing.remove();
+
+        const div = document.createElement('div');
+        div.className = 'variants-grid';
+        div.innerHTML = variantHTML;
+        canvasRow.appendChild(div);
+
+        showToast(`🎉 ${variants.length} variants ready!`, 'success', 4000);
+        trackEvent('background_generated', { type: 'batch', count: 5 });
+      } else {
+        showToast('❌ Failed to generate variants', 'error', 4000);
+      }
+    });
+
+    // Template System
+    const templatePanel = document.getElementById('templatePanel');
+    const templateList = document.getElementById('templateList');
+
+    function saveTemplate() {
+      const name = prompt('Enter a name for this template:');
+      if (!name) return;
+
+      const template = {
+        name,
+        title: document.getElementById('topicTitle').value,
+        hook: document.getElementById('topicHook').value,
+        desc: document.getElementById('topicDesc').value,
+        memeTop: document.getElementById('memeTop').value,
+        memeBottom: document.getElementById('memeBottom').value,
+        forceClean: document.getElementById('forceCleanBg').checked,
+        timestamp: Date.now()
+      };
+
+      const templates = JSON.parse(localStorage.getItem('mss_templates') || '[]');
+      templates.push(template);
+      localStorage.setItem('mss_templates', JSON.stringify(templates));
+      showToast(`💾 Template "${name}" saved`, 'success', 3000);
+    }
+
+    function renderTemplates() {
+      const templates = JSON.parse(localStorage.getItem('mss_templates') || '[]');
+      if (templates.length === 0) {
+        templateList.innerHTML = '<div style="color:var(--text-muted); font-size:12px;">No templates saved yet</div>';
+        return;
+      }
+
+      templateList.innerHTML = templates.map((tpl, idx) => {
+        const time = new Date(tpl.timestamp).toLocaleDateString();
+        return `
+          <div class="template-item" data-index="${idx}" style="padding:10px; margin:4px 0; background:rgba(124,58,237,0.15); border-radius:4px; cursor:pointer; transition:background 0.15s; position:relative;">
+            <div style="display:flex; justify-content:space-between; align-items:start;">
+              <div style="flex:1;">
+                <div style="font-weight:600; font-size:14px; color:#c084fc;">${tpl.name}</div>
+                <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">${tpl.title || 'No title'}</div>
+                <div style="font-size:10px; color:var(--text-version); margin-top:4px;">Saved: ${time}</div>
+              </div>
+              <button class="delete-template" data-index="${idx}" style="background:#ef4444; border:none; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px;">✕</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Add click handlers
+      templateList.querySelectorAll('.template-item').forEach(el => {
+        el.addEventListener('click', (e) => {
+          if (e.target.classList.contains('delete-template')) return;
+          const idx = parseInt(el.dataset.index);
+          const tpl = templates[idx];
+          document.getElementById('topicTitle').value = tpl.title || '';
+          document.getElementById('topicHook').value = tpl.hook || '';
+          document.getElementById('topicDesc').value = tpl.desc || '';
+          document.getElementById('memeTop').value = tpl.memeTop || '';
+          document.getElementById('memeBottom').value = tpl.memeBottom || '';
+          document.getElementById('forceCleanBg').checked = tpl.forceClean !== false;
+          templatePanel.style.display = 'none';
+          showToast(`📁 Template "${tpl.name}" loaded`, 'success', 2000);
+          updateLivePreview();
+        });
+        el.addEventListener('mouseenter', () => {
+          el.style.background = 'rgba(124,58,237,0.3)';
+        });
+        el.addEventListener('mouseleave', () => {
+          el.style.background = 'rgba(124,58,237,0.15)';
+        });
+      });
+
+      // Delete template handlers
+      templateList.querySelectorAll('.delete-template').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = parseInt(btn.dataset.index);
+          if (confirm(`Delete template "${templates[idx].name}"?`)) {
+            templates.splice(idx, 1);
+            localStorage.setItem('mss_templates', JSON.stringify(templates));
+            renderTemplates();
+            showToast('Template deleted', 'success', 2000);
+          }
+        });
+      });
+    }
+
+    document.getElementById('saveTemplateBtn')?.addEventListener('click', saveTemplate);
+    document.getElementById('loadTemplateBtn')?.addEventListener('click', () => {
+      const isVisible = templatePanel.style.display === 'block';
+      templatePanel.style.display = isVisible ? 'none' : 'block';
+      if (!isVisible) renderTemplates();
+    });
+
+    // Export/Import System
+    document.getElementById('exportBtn')?.addEventListener('click', () => {
+      const exportData = {
+        version: '3.2.0',
+        exported: new Date().toISOString(),
+        templates: JSON.parse(localStorage.getItem('mss_templates') || '[]'),
+        recentTopics: JSON.parse(localStorage.getItem('mss_recent_topics') || '[]'),
+        autosave: JSON.parse(localStorage.getItem('mss_autosave') || 'null'),
+        stats: JSON.parse(localStorage.getItem('mss_stats') || '{}')
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mss-backup-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('📦 Data exported successfully', 'success', 3000);
+    });
+
+    document.getElementById('importBtn')?.addEventListener('click', () => {
+      document.getElementById('importFileInput').click();
+    });
+
+    document.getElementById('importFileInput')?.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = JSON.parse(event.target.result);
+
+          if (confirm('Import data? This will merge with existing templates and topics.')) {
+            if (data.templates) {
+              const existing = JSON.parse(localStorage.getItem('mss_templates') || '[]');
+              const merged = [...existing, ...data.templates];
+              localStorage.setItem('mss_templates', JSON.stringify(merged));
+            }
+            if (data.recentTopics) {
+              const existing = JSON.parse(localStorage.getItem('mss_recent_topics') || '[]');
+              const merged = [...data.recentTopics, ...existing].slice(0, 20);
+              localStorage.setItem('mss_recent_topics', JSON.stringify(merged));
+            }
+            showToast('✅ Data imported successfully', 'success', 3000);
+          }
+        } catch (err) {
+          showToast('❌ Invalid import file', 'error', 3000);
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = ''; // Reset file input
+    });
+
+    // Analytics Tracking
+    function trackEvent(eventType, data = {}) {
+      const stats = JSON.parse(localStorage.getItem('mss_stats') || '{}');
+      if (!stats.events) stats.events = [];
+
+      stats.events.push({
+        type: eventType,
+        timestamp: Date.now(),
+        ...data
+      });
+
+      // Keep only last 100 events
+      if (stats.events.length > 100) {
+        stats.events = stats.events.slice(-100);
+      }
+
+      // Update counters
+      if (!stats.counters) stats.counters = {};
+      stats.counters[eventType] = (stats.counters[eventType] || 0) + 1;
+      stats.counters.total = (stats.counters.total || 0) + 1;
+      stats.lastActivity = Date.now();
+
+      localStorage.setItem('mss_stats', JSON.stringify(stats));
+    }
+
+    // Show basic stats on console
+    setTimeout(() => {
+      const stats = JSON.parse(localStorage.getItem('mss_stats') || '{}');
+      if (stats.counters) {
+        console.log('📊 MSS Analytics:', stats.counters);
+        console.log(`Total actions: ${stats.counters.total || 0}`);
+      }
+    }, 2000);
+
+    // Topic Picker auto-load functionality
+    (function(){
+      function renderTokens(keywords){
+        try {
+          const cont = document.getElementById('topicTokens');
+          const contRow = document.getElementById('topicTokensRow');
+          if (!cont) return;
+          cont.innerHTML = '';
+          (keywords||[]).forEach(kw => {
+            const b = document.createElement('span');
+            b.textContent = kw;
+            b.style.padding='4px 8px'; b.style.border='1px solid #334'; b.style.borderRadius='6px'; b.style.cursor='pointer'; b.style.fontSize='12px';
+            b.onclick = () => {
+              const target = (document.querySelector('input[name="memeTarget"]:checked')||{}).value || 'bottom';
+              const el = document.getElementById(target==='top' ? 'memeTop' : 'memeBottom');
+              if (el) { el.value = (el.value ? el.value + ' ' : '') + kw; el.focus(); updateLivePreview(); }
+            };
+            cont.appendChild(b);
+          });
+          if (keywords && keywords.length > 0 && contRow) {
+            contRow.style.display = 'block';
+          }
+        } catch {}
+      }
+
+      function tryLoad(){
+        try {
+          const raw = localStorage.getItem('editingTopic');
+          if (!raw) return false;
+          const t = JSON.parse(raw);
+          if (!t) return false;
+
+          // Check if all required fields exist in DOM
+          const topicTitle = document.getElementById('topicTitle');
+          const topicHook = document.getElementById('topicHook');
+          const topicDesc = document.getElementById('topicDesc');
+          const memeTop = document.getElementById('memeTop');
+          const memeBottom = document.getElementById('memeBottom');
+
+          if (!topicTitle || !topicHook || !topicDesc || !memeTop || !memeBottom) {
+            return false;
+          }
+
+          const title = t.yt_title || t.title || '';
+          const hook = t.angle || '';
+          const desc = t.yt_description || '';
+          const keywords = t.keywords || [];
+
+          // Inline Picker fields
+          const liteTitle = document.getElementById('liteTitle');
+          const liteHook = document.getElementById('liteHook');
+          const liteKw = document.getElementById('liteKeywords');
+          if (liteTitle) liteTitle.value = title;
+          if (liteHook) liteHook.value = hook;
+          if (liteKw) liteKw.value = keywords.join(', ');
+
+          // Meme Creator (Quick) fields
+          topicTitle.value = title;
+          topicHook.value = hook;
+          topicDesc.value = desc;
+
+          // Meme Creator text fields
+          if (title) memeTop.value = title.toUpperCase();
+          if (hook) memeBottom.value = hook;
+
+          renderTokens(keywords);
+
+          const s = document.getElementById('liteStatus');
+          if (s) { s.textContent = 'Loaded topic from picker'; s.className='status ok'; s.style.display='block'; }
+
+          updateLivePreview();
+          return true;
+        } catch(e) {
+          console.error('Error loading topic:', e);
+          return false;
+        }
+      }
+
+      // Aggressive retry strategy - keep trying until it works or we give up
+      let attempts = 0;
+      const maxAttempts = 20;
+
+      function retryLoad() {
+        attempts++;
+        if (tryLoad()) {
+          return;
+        }
+        if (attempts < maxAttempts) {
+          setTimeout(retryLoad, 200);
+        }
+      }
+
+      // Start trying immediately
+      retryLoad();
+
+      // Also try when page is fully loaded
+      window.addEventListener('load', tryLoad);
+
+      // And when DOM is ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', tryLoad);
+      }
+
+      const btn = document.getElementById('liteLoadLast');
+      if (btn) btn.addEventListener('click', tryLoad);
+    })();
+
+    // Welcome message with keyboard shortcuts
+    setTimeout(() => {
+      showToast('💡 Shortcuts: Ctrl+Z (Undo), Ctrl+Y (Redo), Ctrl+G (Background), Ctrl+R (Render)', 'info', 6000);
+    }, 1000);
+  </script>
+</body>
+</html>
