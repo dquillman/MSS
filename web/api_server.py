@@ -1291,11 +1291,14 @@ def post_process_video():
         logo_already_applied = False
         try:
             include_logo_early = request.form.get('include_logo', 'true').lower() == 'true'
+            print(f"[LOGO-FIRST] ========== LOGO PROCESSING START ==========")
+            print(f"[LOGO-FIRST] include_logo_early: {include_logo_early}")
             if include_logo_early:
                 logo_url = None
                 # Allow UI to pass an explicit filename and/or position
                 ui_logo_filename = (request.form.get('logo_filename') or '').strip()
                 ui_logo_position = (request.form.get('logo_position') or '').strip()
+                print(f"[LOGO-FIRST] UI provided: logo_filename='{ui_logo_filename}', logo_position='{ui_logo_position}'")
                 logo_position = ui_logo_position if ui_logo_position else 'bottom-left'
                 # 1) Try UI override, then active logo from web/logo_library.json
                 logo_path = None
@@ -1304,6 +1307,7 @@ def post_process_video():
                     cand_web = Path(__file__).parent / 'logos' / ui_logo_filename
                     print(f"[LOGO-FIRST] UI override => MSS: {cand_mss.exists()} {cand_mss} | WEB: {cand_web.exists()} {cand_web}")
                     logo_path = cand_mss if cand_mss.exists() else (cand_web if cand_web.exists() else None)
+                    print(f"[LOGO-FIRST] Selected logo_path from UI: {logo_path}")
                 # Only check library if UI didn't provide a logo
                 if not logo_path:
                     library_file = Path(__file__).parent / 'logo_library.json'
@@ -1337,14 +1341,14 @@ def post_process_video():
                     except Exception:
                         pass
                 if logo_path and logo_path.exists():
-                    print(f"[LOGO-FIRST] Applying logo before avatar: {logo_path}")
-                    logo_opacity = request.form.get('logo_opacity', '0.6')
+                    print(f"[LOGO-FIRST] ✅ Logo file found! Applying logo before avatar: {logo_path}")
+                    logo_opacity = request.form.get('logo_opacity', '1.0')
                     try:
                         logo_opacity_val = max(0.0, min(1.0, float(logo_opacity)))
                     except Exception:
-                        logo_opacity_val = 0.6
+                        logo_opacity_val = 1.0
                     if logo_path and logo_path.exists():
-                            print(f"[LOGO-FIRST] Applying logo before avatar: {logo_path}")
+                            print(f"[LOGO-FIRST] Starting ffmpeg logo overlay...")
                             import subprocess, imageio_ffmpeg
                             ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
                             position_map = {
@@ -1355,10 +1359,11 @@ def post_process_video():
                                 'center': '(W-w)/2:(H-h)/2'
                             }
                             pos = position_map.get(logo_position, '20:H-h-20')
-                            filter_complex = (
-                                f"[1:v]scale=-1:100,format=yuva420p,colorchannelmixer=aa={logo_opacity_val},"
-                                f"fade=t=in:st=0:d=0.5:alpha=1[logo];[0:v][logo]overlay={pos}"
-                            )
+                            print(f"[LOGO-FIRST] Logo position: {logo_position} -> {pos}")
+                            print(f"[LOGO-FIRST] Logo opacity: {logo_opacity_val}")
+                            # Simple overlay for logos without transparency
+                            filter_complex = f"[1:v]scale=-1:200[logo];[0:v][logo]overlay={pos}"
+                            print(f"[LOGO-FIRST] Filter: {filter_complex}")
                             video_with_logo = outdir / f"video_with_logo_{int(time.time())}.mp4"
                             cmd = [
                                 ffmpeg,
@@ -1369,13 +1374,20 @@ def post_process_video():
                                 '-c:a', 'copy',
                                 '-y', str(video_with_logo)
                             ]
+                            print(f"[LOGO-FIRST] Running ffmpeg command...")
                             result = subprocess.run(cmd, capture_output=True, text=True)
+                            print(f"[LOGO-FIRST] ffmpeg return code: {result.returncode}")
+                            if result.returncode != 0:
+                                print(f"[LOGO-FIRST] ❌ ffmpeg ERROR: {result.stderr}")
                             if result.returncode == 0 and video_with_logo.exists():
                                 current_video = video_with_logo
                                 logo_already_applied = True
-                                print(f"[LOGO-FIRST] Logo applied: {current_video}")
+                                print(f"[LOGO-FIRST] ✅ Logo applied successfully! Video: {video_with_logo}")
                             else:
+                                print(f"[LOGO-FIRST] ❌ Logo application failed!")
                                 print(f"[LOGO-FIRST] Logo overlay failed, continuing without early logo: {result.stderr[:300] if result.stderr else 'no stderr'}")
+                else:
+                    print(f"[LOGO-FIRST] ❌ No logo_path found or file doesn't exist")
         except Exception as e:
             print(f"[LOGO-FIRST] Exception while applying early logo: {e}")
 
