@@ -1304,20 +1304,22 @@ def post_process_video():
                     cand_web = Path(__file__).parent / 'logos' / ui_logo_filename
                     print(f"[LOGO-FIRST] UI override => MSS: {cand_mss.exists()} {cand_mss} | WEB: {cand_web.exists()} {cand_web}")
                     logo_path = cand_mss if cand_mss.exists() else (cand_web if cand_web.exists() else None)
-                library_file = Path(__file__).parent / 'logo_library.json'
-                if library_file.exists():
-                    try:
-                        lib = json.loads(library_file.read_text(encoding='utf-8'))
-                        active = next((l for l in lib.get('logos', []) if l.get('active')), None)
-                        if active:
-                            fname = active.get('filename') or (active.get('url','').split('/')[-1])
-                            if fname:
-                                cand_mss = Path(__file__).parent.parent / 'logos' / fname
-                                cand_web = Path(__file__).parent / 'logos' / fname
-                                print(f"[LOGO-FIRST] Candidates => MSS: {cand_mss.exists()} {cand_mss} | WEB: {cand_web.exists()} {cand_web}")
-                                logo_path = cand_mss if cand_mss.exists() else (cand_web if cand_web.exists() else None)
-                    except Exception:
-                        pass
+                # Only check library if UI didn't provide a logo
+                if not logo_path:
+                    library_file = Path(__file__).parent / 'logo_library.json'
+                    if library_file.exists():
+                        try:
+                            lib = json.loads(library_file.read_text(encoding='utf-8'))
+                            active = next((l for l in lib.get('logos', []) if l.get('active')), None)
+                            if active:
+                                fname = active.get('filename') or (active.get('url','').split('/')[-1])
+                                if fname:
+                                    cand_mss = Path(__file__).parent.parent / 'logos' / fname
+                                    cand_web = Path(__file__).parent / 'logos' / fname
+                                    print(f"[LOGO-FIRST] Candidates => MSS: {cand_mss.exists()} {cand_mss} | WEB: {cand_web.exists()} {cand_web}")
+                                    logo_path = cand_mss if cand_mss.exists() else (cand_web if cand_web.exists() else None)
+                        except Exception:
+                            pass
                 # 2) Position from thumbnail settings (ignore its logoUrl if file missing)
                 ts_path = Path(__file__).parent.parent / "thumbnail_settings.json"
                 if ts_path.exists():

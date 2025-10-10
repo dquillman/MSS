@@ -582,6 +582,8 @@ Make it stand out in search results and suggested videos.`;
       const f = mainInput.files && mainInput.files[0];
       if (!f) { alert('Pick a video'); return; }
       approveBtn.disabled = true;
+      const loadingBar = document.getElementById('loadingBar');
+      if (loadingBar) loadingBar.style.display = 'block';
       setStatus('Processing…', 'info');
       try {
         const fd = new FormData();
@@ -608,11 +610,21 @@ Make it stand out in search results and suggested videos.`;
           try {
             const lib = await fetch(`${API_BASE}/get-logo-library`).then(r => r.json());
             const selected = (lib && Array.isArray(lib.logos)) ? lib.logos.find(l => l.id === logoSelect.value) : null;
+            console.log('[LOGO] Selected logo:', selected);
             if (selected && selected.filename) {
               fd.append('logo_filename', selected.filename);
+              console.log('[LOGO] Sending logo_filename:', selected.filename);
+            } else {
+              console.warn('[LOGO] No filename found for selected logo');
             }
-          } catch {}
+          } catch (e) {
+            console.error('[LOGO] Error fetching logo:', e);
+          }
+        } else {
+          console.log('[LOGO] Logo not enabled or no logo selected. toggleLogo:', toggleLogo.checked, 'logoSelect:', logoSelect.value);
         }
+        console.log('[LOGO] include_logo:', toggleLogo.checked ? 'true' : 'false');
+        console.log('[LOGO] logo_position:', logoPos?.value);
         const resp = await fetch(`${API_BASE}/post-process-video`, { method: 'POST', body: fd });
         if (!resp.ok) {
           const t = await resp.text();
@@ -627,7 +639,10 @@ Make it stand out in search results and suggested videos.`;
         console.error(e);
         setStatus(`Error: ${e.message}`, 'err');
         showToast(`Error: ${e.message}`, 'error', 6000);
-      } finally { approveBtn.disabled = false; }
+      } finally {
+        approveBtn.disabled = false;
+        if (loadingBar) loadingBar.style.display = 'none';
+      }
     });
 
 
