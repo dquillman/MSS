@@ -23,7 +23,7 @@
       "opacity": 100,
       "voice": "en-US-News-L",
       "gender": "male",
-      "active": false
+      "active": true
     },
     {
       "id": "avatar_1759589828",
@@ -35,7 +35,7 @@
       "scale": 18,
       "opacity": 100,
       "voice": "en-US-News-L",
-      "active": true
+      "active": false
     },
     {
       "id": "avatar_1759589855",

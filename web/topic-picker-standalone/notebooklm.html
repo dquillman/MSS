@@ -189,46 +189,6 @@
     </div>
   </div>
 
-  <div class="card" style="margin-top:16px;">
-    <h1>🎬 AI Script Generator</h1>
-    <div class="row" style="background:rgba(59,130,246,0.1); border:1px solid var(--accent-blue); border-radius:6px; padding:12px;">
-      <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">
-        Generate a complete video script based on your topic. Uses your title, hook, and keywords.
-      </div>
-    </div>
-    <div class="row">
-      <label>Script Length</label>
-      <select id="scriptLength" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;">
-        <option value="short">Short (30-60 seconds)</option>
-        <option value="medium" selected>Medium (2-3 minutes)</option>
-        <option value="long">Long (5-8 minutes)</option>
-      </select>
-    </div>
-    <div class="row">
-      <label>Script Style</label>
-      <select id="scriptStyle" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;">
-        <option value="informative" selected>Informative (Educational)</option>
-        <option value="entertaining">Entertaining (Engaging)</option>
-        <option value="dramatic">Dramatic (Storytelling)</option>
-        <option value="casual">Casual (Conversational)</option>
-        <option value="professional">Professional (News-style)</option>
-      </select>
-    </div>
-    <div class="controls">
-      <button class="btn" id="generateScript" style="background:#8b5cf6; border-color:#8b5cf6;">✨ Generate Script</button>
-      <button class="btn" id="copyScript" style="display:none;">📋 Copy Script</button>
-    </div>
-    <div id="scriptStatus" class="status" style="display:none;"></div>
-    <div class="row" id="scriptOutputRow" style="display:none;">
-      <label>Generated Script</label>
-      <textarea id="scriptOutput" style="width:100%; min-height:300px; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF; font-family:monospace; line-height:1.6;"></textarea>
-      <div style="margin-top:8px; display:flex; gap:12px; color:var(--text-muted); font-size:12px;">
-        <span id="scriptWordCount">Words: 0</span>
-        <span id="scriptDuration">Est. Duration: 0s</span>
-      </div>
-    </div>
-  </div>
-
   <script>
     const API_BASE = 'http://127.0.0.1:5000';
     const DEFAULT_PROMPT = `Create a vibrant, eye-catching YouTube thumbnail for a video titled: {{title}}
@@ -638,14 +598,21 @@ Make it stand out in search results and suggested videos.`;
         }
         // Pass include_logo flag so backend can skip overlay if off
         fd.append('include_logo', toggleLogo.checked ? 'true' : 'false');
-        // Explicitly pass the active logo filename to guarantee correct file is used
-        try {
-          const lib = await fetch(`${API_BASE}/get-logo-library`).then(r => r.json());
-          const active = (lib && Array.isArray(lib.logos)) ? lib.logos.find(l => l.active) : null;
-          if (active && active.filename) {
-            fd.append('logo_filename', active.filename);
-          }
-        } catch {}
+        // Pass logo position
+        const logoPos = document.getElementById('logoPos');
+        if (logoPos && logoPos.value) {
+          fd.append('logo_position', logoPos.value);
+        }
+        // Explicitly pass the selected logo filename to guarantee correct file is used
+        if (toggleLogo.checked && logoSelect.value) {
+          try {
+            const lib = await fetch(`${API_BASE}/get-logo-library`).then(r => r.json());
+            const selected = (lib && Array.isArray(lib.logos)) ? lib.logos.find(l => l.id === logoSelect.value) : null;
+            if (selected && selected.filename) {
+              fd.append('logo_filename', selected.filename);
+            }
+          } catch {}
+        }
         const resp = await fetch(`${API_BASE}/post-process-video`, { method: 'POST', body: fd });
         if (!resp.ok) {
           const t = await resp.text();
@@ -703,141 +670,6 @@ Make it stand out in search results and suggested videos.`;
         console.log(`Total actions: ${stats.counters.total || 0}`);
       }
     }, 2000);
-
-    // AI Script Generator
-    document.getElementById('generateScript')?.addEventListener('click', async () => {
-      const title = document.getElementById('liteTitle')?.value || '';
-      const hook = document.getElementById('liteHook')?.value || '';
-      const keywords = document.getElementById('liteKeywords')?.value || '';
-      const length = document.getElementById('scriptLength')?.value || 'medium';
-      const style = document.getElementById('scriptStyle')?.value || 'informative';
-
-      if (!title && !hook) {
-        showToast('Please enter a title or hook first', 'error', 3000);
-        return;
-      }
-
-      const scriptStatus = document.getElementById('scriptStatus');
-      const generateBtn = document.getElementById('generateScript');
-      const loadingBar = document.getElementById('loadingBar');
-
-      scriptStatus.style.display = 'block';
-      scriptStatus.className = 'status info';
-      scriptStatus.textContent = 'Generating script with AI...';
-      generateBtn.disabled = true;
-      if (loadingBar) loadingBar.style.display = 'block';
-
-      try {
-        const lengthMap = {
-          'short': '30-60 seconds, around 100-150 words',
-          'medium': '2-3 minutes, around 300-450 words',
-          'long': '5-8 minutes, around 750-1200 words'
-        };
-
-        const styleMap = {
-          'informative': 'educational and informative, teaching the audience something new',
-          'entertaining': 'entertaining and engaging, keeping viewers hooked with energy and personality',
-          'dramatic': 'dramatic storytelling style, building tension and narrative arc',
-          'casual': 'casual and conversational, like talking to a friend',
-          'professional': 'professional news-style, authoritative and credible'
-        };
-
-        const prompt = `You are a professional YouTube script writer. Create a compelling video script for the following video:
-
-Title: ${title}
-Hook/Angle: ${hook}
-Keywords: ${keywords}
-
-Script Requirements:
-- Length: ${lengthMap[length]}
-- Style: ${styleMap[style]}
-- Include a strong opening hook (first 5 seconds)
-- Clear structure with introduction, main content, and conclusion
-- Include natural pauses and transitions
-- End with a clear call-to-action
-- Write for spoken word (conversational, not academic)
-- Use "you" to directly address the viewer
-
-Format the script with clear sections like:
-[HOOK - 0:00-0:05]
-[INTRO - 0:05-0:20]
-[MAIN CONTENT]
-[CONCLUSION]
-[CTA]
-
-Make it engaging and optimized for viewer retention.`;
-
-        const res = await fetch(`${API_BASE}/generate-script`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt: prompt,
-            title: title,
-            hook: hook,
-            description: keywords,
-            length: length,
-            style: style
-          })
-        });
-
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        }
-
-        const data = await res.json();
-
-        if (!data.success || !data.script) {
-          throw new Error(data.error || 'Failed to generate script');
-        }
-
-        // Display the script
-        const scriptOutput = document.getElementById('scriptOutput');
-        const scriptOutputRow = document.getElementById('scriptOutputRow');
-        const copyBtn = document.getElementById('copyScript');
-
-        scriptOutput.value = data.script;
-        scriptOutputRow.style.display = 'block';
-        copyBtn.style.display = 'inline-block';
-
-        // Update stats
-        const words = data.script.split(/\s+/).length;
-        const duration = Math.round(words / 2.5); // ~150 words per minute = 2.5 words per second
-        document.getElementById('scriptWordCount').textContent = `Words: ${words}`;
-        document.getElementById('scriptDuration').textContent = `Est. Duration: ${Math.floor(duration / 60)}:${(duration % 60).toString().padStart(2, '0')}`;
-
-        scriptStatus.className = 'status ok';
-        scriptStatus.textContent = '✅ Script generated successfully!';
-        showToast('🎬 Script generated!', 'success', 3000);
-
-        // Track event
-        trackEvent('script_generated', { length, style, words });
-
-      } catch (e) {
-        console.error('Script generation error:', e);
-        scriptStatus.className = 'status err';
-        scriptStatus.textContent = `Error: ${e.message}`;
-        showToast(`❌ Script generation failed: ${e.message}`, 'error', 5000);
-      } finally {
-        generateBtn.disabled = false;
-        if (loadingBar) loadingBar.style.display = 'none';
-      }
-    });
-
-    // Copy script button
-    document.getElementById('copyScript')?.addEventListener('click', () => {
-      const scriptOutput = document.getElementById('scriptOutput');
-      scriptOutput.select();
-      document.execCommand('copy');
-      showToast('📋 Script copied to clipboard', 'success', 2000);
-    });
-
-    // Update word count on edit
-    document.getElementById('scriptOutput')?.addEventListener('input', (e) => {
-      const words = e.target.value.split(/\s+/).filter(w => w.length > 0).length;
-      const duration = Math.round(words / 2.5);
-      document.getElementById('scriptWordCount').textContent = `Words: ${words}`;
-      document.getElementById('scriptDuration').textContent = `Est. Duration: ${Math.floor(duration / 60)}:${(duration % 60).toString().padStart(2, '0')}`;
-    });
 
     // Welcome message with keyboard shortcuts
     setTimeout(() => {

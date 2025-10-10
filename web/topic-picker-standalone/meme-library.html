@@ -54,6 +54,10 @@
         <input id="liteKeywords" placeholder="ai, 2025, automation, future of work" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
       </div>
     </div>
+    <div class="row">
+      <label>YouTube Description</label>
+      <textarea id="topicDesc" class="large" placeholder="YouTube description" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;"></textarea>
+    </div>
   </div>
 
   <div class="card" style="margin-top:16px;">
@@ -67,7 +71,7 @@
 
   <div class="card" style="margin-top:16px;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-      <h1 style="margin:0;">Meme Creator (Quick)</h1>
+      <h1 style="margin:0;">Meme Creator</h1>
       <div style="display:flex; gap:8px;">
         <button class="btn" id="saveTemplateBtn" style="font-size:12px; padding:6px 12px; background:#7c3aed; border-color:#7c3aed;">💾 Save Template</button>
         <button class="btn" id="loadTemplateBtn" style="font-size:12px; padding:6px 12px; background:#7c3aed; border-color:#7c3aed;">📁 Templates</button>
@@ -86,24 +90,12 @@
       <div id="recentList"></div>
     </div>
     <div class="row">
-      <label>Title</label>
-      <input id="topicTitle" placeholder="video Title" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
-    </div>
-    <div class="row">
-      <label>Angle / Hook</label>
-      <input id="topicHook" placeholder="Hook / Angle" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
-    </div>
-    <div class="row">
-      <label>YouTube Description</label>
-      <textarea id="topicDesc" class="large" placeholder="YouTube description" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;"></textarea>
-    </div>
-    <div class="row">
       <label>Top Text</label>
-      <input id="memeTop" placeholder="MANY SOURCES SAY" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
+      <input id="memeTop" placeholder="MANY SOURCES SAY" maxlength="75" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
     </div>
     <div class="row">
       <label>Bottom Text</label>
-      <input id="memeBottom" placeholder="Because one source is never enough" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
+      <input id="memeBottom" placeholder="Because one source is never enough" maxlength="75" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
     </div>
     <div class="row">
       <label>Font Style</label>
@@ -120,16 +112,12 @@
       <label>Background Image: <input type="file" id="memeBg" accept="image/*"></label>
       <div style="color:var(--text-muted); font-size:12px;">Or drag & drop image onto canvas</div>
       <button class="btn" id="memeGenBg">Generate Background (AI)</button>
-      <button class="btn" id="batchGenBg" style="background:#059669; border-color:#059669;">Generate 5 Variants</button>
+      <button class="btn" id="batchGenBg" style="background:#059669; border-color:#059669;">Generate 5 Variants (AI)</button>
       <label style="display:flex; align-items:center; gap:6px;">
         <input type="checkbox" id="forceCleanBg" checked> Force clean (no text)
       </label>
       <button class="btn" id="memeGenerate">Render Meme</button>
       <a class="btn" id="memeDownload" download="meme.png" style="display:none;">Download</a>
-    </div>
-    <div class="row" id="topicTokensRow" style="display:none;">
-      <label>Topic Keywords (click to insert):</label>
-      <div id="topicTokens" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
     </div>
     <div class="row">
       <canvas id="memecanvas" width="1280" height="720" style="width:100%; max-width:720px; border-radius:8px; background:#000;"></canvas>
@@ -279,7 +267,13 @@ Make it stand out in search results and suggested videos.`;
         const lines = []; let cur = '';
         for (const w of words) {
           const test = cur ? cur + ' ' + w : w;
-          if (ctx.measureText(test).width <= maxWidth || !cur) cur = test; else { lines.push(cur); cur = w; }
+          // Wrap at 40 characters or nearest space before 40
+          if (test.length <= 40 || !cur) {
+            cur = test;
+          } else {
+            lines.push(cur);
+            cur = w;
+          }
         }
         if (cur) lines.push(cur);
         return lines.slice(0, maxLines);
@@ -1196,6 +1190,8 @@ Make it stand out in search results and suggested videos.`;
           // Meme Creator (Quick) fields
           topicTitle.value = title;
           topicHook.value = hook;
+          const topicKw = document.getElementById('topicKeywords');
+          if (topicKw) topicKw.value = keywords.join(', ');
           topicDesc.value = desc;
 
           // Meme Creator text fields
