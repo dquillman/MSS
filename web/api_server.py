@@ -11,6 +11,7 @@ from flask_cors import CORS
 from PIL import Image, ImageDraw, ImageFont
 import io
 import requests
+import stripe
 
 # Add parent directory to path so we can import scripts
 import sys
@@ -76,14 +77,120 @@ except Exception as _e:
 # Initialize Flask app
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1 GB upload cap
-CORS(app)  # Enable CORS for local development
+CORS(app, supports_credentials=True)  # Enable CORS with credentials for authentication
+
+# Initialize Stripe
+stripe.api_key = os.getenv('STRIPE_SECRET_KEY', '')
+STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY', '')
+STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET', '')
+
+# Stripe Price IDs (will be set after creating products)
+STRIPE_PRICES = {
+    'starter': os.getenv('STRIPE_PRICE_STARTER', ''),  # $19/month
+    'pro': os.getenv('STRIPE_PRICE_PRO', ''),          # $49/month
+    'agency': os.getenv('STRIPE_PRICE_AGENCY', ''),    # $149/month
+    'lifetime': os.getenv('STRIPE_PRICE_LIFETIME', ''),  # $199 one-time
+}
 
 @app.route('/')
-def _root_health():
+def serve_landing():
+    """Serve landing page"""
+    return send_from_directory('topic-picker-standalone', 'landing.html')
+
+@app.route('/studio')
+@app.route('/studio.html')
+def serve_studio():
+    """Serve Studio page"""
+    return send_from_directory('topic-picker-standalone', 'studio.html')
+
+@app.route('/topics')
+@app.route('/index.html')
+def serve_topics():
+    """Serve Topic Picker page"""
+    return send_from_directory('topic-picker-standalone', 'index.html')
+
+@app.route('/pricing')
+@app.route('/pricing.html')
+def serve_pricing():
+    """Serve Pricing page"""
+    return send_from_directory('topic-picker-standalone', 'pricing.html')
+
+@app.route('/payment-success')
+def serve_payment_success():
+    """Serve Payment Success page"""
+    return send_from_directory('topic-picker-standalone', 'payment-success.html')
+
+@app.route('/admin')
+@app.route('/admin.html')
+def serve_admin():
+    """Serve Admin page"""
+    return send_from_directory('topic-picker-standalone', 'admin.html')
+
+@app.route('/auth')
+@app.route('/auth.html')
+@app.route('/login')
+@app.route('/signup')
+def serve_auth():
+    """Serve Authentication page"""
+    return send_from_directory('topic-picker-standalone', 'auth.html')
+
+@app.route('/forgot-password')
+@app.route('/forgot-password.html')
+def serve_forgot_password():
+    """Serve Forgot Password page"""
+    return send_from_directory('topic-picker-standalone', 'forgot-password.html')
+
+@app.route('/reset-password')
+@app.route('/reset-password.html')
+def serve_reset_password():
+    """Serve Reset Password page"""
+    return send_from_directory('topic-picker-standalone', 'reset-password.html')
+
+@app.route('/terms')
+@app.route('/terms.html')
+@app.route('/terms-of-service')
+def serve_terms():
+    """Serve Terms of Service page"""
+    return send_from_directory('topic-picker-standalone', 'terms.html')
+
+@app.route('/privacy')
+@app.route('/privacy.html')
+@app.route('/privacy-policy')
+def serve_privacy():
+    """Serve Privacy Policy page"""
+    return send_from_directory('topic-picker-standalone', 'privacy.html')
+
+@app.route('/dashboard')
+@app.route('/dashboard.html')
+def serve_dashboard():
+    """Serve User Dashboard"""
+    return send_from_directory('topic-picker-standalone', 'dashboard.html')
+
+@app.route('/<path:filename>')
+def serve_frontend_file(filename):
+    """Serve CSS, JS, and other frontend static files"""
+    # Skip if it looks like an API endpoint
+    api_prefixes = ['api', 'get-', 'set-', 'upload-', 'delete-', 'create-', 'generate-', 'post-process', 'save-', 'test-', 'health']
+    if any(filename.startswith(prefix) for prefix in api_prefixes):
+        from flask import abort
+        abort(404)
+
+    # Only serve static file types
+    if filename.endswith(('.css', '.js', '.svg', '.png', '.jpg', '.ico', '.html')):
+        try:
+            return send_from_directory('topic-picker-standalone', filename)
+        except:
+            pass
+    from flask import abort
+    abort(404)
+
+@app.route('/health')
+def _health():
     return jsonify({
         'ok': True,
         'service': 'MSS API',
-        'endpoints': ['/post-process-video', '/get-avatar-library', '/out/<file>']
+        'version': '5.3.0',
+        'endpoints': ['/studio', '/topics', '/post-process-video', '/get-avatar-library', '/out/<file>']
     })
 
 @app.route('/get-selected-topic', methods=['GET'])
@@ -1225,6 +1332,29 @@ def post_process_video():
         print("[VIDEO] POST-PROCESS VIDEO ENDPOINT CALLED")
         print("=" * 70)
 
+        # Check user authentication and limits (optional - works without login too)
+        user_id = None
+        session_id = request.cookies.get('session_id')
+        if session_id:
+            session_result = database.get_session(session_id)
+            if session_result['success']:
+                user_id = session_result['user']['id']
+                print(f"[AUTH] User logged in: ID {user_id}")
+
+                # Check if user can create video
+                can_create = database.can_create_video(user_id)
+                if not can_create['allowed']:
+                    return jsonify({
+                        'success': False,
+                        'error': can_create['reason'],
+                        'upgrade_required': True
+                    }), 403
+                print(f"[AUTH] User can create video: {can_create['remaining']} remaining")
+            else:
+                print("[AUTH] Session expired or invalid")
+        else:
+            print("[AUTH] No session - processing as guest")
+
         # Get uploaded files
         if 'video' not in request.files:
             return jsonify({'success': False, 'error': 'No video file uploaded'}), 400
@@ -1361,8 +1491,8 @@ def post_process_video():
                             pos = position_map.get(logo_position, '20:H-h-20')
                             print(f"[LOGO-FIRST] Logo position: {logo_position} -> {pos}")
                             print(f"[LOGO-FIRST] Logo opacity: {logo_opacity_val}")
-                            # Simple overlay for logos without transparency
-                            filter_complex = f"[1:v]scale=-1:200[logo];[0:v][logo]overlay={pos}"
+                            # Simple overlay for logos without transparency (134px = 33% smaller than 200px)
+                            filter_complex = f"[1:v]scale=-1:134[logo];[0:v][logo]overlay={pos}"
                             print(f"[LOGO-FIRST] Filter: {filter_complex}")
                             video_with_logo = outdir / f"video_with_logo_{int(time.time())}.mp4"
                             cmd = [
@@ -1732,6 +1862,14 @@ def post_process_video():
         # If intro/outro are disabled, skip and return the current video
         if not add_intro_outro:
             print("[INFO] Skipping intro/outro per request flag")
+
+            # Track usage for logged-in users
+            if user_id:
+                title = request.form.get('title', 'Untitled Video')
+                database.increment_video_count(user_id)
+                database.add_video_to_history(user_id, video_with_avatar.name, title)
+                print(f"[AUTH] Video counted for user {user_id}")
+
             return jsonify({
                 'success': True,
                 'message': 'Video post-processed successfully (no intro/outro)',
@@ -2158,6 +2296,13 @@ def post_process_video():
 
         # Clean up temporary files
         # No temp concat list to clean up with filter_complex
+
+        # Track usage for logged-in users
+        if user_id:
+            title = request.form.get('title', 'Untitled Video')
+            database.increment_video_count(user_id)
+            database.add_video_to_history(user_id, final_video.name, title)
+            print(f"[AUTH] Video counted for user {user_id}")
 
         return jsonify({
             'success': True,
@@ -3752,9 +3897,9 @@ def _read_version() -> str:
                 if v:
                     return v
         # fallback to env or default
-        return os.getenv('MSS_VERSION', '2.8.0')
+        return os.getenv('MSS_VERSION', '5.3.0')
     except Exception:
-        return os.getenv('MSS_VERSION', '2.8.0')
+        return os.getenv('MSS_VERSION', '5.3.0')
 
 
 @app.route('/health', methods=['GET'])
@@ -3940,6 +4085,671 @@ def generate_script():
         print(f"[Script Gen] Error: {e}")
         import traceback
         traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# Global upload progress tracker
+upload_progress = {'progress': 0, 'status': 'idle', 'filename': ''}
+
+@app.route('/youtube-upload-progress', methods=['GET'])
+def get_youtube_upload_progress():
+    """Get current YouTube upload progress"""
+    return jsonify(upload_progress)
+
+@app.route('/upload-to-youtube', methods=['POST'])
+def upload_to_youtube():
+    """
+    Upload a processed video to YouTube
+    """
+    global upload_progress
+    try:
+        upload_progress = {'progress': 0, 'status': 'starting', 'filename': ''}
+        data = request.get_json() or {}
+        video_filename = data.get('video_filename', '')
+        title = data.get('title', 'Untitled Video')
+        description = data.get('description', '')
+        tags = data.get('tags', [])
+        category = data.get('category', '22')  # Default: People & Blogs
+        privacy_status = data.get('privacy_status', 'private')
+        thumbnail_filename = data.get('thumbnail_filename', '')
+
+        print(f"[YOUTUBE UPLOAD] Request received")
+        print(f"[YOUTUBE UPLOAD] Video: {video_filename}")
+        print(f"[YOUTUBE UPLOAD] Title: {title}")
+
+        if not video_filename:
+            return jsonify({'success': False, 'error': 'No video filename provided'}), 400
+
+        # Find video file
+        video_path = Path('out') / video_filename
+        if not video_path.exists():
+            return jsonify({'success': False, 'error': f'Video file not found: {video_filename}'}), 404
+
+        # Find thumbnail if provided
+        thumbnail_path = None
+        if thumbnail_filename:
+            thumb_path = Path('thumbnails') / thumbnail_filename
+            if thumb_path.exists():
+                thumbnail_path = thumb_path
+
+        # Import YouTube upload utility
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
+        from youtube_upload import upload_video
+
+        # Parse tags if string
+        if isinstance(tags, str):
+            tags = [t.strip() for t in tags.split(',') if t.strip()]
+
+        # Upload to YouTube
+        result = upload_video(
+            video_path=str(video_path),
+            title=title,
+            description=description,
+            tags=tags,
+            category=category,
+            privacy_status=privacy_status,
+            thumbnail_path=str(thumbnail_path) if thumbnail_path else None
+        )
+
+        if result['success']:
+            print(f"[YOUTUBE UPLOAD] ✅ Success! Video ID: {result['video_id']}")
+            return jsonify(result)
+        else:
+            print(f"[YOUTUBE UPLOAD] ❌ Failed: {result.get('error')}")
+            return jsonify(result), 500
+
+    except Exception as e:
+        print(f"[YOUTUBE UPLOAD] Exception: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/youtube-categories', methods=['GET'])
+def get_youtube_categories():
+    """Get list of available YouTube categories"""
+    try:
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
+        from youtube_upload import get_video_categories
+
+        categories = get_video_categories()
+        return jsonify({'success': True, 'categories': categories})
+    except Exception as e:
+        # Return default categories if API call fails
+        default_categories = {
+            '22': 'People & Blogs',
+            '24': 'Entertainment',
+            '27': 'Education',
+            '28': 'Science & Technology',
+            '10': 'Music',
+            '17': 'Sports',
+            '19': 'Travel & Events',
+            '20': 'Gaming',
+            '25': 'News & Politics',
+            '26': 'Howto & Style'
+        }
+        return jsonify({'success': True, 'categories': default_categories})
+
+
+# =============================================================================
+# USER AUTHENTICATION ENDPOINTS
+# =============================================================================
+
+import database
+
+@app.route('/api/signup', methods=['POST'])
+def api_signup():
+    """User registration"""
+    try:
+        data = request.get_json() or {}
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '')
+        username = data.get('username', '').strip()
+
+        if not email or not password:
+            return jsonify({'success': False, 'error': 'Email and password required'}), 400
+
+        if len(password) < 6:
+            return jsonify({'success': False, 'error': 'Password must be at least 6 characters'}), 400
+
+        result = database.create_user(email, password, username)
+
+        if result['success']:
+            # Create session
+            session_id = database.create_session(result['user_id'])
+            response = jsonify({
+                'success': True,
+                'user_id': result['user_id'],
+                'message': 'Account created successfully'
+            })
+            response.set_cookie('session_id', session_id, max_age=30*24*60*60, httponly=True, samesite='Lax')  # 30 days
+            return response
+        else:
+            return jsonify(result), 400
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    """User login"""
+    try:
+        data = request.get_json() or {}
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '')
+
+        if not email or not password:
+            return jsonify({'success': False, 'error': 'Email and password required'}), 400
+
+        result = database.verify_user(email, password)
+
+        if result['success']:
+            # Create session
+            session_id = database.create_session(result['user']['id'])
+            response = jsonify({
+                'success': True,
+                'user': {
+                    'id': result['user']['id'],
+                    'email': result['user']['email'],
+                    'username': result['user']['username'],
+                    'subscription_tier': result['user']['subscription_tier']
+                }
+            })
+            response.set_cookie('session_id', session_id, max_age=30*24*60*60, httponly=True, samesite='Lax')  # 30 days
+            return response
+        else:
+            return jsonify(result), 401
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/logout', methods=['POST'])
+def api_logout():
+    """User logout"""
+    try:
+        session_id = request.cookies.get('session_id')
+        if session_id:
+            database.delete_session(session_id)
+
+        response = jsonify({'success': True, 'message': 'Logged out successfully'})
+        response.set_cookie('session_id', '', max_age=0, httponly=True, samesite='Lax')
+        return response
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/forgot-password', methods=['POST'])
+def api_forgot_password():
+    """Request password reset"""
+    try:
+        data = request.get_json()
+        email = data.get('email')
+
+        if not email:
+            return jsonify({'success': False, 'error': 'Email required'}), 400
+
+        result = database.create_password_reset_token(email)
+
+        if not result['success']:
+            # For security, don't reveal if email exists or not
+            return jsonify({'success': True, 'message': 'If that email exists, a reset link has been sent'})
+
+        token = result['token']
+
+        # TODO: Send email with reset link
+        # For now, return the token in development (remove this in production!)
+        reset_link = f"http://localhost:5000/reset-password?token={token}"
+
+        # In production, you'd send an email here:
+        # send_email(email, "Password Reset", f"Click here to reset: {reset_link}")
+
+        print(f"[DEV] Password reset link for {email}: {reset_link}")
+
+        return jsonify({
+            'success': True,
+            'message': 'If that email exists, a reset link has been sent',
+            'dev_link': reset_link  # Remove this in production!
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/reset-password', methods=['POST'])
+def api_reset_password():
+    """Reset password with token"""
+    try:
+        data = request.get_json()
+        token = data.get('token')
+        new_password = data.get('password')
+
+        if not token or not new_password:
+            return jsonify({'success': False, 'error': 'Token and password required'}), 400
+
+        if len(new_password) < 6:
+            return jsonify({'success': False, 'error': 'Password must be at least 6 characters'}), 400
+
+        result = database.reset_password(token, new_password)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/me', methods=['GET'])
+def api_get_current_user():
+    """Get current logged-in user"""
+    try:
+        session_id = request.cookies.get('session_id')
+        if not session_id:
+            return jsonify({'success': False, 'error': 'Not logged in'}), 401
+
+        result = database.get_session(session_id)
+
+        if result['success']:
+            user = result['user']
+            return jsonify({
+                'success': True,
+                'user': {
+                    'id': user['id'],
+                    'email': user['email'],
+                    'username': user['username'],
+                    'subscription_tier': user['subscription_tier'],
+                    'videos_this_month': user['videos_this_month'],
+                    'total_videos': user['total_videos']
+                }
+            })
+        else:
+            return jsonify(result), 401
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/stats', methods=['GET'])
+def api_get_user_stats():
+    """Get user statistics and limits"""
+    try:
+        session_id = request.cookies.get('session_id')
+        if not session_id:
+            return jsonify({'success': False, 'error': 'Not logged in'}), 401
+
+        result = database.get_session(session_id)
+        if not result['success']:
+            return jsonify(result), 401
+
+        user_id = result['user']['id']
+        stats = database.get_user_stats(user_id)
+        can_create = database.can_create_video(user_id)
+
+        return jsonify({
+            'success': True,
+            'stats': stats,
+            'limits': can_create
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/my-videos', methods=['GET'])
+def api_get_user_videos():
+    """Get user's video history"""
+    try:
+        session_id = request.cookies.get('session_id')
+        if not session_id:
+            return jsonify({'success': False, 'error': 'Not logged in'}), 401
+
+        result = database.get_session(session_id)
+        if not result['success']:
+            return jsonify(result), 401
+
+        user_id = result['user']['id']
+        limit = request.args.get('limit', 20, type=int)
+        videos = database.get_user_videos(user_id, limit)
+
+        return jsonify({
+            'success': True,
+            'videos': videos
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================================
+# STRIPE PAYMENT ENDPOINTS
+# ============================================================================
+
+@app.route('/api/stripe/config', methods=['GET'])
+def stripe_config():
+    """Get Stripe publishable key for frontend"""
+    return jsonify({
+        'publishable_key': STRIPE_PUBLISHABLE_KEY,
+        'success': True
+    })
+
+
+@app.route('/api/stripe/create-checkout-session', methods=['POST'])
+def create_checkout_session():
+    """Create Stripe checkout session for subscription or one-time payment"""
+    try:
+        # Get user session
+        session_id = request.cookies.get('session_id')
+        if not session_id:
+            return jsonify({'success': False, 'error': 'Not logged in'}), 401
+
+        result = database.get_session(session_id)
+        if not result['success']:
+            return jsonify({'success': False, 'error': 'Invalid session'}), 401
+
+        user = result['user']
+        data = request.json
+        plan = data.get('plan')  # starter, pro, agency, lifetime
+
+        if plan not in STRIPE_PRICES:
+            return jsonify({'success': False, 'error': 'Invalid plan'}), 400
+
+        price_id = STRIPE_PRICES[plan]
+        if not price_id:
+            return jsonify({'success': False, 'error': 'Plan not configured'}), 400
+
+        # Determine mode based on plan
+        mode = 'payment' if plan == 'lifetime' else 'subscription'
+
+        # Create Stripe checkout session
+        checkout_session = stripe.checkout.Session.create(
+            customer_email=user['email'],
+            client_reference_id=str(user['id']),
+            payment_method_types=['card'],
+            mode=mode,
+            line_items=[{
+                'price': price_id,
+                'quantity': 1,
+            }],
+            success_url=f"{request.host_url}payment-success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{request.host_url}pricing?canceled=true",
+            metadata={
+                'user_id': str(user['id']),
+                'plan': plan
+            }
+        )
+
+        return jsonify({
+            'success': True,
+            'session_id': checkout_session.id,
+            'url': checkout_session.url
+        })
+
+    except Exception as e:
+        print(f"[STRIPE] Error creating checkout session: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/stripe/webhook', methods=['POST'])
+def stripe_webhook():
+    """Handle Stripe webhook events"""
+    payload = request.data
+    sig_header = request.headers.get('Stripe-Signature')
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, STRIPE_WEBHOOK_SECRET
+        )
+    except ValueError as e:
+        print(f"[STRIPE] Invalid payload: {e}")
+        return jsonify({'error': 'Invalid payload'}), 400
+    except stripe.error.SignatureVerificationError as e:
+        print(f"[STRIPE] Invalid signature: {e}")
+        return jsonify({'error': 'Invalid signature'}), 400
+
+    # Handle the event
+    event_type = event['type']
+    print(f"[STRIPE] Received event: {event_type}")
+
+    if event_type == 'checkout.session.completed':
+        session = event['data']['object']
+        user_id = int(session['metadata']['user_id'])
+        plan = session['metadata']['plan']
+
+        # Update user subscription tier
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            'UPDATE users SET subscription_tier = ?, stripe_customer_id = ? WHERE id = ?',
+            (plan, session.get('customer'), user_id)
+        )
+        conn.commit()
+        conn.close()
+
+        print(f"[STRIPE] User {user_id} upgraded to {plan}")
+
+    elif event_type == 'customer.subscription.deleted':
+        # Handle subscription cancellation
+        subscription = event['data']['object']
+        customer_id = subscription['customer']
+
+        # Downgrade user to free
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            'UPDATE users SET subscription_tier = ? WHERE stripe_customer_id = ?',
+            ('free', customer_id)
+        )
+        conn.commit()
+        conn.close()
+
+        print(f"[STRIPE] Subscription canceled for customer {customer_id}")
+
+    return jsonify({'success': True})
+
+
+# ============================================================================
+# ADMIN API ENDPOINTS
+# ============================================================================
+
+# List of admin emails (add your email here)
+ADMIN_EMAILS = ['davequillman@gmail.com']
+
+def is_admin(user_email):
+    """Check if user is admin"""
+    return user_email in ADMIN_EMAILS
+
+@app.route('/api/admin/check', methods=['GET'])
+def admin_check():
+    """Check if current user is admin"""
+    try:
+        session_id = request.cookies.get('session_id')
+        if not session_id:
+            return jsonify({'success': False, 'is_admin': False}), 401
+
+        result = database.get_session(session_id)
+        if not result['success']:
+            return jsonify({'success': False, 'is_admin': False}), 401
+
+        user = result['user']
+        return jsonify({
+            'success': True,
+            'is_admin': is_admin(user['email'])
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/users', methods=['GET'])
+def admin_get_users():
+    """Get all users (admin only)"""
+    try:
+        session_id = request.cookies.get('session_id')
+        if not session_id:
+            return jsonify({'success': False, 'error': 'Not logged in'}), 401
+
+        result = database.get_session(session_id)
+        if not result['success']:
+            return jsonify({'success': False, 'error': 'Invalid session'}), 401
+
+        user = result['user']
+        if not is_admin(user['email']):
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        # Get search parameter
+        search = request.args.get('search', '').strip()
+
+        conn = database.get_db()
+        cursor = conn.cursor()
+
+        if search:
+            cursor.execute('''
+                SELECT id, email, username, subscription_tier, videos_this_month, total_videos, created_at
+                FROM users
+                WHERE email LIKE ? OR username LIKE ?
+                ORDER BY created_at DESC
+            ''', (f'%{search}%', f'%{search}%'))
+        else:
+            cursor.execute('''
+                SELECT id, email, username, subscription_tier, videos_this_month, total_videos, created_at
+                FROM users
+                ORDER BY created_at DESC
+            ''')
+
+        users = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'users': users
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/stats', methods=['GET'])
+def admin_get_stats():
+    """Get system stats (admin only)"""
+    try:
+        session_id = request.cookies.get('session_id')
+        if not session_id:
+            return jsonify({'success': False, 'error': 'Not logged in'}), 401
+
+        result = database.get_session(session_id)
+        if not result['success']:
+            return jsonify({'success': False, 'error': 'Invalid session'}), 401
+
+        user = result['user']
+        if not is_admin(user['email']):
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        conn = database.get_db()
+        cursor = conn.cursor()
+
+        # Total users
+        cursor.execute('SELECT COUNT(*) FROM users')
+        total_users = cursor.fetchone()[0]
+
+        # Free users
+        cursor.execute('SELECT COUNT(*) FROM users WHERE subscription_tier = ?', ('free',))
+        free_users = cursor.fetchone()[0]
+
+        # Paid users
+        paid_users = total_users - free_users
+
+        # Total videos
+        cursor.execute('SELECT SUM(total_videos) FROM users')
+        total_videos = cursor.fetchone()[0] or 0
+
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'stats': {
+                'total_users': total_users,
+                'free_users': free_users,
+                'paid_users': paid_users,
+                'total_videos': total_videos
+            }
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/update-tier', methods=['POST'])
+def admin_update_tier():
+    """Update user tier (admin only)"""
+    try:
+        session_id = request.cookies.get('session_id')
+        if not session_id:
+            return jsonify({'success': False, 'error': 'Not logged in'}), 401
+
+        result = database.get_session(session_id)
+        if not result['success']:
+            return jsonify({'success': False, 'error': 'Invalid session'}), 401
+
+        user = result['user']
+        if not is_admin(user['email']):
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        data = request.json
+        user_id = data.get('user_id')
+        tier = data.get('tier')
+
+        if not user_id or not tier:
+            return jsonify({'success': False, 'error': 'Missing user_id or tier'}), 400
+
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE users SET subscription_tier = ? WHERE id = ?', (tier, user_id))
+        conn.commit()
+        conn.close()
+
+        return jsonify({'success': True, 'message': 'Tier updated'})
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/reset-count', methods=['POST'])
+def admin_reset_count():
+    """Reset user monthly video count (admin only)"""
+    try:
+        session_id = request.cookies.get('session_id')
+        if not session_id:
+            return jsonify({'success': False, 'error': 'Not logged in'}), 401
+
+        result = database.get_session(session_id)
+        if not result['success']:
+            return jsonify({'success': False, 'error': 'Invalid session'}), 401
+
+        user = result['user']
+        if not is_admin(user['email']):
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+        data = request.json
+        user_id = data.get('user_id')
+
+        if not user_id:
+            return jsonify({'success': False, 'error': 'Missing user_id'}), 400
+
+        conn = database.get_db()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE users SET videos_this_month = 0 WHERE id = ?', (user_id,))
+        conn.commit()
+        conn.close()
+
+        return jsonify({'success': True, 'message': 'Count reset'})
+
+    except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

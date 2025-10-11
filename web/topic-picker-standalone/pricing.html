@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pricing - MSS Studio</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0B0F19;
+      color: #E8EBFF;
+      line-height: 1.6;
+    }
+
+    /* Header */
+    .header {
+      padding: 20px 40px;
+      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      font-size: 24px;
+      font-weight: 900;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .nav {
+      display: flex;
+      gap: 30px;
+    }
+
+    .nav a {
+      color: #A8B3CF;
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.3s;
+    }
+
+    .nav a:hover {
+      color: #E8EBFF;
+    }
+
+    /* Hero Section */
+    .pricing-hero {
+      text-align: center;
+      padding: 80px 20px 60px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .pricing-hero h1 {
+      font-size: 52px;
+      font-weight: 900;
+      margin-bottom: 20px;
+      background: linear-gradient(135deg, #22c55e, #3b82f6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .pricing-hero p {
+      font-size: 20px;
+      color: #A8B3CF;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    /* Billing Toggle */
+    .billing-toggle {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 15px;
+      margin: 40px 0;
+    }
+
+    .toggle-label {
+      font-weight: 600;
+      color: #A8B3CF;
+    }
+
+    .toggle-label.active {
+      color: #E8EBFF;
+    }
+
+    .savings-badge {
+      background: #22c55e;
+      color: #0B0F19;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    /* Pricing Grid */
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 30px;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px 80px;
+    }
+
+    .price-card {
+      background: linear-gradient(135deg, rgba(30, 58, 138, 0.1), rgba(17, 24, 39, 0.5));
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 20px;
+      padding: 40px 30px;
+      position: relative;
+      transition: all 0.3s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .price-card:hover {
+      transform: translateY(-5px);
+      border-color: rgba(59, 130, 246, 0.5);
+      box-shadow: 0 20px 40px rgba(59, 130, 246, 0.2);
+    }
+
+    .price-card.popular {
+      border: 2px solid #3b82f6;
+      box-shadow: 0 0 40px rgba(59, 130, 246, 0.3);
+    }
+
+    .popular-badge {
+      position: absolute;
+      top: -15px;
+      right: 30px;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: white;
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .plan-name {
+      font-size: 24px;
+      font-weight: 800;
+      margin-bottom: 10px;
+      color: #E8EBFF;
+    }
+
+    .plan-description {
+      color: #A8B3CF;
+      font-size: 14px;
+      margin-bottom: 20px;
+      min-height: 40px;
+    }
+
+    .plan-price {
+      margin-bottom: 30px;
+    }
+
+    .price-amount {
+      font-size: 48px;
+      font-weight: 900;
+      color: #E8EBFF;
+    }
+
+    .price-period {
+      font-size: 16px;
+      color: #A8B3CF;
+    }
+
+    .price-note {
+      font-size: 13px;
+      color: #A8B3CF;
+      margin-top: 5px;
+    }
+
+    .plan-features {
+      list-style: none;
+      margin-bottom: 30px;
+      flex: 1;
+    }
+
+    .plan-features li {
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .plan-features li:last-child {
+      border-bottom: none;
+    }
+
+    .checkmark {
+      color: #22c55e;
+      font-weight: bold;
+      font-size: 18px;
+    }
+
+    .cta-button {
+      width: 100%;
+      padding: 16px;
+      border-radius: 12px;
+      border: none;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: block;
+      text-align: center;
+    }
+
+    .cta-button.primary {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: white;
+      box-shadow: 0 10px 30px rgba(59, 130, 246, 0.4);
+    }
+
+    .cta-button.primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 40px rgba(59, 130, 246, 0.6);
+    }
+
+    .cta-button.green {
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      color: white;
+      box-shadow: 0 10px 30px rgba(34, 197, 94, 0.4);
+    }
+
+    .cta-button.green:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 40px rgba(34, 197, 94, 0.6);
+    }
+
+    .cta-button.secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: #E8EBFF;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .cta-button.secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .coming-soon {
+      opacity: 0.7;
+      cursor: not-allowed !important;
+      position: relative;
+    }
+
+    .coming-soon::after {
+      content: 'Coming Soon';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.8);
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    /* FAQ Section */
+    .faq-section {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 80px 20px;
+    }
+
+    .faq-section h2 {
+      font-size: 42px;
+      font-weight: 800;
+      text-align: center;
+      margin-bottom: 60px;
+      background: linear-gradient(135deg, #22c55e, #3b82f6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .faq-item {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .faq-question {
+      font-size: 18px;
+      font-weight: 700;
+      color: #E8EBFF;
+      margin-bottom: 12px;
+    }
+
+    .faq-answer {
+      color: #A8B3CF;
+      line-height: 1.7;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .pricing-hero h1 {
+        font-size: 36px;
+      }
+
+      .pricing-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .nav {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">MSS</div>
+    <div class="nav">
+      <a href="landing.html">Home</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="studio.html">Studio</a>
+    </div>
+  </div>
+
+  <!-- Hero -->
+  <div class="pricing-hero">
+    <h1>Choose Your Plan</h1>
+    <p>Start free, upgrade when you're ready. Unlimited creativity, your way.</p>
+  </div>
+
+  <!-- Pricing Grid -->
+  <div class="pricing-grid">
+    <!-- Free Tier -->
+    <div class="price-card">
+      <div class="plan-name">Free</div>
+      <div class="plan-description">Perfect for trying MSS</div>
+      <div class="plan-price">
+        <div class="price-amount">$0</div>
+        <div class="price-period">forever</div>
+      </div>
+      <ul class="plan-features">
+        <li><span class="checkmark">✓</span> 3 videos per month</li>
+        <li><span class="checkmark">✓</span> All features unlocked</li>
+        <li><span class="checkmark">✓</span> AI avatars & logos</li>
+        <li><span class="checkmark">✓</span> Meme & thumbnail generator</li>
+        <li><span class="checkmark">✓</span> "Made with MSS" watermark</li>
+      </ul>
+      <a href="studio.html" class="cta-button primary">Get Started Free</a>
+    </div>
+
+    <!-- Pay Per Video -->
+    <div class="price-card">
+      <div class="plan-name">Pay-Per-Video</div>
+      <div class="plan-description">No commitment, pay as you go</div>
+      <div class="plan-price">
+        <div class="price-amount">$2</div>
+        <div class="price-period">per video</div>
+      </div>
+      <ul class="plan-features">
+        <li><span class="checkmark">✓</span> No subscription needed</li>
+        <li><span class="checkmark">✓</span> No watermark</li>
+        <li><span class="checkmark">✓</span> All features unlocked</li>
+        <li><span class="checkmark">✓</span> Priority processing</li>
+        <li><span class="checkmark">✓</span> Commercial license</li>
+      </ul>
+      <button class="cta-button primary coming-soon" disabled>Buy Credits</button>
+    </div>
+
+    <!-- Starter -->
+    <div class="price-card">
+      <div class="plan-name">Starter</div>
+      <div class="plan-description">For regular creators</div>
+      <div class="plan-price">
+        <div class="price-amount">$19</div>
+        <div class="price-period">/month</div>
+      </div>
+      <ul class="plan-features">
+        <li><span class="checkmark">✓</span> 30 videos per month</li>
+        <li><span class="checkmark">✓</span> No watermark</li>
+        <li><span class="checkmark">✓</span> All features unlocked</li>
+        <li><span class="checkmark">✓</span> Priority support</li>
+        <li><span class="checkmark">✓</span> Commercial license</li>
+      </ul>
+      <button class="cta-button primary payment-btn" data-plan="starter">Subscribe</button>
+    </div>
+
+    <!-- Pro (Popular) -->
+    <div class="price-card popular">
+      <div class="popular-badge">Most Popular</div>
+      <div class="plan-name">Pro</div>
+      <div class="plan-description">For power users & teams</div>
+      <div class="plan-price">
+        <div class="price-amount">$49</div>
+        <div class="price-period">/month</div>
+      </div>
+      <ul class="plan-features">
+        <li><span class="checkmark">✓</span> <strong>Unlimited videos</strong></li>
+        <li><span class="checkmark">✓</span> No watermark</li>
+        <li><span class="checkmark">✓</span> All features unlocked</li>
+        <li><span class="checkmark">✓</span> Priority support</li>
+        <li><span class="checkmark">✓</span> Commercial license</li>
+        <li><span class="checkmark">✓</span> Early access to new features</li>
+      </ul>
+      <button class="cta-button green payment-btn" data-plan="pro">Subscribe</button>
+    </div>
+
+    <!-- Agency -->
+    <div class="price-card">
+      <div class="plan-name">Agency</div>
+      <div class="plan-description">For agencies & enterprises</div>
+      <div class="plan-price">
+        <div class="price-amount">$149</div>
+        <div class="price-period">/month</div>
+      </div>
+      <ul class="plan-features">
+        <li><span class="checkmark">✓</span> <strong>Unlimited everything</strong></li>
+        <li><span class="checkmark">✓</span> White label (remove MSS branding)</li>
+        <li><span class="checkmark">✓</span> API access</li>
+        <li><span class="checkmark">✓</span> Dedicated support</li>
+        <li><span class="checkmark">✓</span> Custom integrations</li>
+        <li><span class="checkmark">✓</span> Multi-user accounts</li>
+      </ul>
+      <button class="cta-button primary payment-btn" data-plan="agency">Subscribe</button>
+    </div>
+
+    <!-- Lifetime -->
+    <div class="price-card" style="border-color: #f59e0b;">
+      <div class="popular-badge" style="background: linear-gradient(135deg, #f59e0b, #d97706);">Limited Time</div>
+      <div class="plan-name">Lifetime</div>
+      <div class="plan-description">Pay once, own forever</div>
+      <div class="plan-price">
+        <div class="price-amount">$199</div>
+        <div class="price-period">one-time</div>
+        <div class="price-note">Only 100 spots available</div>
+      </div>
+      <ul class="plan-features">
+        <li><span class="checkmark">✓</span> <strong>Unlimited videos forever</strong></li>
+        <li><span class="checkmark">✓</span> No watermark</li>
+        <li><span class="checkmark">✓</span> All future features</li>
+        <li><span class="checkmark">✓</span> Priority support</li>
+        <li><span class="checkmark">✓</span> Commercial license</li>
+        <li><span class="checkmark">✓</span> Lock in this price forever</li>
+      </ul>
+      <button class="cta-button primary payment-btn" data-plan="lifetime">Claim Lifetime Access</button>
+    </div>
+  </div>
+
+  <!-- FAQ -->
+  <div class="faq-section">
+    <h2>Frequently Asked Questions</h2>
+
+    <div class="faq-item">
+      <div class="faq-question">Can I upgrade or downgrade anytime?</div>
+      <div class="faq-answer">Yes! You can change your plan at any time. Upgrades take effect immediately, downgrades at the end of your billing cycle.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">What payment methods do you accept?</div>
+      <div class="faq-answer">We accept all major credit cards (Visa, Mastercard, Amex) and PayPal through Stripe's secure payment processing.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">Is there a refund policy?</div>
+      <div class="faq-answer">Yes! If you're not satisfied within the first 30 days, we'll refund you in full, no questions asked.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">Do I own the videos I create?</div>
+      <div class="faq-answer">Absolutely! You own 100% of the videos you create with MSS. Use them commercially, monetize them, do whatever you want.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">Can I use MSS for client work?</div>
+      <div class="faq-answer">Yes! All paid plans include a commercial license, so you can create videos for clients and charge for your services.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">Will the Lifetime deal go away?</div>
+      <div class="faq-answer">Yes! This is a limited launch offer. Once all 100 spots are gone, or after our official launch, the lifetime deal will no longer be available.</div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:5000';
+
+    // Handle payment button clicks
+    document.querySelectorAll('.payment-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const plan = btn.getAttribute('data-plan');
+        btn.disabled = true;
+        btn.textContent = 'Loading...';
+
+        try {
+          // Create checkout session
+          const res = await fetch(`${API_BASE}/api/stripe/create-checkout-session`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ plan })
+          });
+
+          const data = await res.json();
+
+          if (data.success && data.url) {
+            // Redirect to Stripe checkout
+            window.location.href = data.url;
+          } else {
+            if (data.error === 'Not logged in') {
+              // Redirect to login
+              if (confirm('You need to be logged in to subscribe. Go to login page?')) {
+                window.location.href = '/auth';
+              }
+            } else {
+              alert(`Error: ${data.error || 'Payment failed'}`);
+            }
+            btn.disabled = false;
+            btn.textContent = btn.getAttribute('data-plan') === 'lifetime' ? 'Claim Lifetime Access' : 'Subscribe';
+          }
+        } catch (e) {
+          console.error('Payment error:', e);
+          alert('Payment failed. Please try again.');
+          btn.disabled = false;
+          btn.textContent = btn.getAttribute('data-plan') === 'lifetime' ? 'Claim Lifetime Access' : 'Subscribe';
+        }
+      });
+    });
+
+    // Show canceled message if redirected from canceled checkout
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('canceled') === 'true') {
+      const banner = document.createElement('div');
+      banner.style.cssText = 'position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#ef4444; color:white; padding:16px 24px; border-radius:8px; z-index:9999; box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+      banner.textContent = 'Payment canceled. Feel free to try again when ready!';
+      document.body.appendChild(banner);
+      setTimeout(() => banner.remove(), 5000);
+    }
+  </script>
+</body>
+</html>

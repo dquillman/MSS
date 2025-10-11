@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MSS - Many Sources Say</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0B0F19;
+      color: #E8EBFF;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Animated gradient background */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 40px 20px;
+      background: linear-gradient(135deg, #0B0F19 0%, #1a2332 50%, #0B0F19 100%);
+      background-size: 400% 400%;
+      animation: gradientShift 15s ease infinite;
+      overflow: hidden;
+    }
+
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* Floating particles effect */
+    .hero::before {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background-image:
+        radial-gradient(2px 2px at 20% 30%, rgba(59, 130, 246, 0.3), transparent),
+        radial-gradient(2px 2px at 60% 70%, rgba(34, 197, 94, 0.3), transparent),
+        radial-gradient(1px 1px at 50% 50%, rgba(245, 158, 11, 0.3), transparent),
+        radial-gradient(2px 2px at 80% 10%, rgba(168, 85, 247, 0.3), transparent);
+      background-size: 200% 200%;
+      animation: particleFloat 20s ease infinite;
+      opacity: 0.4;
+    }
+
+    @keyframes particleFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-20px); }
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      max-width: 900px;
+    }
+
+    .logo {
+      font-size: 72px;
+      font-weight: 900;
+      margin-bottom: 20px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6, #ec4899);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: logoGlow 3s ease-in-out infinite;
+    }
+
+    @keyframes logoGlow {
+      0%, 100% { filter: drop-shadow(0 0 20px rgba(59, 130, 246, 0.5)); }
+      50% { filter: drop-shadow(0 0 40px rgba(139, 92, 246, 0.8)); }
+    }
+
+    .tagline {
+      font-size: 28px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: #E8EBFF;
+    }
+
+    .subtitle {
+      font-size: 18px;
+      color: #A8B3CF;
+      margin-bottom: 40px;
+      max-width: 700px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .cta-buttons {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 60px;
+    }
+
+    .btn {
+      padding: 16px 40px;
+      font-size: 18px;
+      font-weight: 600;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: white;
+      box-shadow: 0 10px 30px rgba(59, 130, 246, 0.4);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 40px rgba(59, 130, 246, 0.6);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: #E8EBFF;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    /* Features section */
+    .features {
+      padding: 80px 20px;
+      background: #0B0F19;
+    }
+
+    .features-container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .section-title {
+      text-align: center;
+      font-size: 42px;
+      font-weight: 800;
+      margin-bottom: 60px;
+      background: linear-gradient(135deg, #22c55e, #3b82f6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 30px;
+      margin-bottom: 60px;
+    }
+
+    .feature-card {
+      background: linear-gradient(135deg, rgba(30, 58, 138, 0.1), rgba(17, 24, 39, 0.5));
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 16px;
+      padding: 30px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), transparent);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-5px);
+      border-color: rgba(59, 130, 246, 0.5);
+      box-shadow: 0 20px 40px rgba(59, 130, 246, 0.2);
+    }
+
+    .feature-card:hover::before {
+      opacity: 1;
+    }
+
+    .feature-icon {
+      font-size: 48px;
+      margin-bottom: 20px;
+      display: block;
+    }
+
+    .feature-title {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #E8EBFF;
+    }
+
+    .feature-description {
+      color: #A8B3CF;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* Workflow section */
+    .workflow {
+      background: linear-gradient(135deg, #1e293b 0%, #0B0F19 100%);
+      padding: 80px 20px;
+    }
+
+    .workflow-steps {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 40px;
+    }
+
+    .workflow-step {
+      display: flex;
+      align-items: center;
+      gap: 30px;
+      padding: 30px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      border-left: 4px solid #3b82f6;
+    }
+
+    .step-number {
+      font-size: 48px;
+      font-weight: 900;
+      color: #3b82f6;
+      min-width: 80px;
+      text-align: center;
+    }
+
+    .step-content h3 {
+      font-size: 24px;
+      margin-bottom: 10px;
+      color: #E8EBFF;
+    }
+
+    .step-content p {
+      color: #A8B3CF;
+      font-size: 16px;
+    }
+
+    /* Stats section */
+    .stats {
+      padding: 80px 20px;
+      background: #0B0F19;
+    }
+
+    .stats-grid {
+      max-width: 1000px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 40px;
+      text-align: center;
+    }
+
+    .stat-item {
+      padding: 30px;
+    }
+
+    .stat-number {
+      font-size: 52px;
+      font-weight: 900;
+      background: linear-gradient(135deg, #22c55e, #3b82f6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+    }
+
+    .stat-label {
+      color: #A8B3CF;
+      font-size: 16px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Footer CTA */
+    .footer-cta {
+      padding: 100px 20px;
+      text-align: center;
+      background: linear-gradient(135deg, #1e293b, #0B0F19);
+    }
+
+    .footer-cta h2 {
+      font-size: 48px;
+      font-weight: 800;
+      margin-bottom: 30px;
+      color: #E8EBFF;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .logo {
+        font-size: 48px;
+      }
+
+      .tagline {
+        font-size: 22px;
+      }
+
+      .subtitle {
+        font-size: 16px;
+      }
+
+      .section-title {
+        font-size: 32px;
+      }
+
+      .workflow-step {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .footer-cta h2 {
+        font-size: 32px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Hero Section -->
+  <div class="hero">
+    <div class="hero-content">
+      <div class="logo">MSS</div>
+      <h1 class="tagline">Many Sources Say</h1>
+      <p class="subtitle">Transform your ideas into professional AI-powered videos with avatars, logos, and automated workflows. Create unlimited content without limits.</p>
+      <div class="cta-buttons">
+        <button id="launchStudioBtn" class="btn btn-primary">🎬 Launch Studio</button>
+        <a href="/pricing" class="btn btn-secondary">💰 View Pricing</a>
+        <a href="/topics" class="btn btn-secondary">📝 Pick Topics</a>
+        <button id="userMenuBtn" class="btn btn-secondary" style="display:none;">👤 Dashboard</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Features Section -->
+  <div class="features">
+    <div class="features-container">
+      <h2 class="section-title">Everything You Need to Create</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <span class="feature-icon">🎯</span>
+          <h3 class="feature-title">Smart Topic Picker</h3>
+          <p class="feature-description">Research and select winning video topics with built-in keyword analysis and trend detection.</p>
+        </div>
+
+        <div class="feature-card">
+          <span class="feature-icon">🎙️</span>
+          <h3 class="feature-title">AI Voice & Avatars</h3>
+          <p class="feature-description">Professional text-to-speech with customizable AI avatars that speak your script naturally.</p>
+        </div>
+
+        <div class="feature-card">
+          <span class="feature-icon">🎨</span>
+          <h3 class="feature-title">Logo & Branding</h3>
+          <p class="feature-description">Add your logo anywhere on videos with customizable positioning and sizing options.</p>
+        </div>
+
+        <div class="feature-card">
+          <span class="feature-icon">🖼️</span>
+          <h3 class="feature-title">Thumbnail Creator</h3>
+          <p class="feature-description">Generate eye-catching AI thumbnails with text overlays and custom styling.</p>
+        </div>
+
+        <div class="feature-card">
+          <span class="feature-icon">😂</span>
+          <h3 class="feature-title">Meme Library</h3>
+          <p class="feature-description">Create viral memes with templates, AI backgrounds, and batch generation tools.</p>
+        </div>
+
+        <div class="feature-card">
+          <span class="feature-icon">✨</span>
+          <h3 class="feature-title">Intro/Outro</h3>
+          <p class="feature-description">Professional video bookends with custom branding and smooth transitions.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Workflow Section -->
+  <div class="workflow">
+    <div class="features-container">
+      <h2 class="section-title">Simple 4-Step Workflow</h2>
+      <div class="workflow-steps">
+        <div class="workflow-step">
+          <div class="step-number">01</div>
+          <div class="step-content">
+            <h3>Pick Your Topic</h3>
+            <p>Browse trending topics or create custom ones with our intelligent topic picker.</p>
+          </div>
+        </div>
+
+        <div class="workflow-step">
+          <div class="step-number">02</div>
+          <div class="step-content">
+            <h3>Upload Video</h3>
+            <p>Upload your raw video or let AI generate one from your script.</p>
+          </div>
+        </div>
+
+        <div class="workflow-step">
+          <div class="step-number">03</div>
+          <div class="step-content">
+            <h3>Add Avatar & Logo</h3>
+            <p>Select your AI avatar and logo placement with real-time preview.</p>
+          </div>
+        </div>
+
+        <div class="workflow-step">
+          <div class="step-number">04</div>
+          <div class="step-content">
+            <h3>Process & Download</h3>
+            <p>Hit process and get your professional video with all elements combined.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Section -->
+  <div class="stats">
+    <h2 class="section-title">Why Choose MSS?</h2>
+    <div class="stats-grid">
+      <div class="stat-item">
+        <div class="stat-number">∞</div>
+        <div class="stat-label">Unlimited Videos</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-number">100%</div>
+        <div class="stat-label">Your Branding</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-number">0</div>
+        <div class="stat-label">Per-Video Costs</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-number">10+</div>
+        <div class="stat-label">Integrated Tools</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer CTA -->
+  <div class="footer-cta">
+    <h2>Ready to Create?</h2>
+    <div class="cta-buttons">
+      <button id="getStartedBtn" class="btn btn-primary">🚀 Get Started Now</button>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:5000';
+
+    // Check if user is logged in
+    async function checkAuth() {
+      try {
+        const res = await fetch(`${API_BASE}/api/me`, {
+          credentials: 'include'
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          // User is logged in - show dashboard button
+          document.getElementById('userMenuBtn').style.display = 'inline-block';
+          return true;
+        }
+      } catch (e) {
+        // Not logged in
+      }
+      return false;
+    }
+
+    // Handle Launch Studio button
+    document.getElementById('launchStudioBtn').addEventListener('click', async () => {
+      const isLoggedIn = await checkAuth();
+      window.location.href = isLoggedIn ? '/studio' : '/auth';
+    });
+
+    // Handle Get Started button
+    document.getElementById('getStartedBtn').addEventListener('click', async () => {
+      const isLoggedIn = await checkAuth();
+      window.location.href = isLoggedIn ? '/studio' : '/auth';
+    });
+
+    // Handle Dashboard button
+    document.getElementById('userMenuBtn').addEventListener('click', () => {
+      window.location.href = '/dashboard';
+    });
+
+    // Check auth on page load
+    checkAuth();
+  </script>
+</body>
+</html>

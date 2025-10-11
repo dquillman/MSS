@@ -1,6 +1,6 @@
 // Global version injector for MSS pages
 (function(){
-  window.code_version = "3.0.0";
+  window.code_version = "5.3.0";
   async function resolveVersion(){
     try {
       const r = await fetch('http://localhost:5000/health');

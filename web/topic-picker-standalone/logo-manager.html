@@ -18,7 +18,7 @@
       <button class="btn" onclick="window.location.href='thumbnail-manager.html'">Thumbnails</button>
       <button class="btn" onclick="window.location.href='intro-outro.html'">Intro/Outro</button>
       <button class="btn" onclick="window.location.href='viewer.html'">Viewer</button>
-      <div class="dropdown" style="position:relative;">
+      <div class="dropdown" id="oldMenusContainer" style="position:relative;display:none;">
         <button class="btn" id="oldMenusBtn">Old Menus</button>
         <div class="dropdown-content" id="oldMenus" style="display:none; position:absolute; top:110%; left:0; background:#0B0F19; border:1px solid #334; border-radius:8px; min-width:180px; z-index:20; box-shadow:0 6px 18px rgba(0,0,0,0.4);">
           <a href="video-composer.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Composer</a>
@@ -29,7 +29,7 @@
     </div>
   </div>
 
-<script>(function(){ const btn=document.getElementById("oldMenusBtn"); const menu=document.getElementById("oldMenus"); if(btn&&menu){ btn.addEventListener("click",(e)=>{ e.stopPropagation(); menu.style.display=(menu.style.display==="block"?"none":"block");}); document.addEventListener("click",()=>{ menu.style.display="none";}); menu.addEventListener("click",(e)=>e.stopPropagation()); }})();</script>
+<script>(function(){ const btn=document.getElementById("oldMenusBtn"); const menu=document.getElementById("oldMenus"); const $oldMenusContainer = document.getElementById('oldMenusContainer'); if(btn&&menu&&$oldMenusContainer){ btn.addEventListener("click",(e)=>{ e.stopPropagation(); menu.style.display=(menu.style.display==="block"?"none":"block");}); document.addEventListener("click",()=>{ menu.style.display="none";}); menu.addEventListener("click",(e)=>e.stopPropagation()); document.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key.toLowerCase()==='o'){ e.preventDefault(); $oldMenusContainer.style.display = ($oldMenusContainer.style.display==='none'||!$oldMenusContainer.style.display)?'block':'none'; } }); }})();</script>
 
   <div class="card" style="margin-top:16px;">
     <h1>Upload Logo</h1>

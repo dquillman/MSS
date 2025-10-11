@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Successful - MSS</title>
+  <link rel="stylesheet" href="studio.css">
+  <style>
+    .success-container {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .success-card {
+      background: rgba(255,255,255,0.05);
+      border: 2px solid #22c55e;
+      border-radius: 20px;
+      padding: 60px 40px;
+      max-width: 600px;
+      text-align: center;
+      box-shadow: 0 0 60px rgba(34, 197, 94, 0.3);
+    }
+
+    .success-icon {
+      font-size: 80px;
+      margin-bottom: 20px;
+      animation: scaleIn 0.5s ease;
+    }
+
+    @keyframes scaleIn {
+      0% { transform: scale(0); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+
+    .success-title {
+      font-size: 32px;
+      font-weight: 900;
+      color: #22c55e;
+      margin-bottom: 16px;
+    }
+
+    .success-message {
+      font-size: 18px;
+      color: #A8B3CF;
+      margin-bottom: 30px;
+      line-height: 1.6;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="success-container">
+    <div class="success-card">
+      <div class="success-icon">✅</div>
+      <h1 class="success-title">Payment Successful!</h1>
+      <p class="success-message">
+        Your subscription has been activated. You now have access to all premium features!
+      </p>
+      <p class="success-message" id="planInfo" style="font-weight:600; color:#22c55e;">
+        Loading your plan details...
+      </p>
+      <div class="btn-group">
+        <button class="btn" onclick="window.location.href='/dashboard'" style="background:#3b82f6; border-color:#3b82f6;">
+          📊 View Dashboard
+        </button>
+        <button class="btn" onclick="window.location.href='/studio'" style="background:#22c55e; border-color:#22c55e;">
+          🎬 Start Creating
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:5000';
+
+    // Get session ID from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session_id');
+
+    // Fetch user info to show updated plan
+    async function loadPlanInfo() {
+      try {
+        const res = await fetch(`${API_BASE}/api/me`, {
+          credentials: 'include'
+        });
+        const data = await res.json();
+
+        if (data.success && data.user) {
+          const tier = data.user.subscription_tier;
+          document.getElementById('planInfo').textContent =
+            `You're now on the ${tier.charAt(0).toUpperCase() + tier.slice(1)} plan!`;
+        }
+      } catch (e) {
+        console.error('Error loading plan info:', e);
+      }
+    }
+
+    loadPlanInfo();
+
+    // Auto-redirect to dashboard after 5 seconds
+    setTimeout(() => {
+      window.location.href = '/dashboard';
+    }, 5000);
+  </script>
+</body>
+</html>

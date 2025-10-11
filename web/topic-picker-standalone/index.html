@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <title>MSS Topic Picker - Standalone</title>
+  <title>Topic Picker</title>
   <style>
     body { font-family: Inter, Arial, sans-serif; background:#0B0F19; color:#E8EBFF; margin:0; padding:20px; }
     h1 { margin:0 0 8px 0; }
@@ -42,9 +42,10 @@
 <body>
   <div id="loadingBar" class="loading-bar"></div>
   <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
-    <h1>MSS Topic Picker - Standalone <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
+    <h1>Topic Picker <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
     <div style="display:flex; gap:10px; flex-wrap:wrap;">
       <button class="button-secondary" onclick="location.href='studio.html'">Studio</button>
+      <button onclick="location.href='settings.html'" style="background:#7c3aed; border-color:#7c3aed; padding:10px 12px; border-radius:6px; font-weight:600; cursor:pointer; color:#E8EBFF;">⚙️ Settings</button>
       <button class="button-secondary" onclick="testAPI()">Test API</button>
     </div>
   </div>

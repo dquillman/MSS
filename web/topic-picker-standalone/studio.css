@@ -196,7 +196,7 @@ input[type="radio"] {
 /* Toast Notifications */
 .toast {
   position: fixed;
-  top: var(--spacing-4xl);
+  top: 150px;
   right: var(--spacing-4xl);
   padding: var(--spacing-2xl);
   border-radius: var(--radius-md);

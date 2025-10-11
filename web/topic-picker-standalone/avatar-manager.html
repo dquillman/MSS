@@ -289,34 +289,12 @@
   <script src="version.js" defer></script>
 </head>
 <body>
-  <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:16px;">
-    <h1 style="margin:0;">Avatar Manager</h1>
-    <div style="display:flex; gap:10px; flex-wrap:wrap;">
-      <button class="btn" onclick="window.location.href='studio.html'">Studio</button>
-    </div>
-  </div>
-  <script>
-    // Clean header mojibake and ensure Studio button exists
-    (function(){
-      const group = document.querySelector("div[style*='gap: 10px']");
-      if (group && !group.querySelector('[data-nav-studio]')) {
-        const studio = document.createElement('button');
-        studio.setAttribute('data-nav-studio','1');
-        studio.textContent = 'Studio';
-        studio.style.padding = '8px 16px'; studio.style.margin = '0';
-        studio.onclick = () => { window.location.href = 'studio.html'; };
-        group.prepend(studio);
-        const viewer = document.createElement('button');
-        viewer.textContent = 'Viewer';
-        viewer.style.padding = '8px 16px'; viewer.style.margin = '0';
-        viewer.onclick = () => { window.location.href = 'viewer.html'; };
-        group.prepend(viewer);
-      }
-    })();
-  </script>
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
     <h2 style="margin: 0;">👤 Avatar Manager <span style="font-size:14px; color:#64748b; font-weight:400;">v3.0.0</span></h2>
-    <button onclick="window.location.href='index.html'" class="button-secondary">← Back to Topics</button>
+    <div style="display:flex; gap:10px;">
+      <button onclick="window.location.href='studio.html'" class="button-secondary">Studio</button>
+      <button onclick="window.location.href='index.html'" class="button-secondary">← Back to Topics</button>
+    </div>
   </div>
   <p class="subtitle">Manage video avatars. Create custom avatars and select which one appears in your videos.</p>
 

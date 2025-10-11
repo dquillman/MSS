@@ -19,7 +19,7 @@
       <button class="btn" onclick="window.location.href='intro-outro.html'">Intro/Outro</button>
       <button class="btn" onclick="window.location.href='viewer.html'">Viewer</button>
       <button class="btn" onclick="window.location.href='studio.html'">Studio</button>
-      <div class="dropdown" style="position:relative;">
+      <div class="dropdown" style="position:relative; display:none;" id="oldMenusContainer">
         <button class="btn" id="oldMenusBtn">Old Menus</button>
         <div class="dropdown-content" id="oldMenus" style="display:none; position:absolute; top:110%; left:0; background:#0B0F19; border:1px solid #334; border-radius:8px; min-width:180px; z-index:20; box-shadow:0 6px 18px rgba(0,0,0,0.4);">
           <a href="thumbnail-manager.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Thumbnails</a>
@@ -31,14 +31,14 @@
     </div>
   </div>
 
-<script>(function(){ const btn=document.getElementById("oldMenusBtn"); const menu=document.getElementById("oldMenus"); if(btn&&menu){ btn.addEventListener("click",(e)=>{ e.stopPropagation(); menu.style.display=(menu.style.display==="block"?"none":"block");}); document.addEventListener("click",()=>{ menu.style.display="none";}); menu.addEventListener("click",(e)=>e.stopPropagation()); }})();</script>
+<script>(function(){ const btn=document.getElementById("oldMenusBtn"); const menu=document.getElementById("oldMenus"); const container=document.getElementById("oldMenusContainer"); if(btn&&menu&&container){ btn.addEventListener("click",(e)=>{ e.stopPropagation(); menu.style.display=(menu.style.display==="block"?"none":"block");}); document.addEventListener("click",()=>{ menu.style.display="none";}); menu.addEventListener("click",(e)=>e.stopPropagation()); document.addEventListener("keydown",(e)=>{ if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key.toLowerCase()==='o'){ e.preventDefault(); container.style.display=(container.style.display==="none"||!container.style.display)?"block":"none"; }}); }})();</script>
 
   <div class="card">
     <h1>Topic Picker</h1>
     <div class="row" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
       <button class="btn" id="liteLoadLast">Load Last Topic</button>
       <a class="btn" href="index.html?return=meme-library.html" id="openFullPicker">Open Full Topic Picker</a>
-      <span id="liteStatus" class="status info" style="display:none;"></span>
+      <span id="liteStatus" class="status info" style="display:none; padding:8px 12px; background:rgba(34,197,94,0.2); border:1px solid #22c55e; border-radius:6px; color:#22c55e; font-size:14px; font-weight:600;"></span>
     </div>
     <div class="row" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
       <div>
@@ -117,6 +117,7 @@
         <input type="checkbox" id="forceCleanBg" checked> Force clean (no text)
       </label>
       <button class="btn" id="memeGenerate">Render Meme</button>
+      <button class="btn" id="memeClear" style="background:#dc2626; border-color:#dc2626;">Clear Meme</button>
       <a class="btn" id="memeDownload" download="meme.png" style="display:none;">Download</a>
     </div>
     <div class="row">
@@ -140,6 +141,21 @@ Make it stand out in search results and suggested videos.`;
       el.style.display = 'inline-block';
       el.className = 'status ' + (kind || 'info');
       el.textContent = msg;
+
+      // Set colors based on kind
+      if (kind === 'ok') {
+        el.style.background = 'rgba(34,197,94,0.2)';
+        el.style.borderColor = '#22c55e';
+        el.style.color = '#22c55e';
+      } else if (kind === 'err') {
+        el.style.background = 'rgba(239,68,68,0.2)';
+        el.style.borderColor = '#ef4444';
+        el.style.color = '#ef4444';
+      } else {
+        el.style.background = 'rgba(59,130,246,0.2)';
+        el.style.borderColor = '#3b82f6';
+        el.style.color = '#3b82f6';
+      }
     }
 
     function parseKeywords(str) {
@@ -327,6 +343,18 @@ Make it stand out in search results and suggested videos.`;
       trackEvent('thumbnail_generated', {
         hasBackground: !!document.getElementById('memeBg').files?.length
       });
+    });
+
+    // Clear Meme button handler
+    document.getElementById('memeClear').addEventListener('click', () => {
+      const canvas = document.getElementById('memecanvas');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const link = document.getElementById('memeDownload');
+      link.style.display = 'none';
+      setStatus('Meme cleared.', 'ok');
     });
 
     // Toast Notification System
@@ -543,12 +571,12 @@ Make it stand out in search results and suggested videos.`;
 
     // Generate AI background
     document.getElementById('memeGenBg').addEventListener('click', async () => {
-      const title = document.getElementById('topicTitle').value.trim();
-      const hook = document.getElementById('topicHook').value.trim();
+      const title = document.getElementById('liteTitle').value.trim();
+      const hook = document.getElementById('liteHook').value.trim();
       const desc = document.getElementById('topicDesc').value.trim();
-      // Collect tokens
-      const chips = Array.from(document.getElementById('topicTokens').children || []);
-      const keywords = chips.map(ch => ch.textContent).slice(0, 20);
+      // Parse keywords from input
+      const kwInput = document.getElementById('liteKeywords').value.trim();
+      const keywords = kwInput ? parseKeywords(kwInput) : [];
       const loadingBar = document.getElementById('loadingBar');
       if (loadingBar) loadingBar.style.display = 'block';
       setStatus('Generating background...', 'info');
@@ -856,11 +884,11 @@ Make it stand out in search results and suggested videos.`;
 
     // Batch Background Generation
     document.getElementById('batchGenBg')?.addEventListener('click', async () => {
-      const title = document.getElementById('topicTitle').value.trim();
-      const hook = document.getElementById('topicHook').value.trim();
+      const title = document.getElementById('liteTitle').value.trim();
+      const hook = document.getElementById('liteHook').value.trim();
       const desc = document.getElementById('topicDesc').value.trim();
-      const chips = Array.from(document.getElementById('topicTokens')?.children || []);
-      const keywords = chips.map(ch => ch.textContent).slice(0, 20);
+      const kwInput = document.getElementById('liteKeywords').value.trim();
+      const keywords = kwInput ? parseKeywords(kwInput) : [];
       const loadingBar = document.getElementById('loadingBar');
 
       if (!title && !hook) {

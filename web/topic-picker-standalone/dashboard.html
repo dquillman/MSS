@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - MSS Studio</title>
+  <link rel="stylesheet" href="studio.css">
+</head>
+<body>
+  <div id="loadingBar" class="loading-bar"></div>
+
+  <!-- Header -->
+  <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+    <h1 style="margin:0;">Dashboard <span id="userEmail" style="font-size:14px; color:#64748b; font-weight:400;"></span></h1>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn" onclick="window.location.href='/studio'">🎬 Studio</button>
+      <button class="btn" onclick="window.location.href='/topics'">📝 Topics</button>
+      <button class="btn" onclick="window.location.href='/pricing'">💰 Pricing</button>
+      <button class="btn" onclick="logout()" style="background:#ef4444; border-color:#ef4444;">🚪 Logout</button>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:20px; margin-top:20px;">
+    <!-- Subscription Tier -->
+    <div class="card" style="background:linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(17, 24, 39, 0.5)); border-color: #3b82f6;">
+      <h2 style="margin:0 0 10px 0; font-size:16px; color:#A8B3CF;">Current Plan</h2>
+      <div style="font-size:32px; font-weight:900; color:#3b82f6; text-transform:capitalize;" id="planTier">Free</div>
+      <button class="btn" onclick="window.location.href='/pricing'" style="margin-top:16px; background:#3b82f6; border-color:#3b82f6;">Upgrade Plan</button>
+    </div>
+
+    <!-- Videos This Month -->
+    <div class="card">
+      <h2 style="margin:0 0 10px 0; font-size:16px; color:#A8B3CF;">Videos This Month</h2>
+      <div style="font-size:32px; font-weight:900;" id="videosMonth">0</div>
+      <div style="margin-top:8px; font-size:14px; color:#A8B3CF;" id="videoLimit">of 3 videos used</div>
+      <div style="margin-top:12px; background:rgba(255,255,255,0.1); border-radius:10px; height:8px; overflow:hidden;">
+        <div id="usageBar" style="height:100%; background:linear-gradient(90deg, #22c55e, #3b82f6); width:0%; transition:width 0.5s;"></div>
+      </div>
+    </div>
+
+    <!-- Total Videos -->
+    <div class="card">
+      <h2 style="margin:0 0 10px 0; font-size:16px; color:#A8B3CF;">Total Videos Created</h2>
+      <div style="font-size:32px; font-weight:900; color:#22c55e;" id="videosTotal">0</div>
+      <div style="margin-top:8px; font-size:14px; color:#A8B3CF;">All time</div>
+    </div>
+  </div>
+
+  <!-- Account Info -->
+  <div class="card" style="margin-top:20px;">
+    <h2 style="margin:0 0 20px 0;">Account Information</h2>
+    <div style="display:grid; gap:16px;">
+      <div>
+        <div style="font-size:13px; color:#A8B3CF; margin-bottom:4px;">Email</div>
+        <div style="font-size:15px; font-weight:600;" id="userEmailFull">loading...</div>
+      </div>
+      <div>
+        <div style="font-size:13px; color:#A8B3CF; margin-bottom:4px;">Username</div>
+        <div style="font-size:15px; font-weight:600;" id="username">loading...</div>
+      </div>
+      <div>
+        <div style="font-size:13px; color:#A8B3CF; margin-bottom:4px;">Member Since</div>
+        <div style="font-size:15px; font-weight:600;" id="memberSince">loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Usage Limits -->
+  <div class="card" style="margin-top:20px;">
+    <h2 style="margin:0 0 20px 0;">Usage Limits</h2>
+    <div id="limitsInfo"></div>
+  </div>
+
+  <!-- Subscription Management -->
+  <div class="card" style="margin-top:20px;" id="subscriptionManagement">
+    <h2 style="margin:0 0 20px 0;">Subscription Management</h2>
+    <div id="subscriptionInfo">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:13px; color:#A8B3CF; margin-bottom:4px;">Current Plan</div>
+        <div style="font-size:24px; font-weight:700; text-transform:capitalize;" id="subPlanName">Loading...</div>
+      </div>
+
+      <div id="subscriptionActions" style="display:flex; gap:12px; flex-wrap:wrap;">
+        <button class="btn" onclick="window.location.href='/pricing'" style="background:#3b82f6; border-color:#3b82f6;">
+          📈 View All Plans
+        </button>
+        <button class="btn" id="manageSubBtn" style="background:#8b5cf6; border-color:#8b5cf6; display:none;">
+          ⚙️ Manage Subscription
+        </button>
+      </div>
+
+      <div id="subDetails" style="margin-top:20px; padding-top:20px; border-top:1px solid rgba(255,255,255,0.1);"></div>
+    </div>
+  </div>
+
+  <!-- Video Gallery -->
+  <div class="card" style="margin-top:20px;">
+    <h2 style="margin:0 0 20px 0;">My Videos</h2>
+    <div id="videoGallery">
+      <div style="text-align:center; padding:40px; color:#A8B3CF;">Loading videos...</div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:5000';
+
+    async function loadUserData() {
+      const loadingBar = document.getElementById('loadingBar');
+      if (loadingBar) loadingBar.style.display = 'block';
+
+      try {
+        // Get user info
+        const userRes = await fetch(`${API_BASE}/api/me`, {
+          credentials: 'include'
+        });
+
+        if (!userRes.ok) {
+          // Not logged in, redirect to auth
+          window.location.href = '/auth';
+          return;
+        }
+
+        const userData = await userRes.json();
+        if (!userData.success) {
+          window.location.href = '/auth';
+          return;
+        }
+
+        const user = userData.user;
+
+        // Update UI
+        document.getElementById('userEmail').textContent = `(${user.email})`;
+        document.getElementById('userEmailFull').textContent = user.email;
+        document.getElementById('username').textContent = user.username || 'N/A';
+        document.getElementById('planTier').textContent = user.subscription_tier || 'Free';
+        document.getElementById('videosMonth').textContent = user.videos_this_month || 0;
+        document.getElementById('videosTotal').textContent = user.total_videos || 0;
+
+        // Get stats and limits
+        const statsRes = await fetch(`${API_BASE}/api/stats`, {
+          credentials: 'include'
+        });
+
+        const statsData = await statsRes.json();
+        if (statsData.success) {
+          const limits = statsData.limits;
+          const stats = statsData.stats;
+
+          // Update limits display
+          if (limits.limit === Infinity || limits.limit === 'unlimited') {
+            document.getElementById('videoLimit').textContent = 'Unlimited videos';
+            document.getElementById('usageBar').style.width = '100%';
+          } else {
+            document.getElementById('videoLimit').textContent = `of ${limits.limit} videos used`;
+            const percentage = (limits.current / limits.limit) * 100;
+            document.getElementById('usageBar').style.width = `${percentage}%`;
+
+            // Change color if near limit
+            if (percentage >= 90) {
+              document.getElementById('usageBar').style.background = 'linear-gradient(90deg, #ef4444, #dc2626)';
+            } else if (percentage >= 70) {
+              document.getElementById('usageBar').style.background = 'linear-gradient(90deg, #f59e0b, #d97706)';
+            }
+          }
+
+          // Show limits info
+          const limitsDiv = document.getElementById('limitsInfo');
+          if (limits.allowed) {
+            limitsDiv.innerHTML = `
+              <div style="padding:12px; background:rgba(34,197,94,0.1); border:1px solid #22c55e; border-radius:8px; color:#22c55e;">
+                ✓ You can create ${limits.remaining === 'unlimited' ? 'unlimited' : limits.remaining + ' more'} videos this month
+              </div>
+            `;
+          } else {
+            limitsDiv.innerHTML = `
+              <div style="padding:12px; background:rgba(239,68,68,0.1); border:1px solid #ef4444; border-radius:8px; color:#ef4444; margin-bottom:12px;">
+                ✗ ${limits.reason}
+              </div>
+              <button class="btn" onclick="window.location.href='/pricing'" style="background:#3b82f6; border-color:#3b82f6;">Upgrade to Create More Videos</button>
+            `;
+          }
+
+          // Format member since date
+          if (stats.created_at) {
+            const date = new Date(stats.created_at);
+            document.getElementById('memberSince').textContent = date.toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            });
+          }
+
+          // Update subscription management section
+          const subPlanName = document.getElementById('subPlanName');
+          const subDetails = document.getElementById('subDetails');
+          const tier = user.subscription_tier || 'free';
+
+          subPlanName.textContent = tier.charAt(0).toUpperCase() + tier.slice(1);
+
+          const planInfo = {
+            'free': { color: '#64748b', limit: '3 videos/month', price: 'Free' },
+            'starter': { color: '#3b82f6', limit: '30 videos/month', price: '$19/month' },
+            'pro': { color: '#8b5cf6', limit: 'Unlimited videos', price: '$49/month' },
+            'agency': { color: '#ec4899', limit: 'Unlimited + API', price: '$149/month' },
+            'lifetime': { color: '#f59e0b', limit: 'Unlimited forever', price: '$199 (one-time)' }
+          };
+
+          const info = planInfo[tier] || planInfo['free'];
+          subPlanName.style.color = info.color;
+
+          let detailsHTML = `
+            <div style="display:grid; gap:12px;">
+              <div>
+                <div style="font-size:13px; color:#A8B3CF;">Plan Limit</div>
+                <div style="font-size:15px; font-weight:600;">${info.limit}</div>
+              </div>
+              <div>
+                <div style="font-size:13px; color:#A8B3CF;">Price</div>
+                <div style="font-size:15px; font-weight:600;">${info.price}</div>
+              </div>
+          `;
+
+          if (tier !== 'free') {
+            detailsHTML += `
+              <div style="padding:12px; background:rgba(34,197,94,0.1); border:1px solid #22c55e; border-radius:8px; color:#22c55e;">
+                ✓ Premium features active
+              </div>
+            `;
+          }
+
+          detailsHTML += `</div>`;
+          subDetails.innerHTML = detailsHTML;
+        }
+
+      } catch (error) {
+        console.error('Error loading user data:', error);
+        alert('Error loading dashboard. Please try again.');
+      } finally {
+        if (loadingBar) loadingBar.style.display = 'none';
+      }
+    }
+
+    async function loadVideos() {
+      const gallery = document.getElementById('videoGallery');
+
+      try {
+        const res = await fetch(`${API_BASE}/api/my-videos?limit=10`, {
+          credentials: 'include'
+        });
+
+        const data = await res.json();
+
+        if (!data.success || !data.videos || data.videos.length === 0) {
+          gallery.innerHTML = '<div style="text-align:center; padding:40px; color:#A8B3CF;">No videos yet. Create your first video in the Studio!</div>';
+          return;
+        }
+
+        const videosHTML = data.videos.map(video => {
+          const date = new Date(video.created_at).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          });
+
+          return `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom:10px;">
+              <div style="flex:1;">
+                <div style="font-weight:600; margin-bottom:4px;">${video.title || video.filename}</div>
+                <div style="font-size:13px; color:#A8B3CF;">${date}</div>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <a href="${API_BASE}/out/${video.filename}" target="_blank" class="btn" style="background:#3b82f6; border-color:#3b82f6; padding:8px 16px; font-size:13px;">View</a>
+                <a href="${API_BASE}/out/${video.filename}" download="${video.filename}" class="btn" style="background:#22c55e; border-color:#22c55e; padding:8px 16px; font-size:13px;">Download</a>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        gallery.innerHTML = videosHTML;
+
+      } catch (error) {
+        console.error('Error loading videos:', error);
+        gallery.innerHTML = '<div style="text-align:center; padding:40px; color:#ef4444;">Error loading videos</div>';
+      }
+    }
+
+    async function logout() {
+      if (!confirm('Are you sure you want to logout?')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/logout`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+
+        if (res.ok) {
+          window.location.href = '/auth?logout=true';
+        } else {
+          alert('Error logging out. Please try again.');
+        }
+      } catch (error) {
+        console.error('Error logging out:', error);
+        alert('Error logging out. Please try again.');
+      }
+    }
+
+    // Load data on page load
+    loadUserData();
+    loadVideos();
+  </script>
+</body>
+</html>

@@ -52,10 +52,6 @@
 
         <button class="btn" onclick="window.location.href='index.html'">Topics</button>
 
-        <button class="btn" onclick="window.location.href='post-process.html'">Post-Process</button>
-
-      <button class="btn" onclick="window.location.href='preview.html'">Preview</button>
-
     </div>
 
     
@@ -112,7 +108,9 @@
 
           <button id="copyUrl">Copy URL</button>
 
-          <a id="openUrl" class="btn" target="_blank">Open</a>
+          <a id="openUrl" target="_blank" style="display:inline-block; padding:8px 10px; border-radius:6px; border:1px solid #2563eb; background:#2563eb; color:#E8EBFF; cursor:pointer; font-weight:600; text-decoration:none;">Open</a>
+
+          <a id="downloadBtn" download style="display:inline-block; padding:8px 10px; border-radius:6px; border:1px solid #16a34a; background:#22c55e; color:#E8EBFF; cursor:pointer; font-weight:600; text-decoration:none;">Download</a>
 
         </div>
 
@@ -124,7 +122,7 @@
       </div>
 
         <div style="display:flex; gap:10px; flex-wrap:wrap; position:relative;">
-          <div class="dropdown" style="position:relative;">
+          <div class="dropdown" style="position:relative; display:none;" id="oldMenusContainer">
             <button class="btn" id="oldMenusBtn">Old Menus</button>
             <div class="dropdown-content" id="oldMenus" style="display:none; position:absolute; top:110%; left:0; background:#0B0F19; border:1px solid #334; border-radius:8px; min-width:220px; z-index:20; box-shadow:0 6px 18px rgba(0,0,0,0.4);">
               <a href="avatar-manager.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Avatar Manager</a>
@@ -132,6 +130,7 @@
               <a href="video-composer.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Video Composer</a>
               <a href="video-composer_lite.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Video Composer (Lite)</a>
               <a href="intro-outro.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Intro/Outro Builder</a>
+              <a href="preview.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Preview</a>
             </div>
         </div>
       </div>
@@ -156,6 +155,8 @@
     const $fileUrl = document.getElementById('fileUrl');
 
     const $openUrl = document.getElementById('openUrl');
+
+    const $downloadBtn = document.getElementById('downloadBtn');
 
     const $status = document.getElementById('status');
     const $oldMenusBtn = document.getElementById('oldMenusBtn');
@@ -250,6 +251,8 @@
 
       $fileUrl.value = url; $openUrl.href = url;
 
+      $downloadBtn.href = url; $downloadBtn.download = it.path;
+
       // Highlight selection
 
       [...$list.children].forEach(ch => ch.style.borderColor = '#334');
@@ -285,13 +288,20 @@
       } else { loadFiles(true); }
     })();
     // Old Menus ▾dropdown toggle
-    if ($oldMenusBtn && $oldMenus){
+    const $oldMenusContainer = document.getElementById('oldMenusContainer');
+    if ($oldMenusBtn && $oldMenus && $oldMenusContainer){
       $oldMenusBtn.addEventListener('click', (e)=>{
         e.stopPropagation();
         $oldMenus.style.display = ($oldMenus.style.display === 'none' || !$oldMenus.style.display) ? 'block' : 'none';
       });
       document.addEventListener('click', ()=>{ $oldMenus.style.display = 'none'; });
       $oldMenus.addEventListener('click', (e)=> e.stopPropagation());
+      document.addEventListener('keydown', (e)=>{
+        if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key.toLowerCase()==='o'){
+          e.preventDefault();
+          $oldMenusContainer.style.display = ($oldMenusContainer.style.display==='none'||!$oldMenusContainer.style.display)?'block':'none';
+        }
+      });
     }
     // Empty trash for current base directory
     if ($emptyTrash){
