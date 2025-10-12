@@ -12,13 +12,7 @@
   <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
     <h1 style="margin:0;">Meme Library <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
     <div style="display:flex; gap:10px; flex-wrap:wrap; position:relative;">
-      <button class="btn" onclick="window.location.href='index.html'">Topics</button>
-      <button class="btn" onclick="window.location.href='avatar-manager.html'">Avatars</button>
-      <button class="btn" onclick="window.location.href='logo-manager.html'">Logos</button>
-      <button class="btn" onclick="window.location.href='meme-library.html'">Memes</button>
-      <button class="btn" onclick="window.location.href='intro-outro.html'">Intro/Outro</button>
-      <button class="btn" onclick="window.location.href='viewer.html'">Viewer</button>
-      <button class="btn" onclick="window.location.href='studio.html'">Studio</button>
+      <button class="btn" style="background:#3b82f6; border-color:#3b82f6;" onclick="window.location.href='studio.html'">Studio</button>
       <div class="dropdown" style="position:relative; display:none;" id="oldMenusContainer">
         <button class="btn" id="oldMenusBtn">Old Menus</button>
         <div class="dropdown-content" id="oldMenus" style="display:none; position:absolute; top:110%; left:0; background:#0B0F19; border:1px solid #334; border-radius:8px; min-width:180px; z-index:20; box-shadow:0 6px 18px rgba(0,0,0,0.4);">
@@ -338,7 +332,12 @@ Make it stand out in search results and suggested videos.`;
       if (bottom) drawWrapped(ctx, bottom, { x: w/2, y: botY, maxWidth: maxW, align: 'center', base: 'top', fontSize: 80, strokeW: 10 });
 
       const link = document.getElementById('memeDownload');
-      try { link.href = canvas.toDataURL('image/png'); link.style.display = 'inline-block'; } catch {}
+      try {
+        link.href = canvas.toDataURL('image/png');
+        link.style.display = 'inline-block';
+        // Save canvas state after rendering
+        localStorage.setItem('memeCanvasState', canvas.toDataURL('image/png'));
+      } catch {}
       setStatus('Meme rendered.', 'ok');
       trackEvent('thumbnail_generated', {
         hasBackground: !!document.getElementById('memeBg').files?.length
@@ -354,6 +353,14 @@ Make it stand out in search results and suggested videos.`;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       const link = document.getElementById('memeDownload');
       link.style.display = 'none';
+
+      // Clear localStorage and remove variants grid
+      localStorage.removeItem('memeVariants');
+      localStorage.removeItem('memeCanvasState');
+      const canvasRow = canvas.parentElement;
+      const existing = canvasRow.querySelector('.variants-grid');
+      if (existing) existing.remove();
+
       setStatus('Meme cleared.', 'ok');
     });
 
@@ -633,6 +640,8 @@ Make it stand out in search results and suggested videos.`;
           const canvas = document.getElementById('memecanvas');
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          // Save canvas state after loading background
+          try { localStorage.setItem('memeCanvasState', canvas.toDataURL('image/png')); } catch {}
           if (loadingBar) loadingBar.style.display = 'none';
           setStatus('Background generated.', 'ok');
         };
@@ -820,6 +829,8 @@ Make it stand out in search results and suggested videos.`;
           img.onload = () => {
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            // Save canvas state after drag-and-drop
+            try { localStorage.setItem('memeCanvasState', canvas.toDataURL('image/png')); } catch {}
             showToast('🖼️ Background loaded', 'success', 2000);
           };
           img.src = event.target.result;
@@ -899,6 +910,10 @@ Make it stand out in search results and suggested videos.`;
       if (loadingBar) loadingBar.style.display = 'block';
       showToast('🎨 Generating 5 variants... this may take a minute', 'info', 3000);
 
+      // Clear old variants from localStorage before generating new ones
+      localStorage.removeItem('memeVariants');
+      localStorage.removeItem('memeCanvasState');
+
       const variants = [];
       for (let i = 0; i < 5; i++) {
         try {
@@ -943,6 +958,9 @@ Make it stand out in search results and suggested videos.`;
       if (loadingBar) loadingBar.style.display = 'none';
 
       if (variants.length > 0) {
+        // Save variants to localStorage for persistence
+        localStorage.setItem('memeVariants', JSON.stringify(variants));
+
         // Display all variants below the canvas
         let variantHTML = '<div style="margin-top:16px;"><h3 style="margin-bottom:8px;">Generated Variants (click to use):</h3><div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">';
         variants.forEach((url, idx) => {
@@ -954,6 +972,8 @@ Make it stand out in search results and suggested videos.`;
             img.onload = () => {
               ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
               showToast('Variant ${idx + 1} applied', 'success', 2000);
+              // Save canvas state when variant is applied
+              try { localStorage.setItem('memeCanvasState', canvas.toDataURL('image/png')); } catch {}
             };
             img.src = '${url}';
           " style="width:100%; border-radius:8px; cursor:pointer; border:2px solid transparent; transition:border-color 0.2s;" onmouseenter="this.style.borderColor='var(--accent-blue)'" onmouseleave="this.style.borderColor='transparent'">`;
@@ -1272,6 +1292,64 @@ Make it stand out in search results and suggested videos.`;
     setTimeout(() => {
       showToast('💡 Shortcuts: Ctrl+Z (Undo), Ctrl+Y (Redo), Ctrl+G (Background), Ctrl+R (Render)', 'info', 6000);
     }, 1000);
+
+    // Restore meme variants and canvas on page load
+    (function restoreMemeState() {
+      const savedVariants = localStorage.getItem('memeVariants');
+      const savedCanvas = localStorage.getItem('memeCanvasState');
+
+      if (savedVariants) {
+        try {
+          const variants = JSON.parse(savedVariants);
+          if (variants && variants.length > 0) {
+            // Restore variants grid
+            let variantHTML = '<div style="margin-top:16px;"><h3 style="margin-bottom:8px;">Generated Variants (click to use):</h3><div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">';
+            variants.forEach((url, idx) => {
+              variantHTML += `<img src="${url}" onclick="
+                const canvas = document.getElementById('memecanvas');
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                  showToast('Variant ${idx + 1} applied', 'success', 2000);
+                  try { localStorage.setItem('memeCanvasState', canvas.toDataURL('image/png')); } catch {}
+                };
+                img.src = '${url}';
+              " style="width:100%; border-radius:8px; cursor:pointer; border:2px solid transparent; transition:border-color 0.2s;" onmouseenter="this.style.borderColor='var(--accent-blue)'" onmouseleave="this.style.borderColor='transparent'">`;
+            });
+            variantHTML += '</div></div>';
+
+            const canvas = document.getElementById('memecanvas');
+            const canvasRow = canvas.parentElement;
+            const existing = canvasRow.querySelector('.variants-grid');
+            if (existing) existing.remove();
+
+            const div = document.createElement('div');
+            div.className = 'variants-grid';
+            div.innerHTML = variantHTML;
+            canvasRow.appendChild(div);
+          }
+        } catch (e) {
+          console.error('Failed to restore variants:', e);
+        }
+      }
+
+      if (savedCanvas) {
+        try {
+          const canvas = document.getElementById('memecanvas');
+          const ctx = canvas.getContext('2d');
+          const img = new Image();
+          img.onload = () => {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            console.log('Canvas state restored from localStorage');
+          };
+          img.src = savedCanvas;
+        } catch (e) {
+          console.error('Failed to restore canvas:', e);
+        }
+      }
+    })();
   </script>
 </body>
 </html>

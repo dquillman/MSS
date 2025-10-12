@@ -43,10 +43,14 @@
   <div id="loadingBar" class="loading-bar"></div>
   <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
     <h1>Topic Picker <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
-    <div style="display:flex; gap:10px; flex-wrap:wrap;">
-      <button class="button-secondary" onclick="location.href='studio.html'">Studio</button>
-      <button onclick="location.href='settings.html'" style="background:#7c3aed; border-color:#7c3aed; padding:10px 12px; border-radius:6px; font-weight:600; cursor:pointer; color:#E8EBFF;">⚙️ Settings</button>
-      <button class="button-secondary" onclick="testAPI()">Test API</button>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; position:relative;">
+      <button class="btn" style="background:#3b82f6; border-color:#3b82f6;" onclick="location.href='studio.html'">Studio</button>
+      <div class="dropdown" id="oldMenusContainer" style="position:relative; display:none;">
+        <button class="btn" id="oldMenusBtn">Old Menus</button>
+        <div class="dropdown-content" id="oldMenus" style="display:none; position:absolute; top:110%; right:0; background:#0B0F19; border:1px solid #334; border-radius:8px; min-width:150px; z-index:20; box-shadow:0 6px 18px rgba(0,0,0,0.4);">
+          <a href="#" onclick="event.preventDefault(); testAPI();" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Test API</a>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -65,6 +69,8 @@
 
   <div id="status" class="status">Ready.</div>
   <div id="topics" class="grid"></div>
+
+  <script>(function(){ const btn=document.getElementById("oldMenusBtn"); const menu=document.getElementById("oldMenus"); const container=document.getElementById("oldMenusContainer"); if(btn&&menu&&container){ btn.addEventListener("click",(e)=>{ e.stopPropagation(); menu.style.display=(menu.style.display==="block"?"none":"block");}); document.addEventListener("click",()=>{ menu.style.display="none";}); menu.addEventListener("click",(e)=>e.stopPropagation()); document.addEventListener("keydown",(e)=>{ if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key.toLowerCase()==='o'){ e.preventDefault(); container.style.display=(container.style.display==="none"||!container.style.display)?"block":"none"; }}); }})();</script>
 
   <script>
     // Force fresh load

@@ -137,6 +137,128 @@
   </script>
 
   <div class="card">
+    <h1>NotebookLM Prompt</h1>
+    <div class="row">
+      <button class="btn" id="generatePrompts">Generate Prompts</button>
+      <button class="btn" id="copyFullPrompt" style="background:#22c55e; border-color:#22c55e;">Copy Full Prompt</button>
+      <button class="btn" id="copyCondensedPrompt" style="background:#3b82f6; border-color:#3b82f6;">Copy Condensed Prompt</button>
+      <button class="btn" id="clearPrompts" style="background:#ef4444; border-color:#ef4444;">Clear Prompts</button>
+    </div>
+    <div class="row">
+      <label>Full Prompt</label>
+      <textarea id="fullPrompt" readonly style="width:100%; min-height:200px; font-family:monospace; font-size:12px; background:#0B0F19; color:#E8EBFF; border:1px solid #334; border-radius:6px; padding:10px;"></textarea>
+    </div>
+    <div class="row">
+      <label>Condensed Prompt</label>
+      <textarea id="condensedPrompt" readonly style="width:100%; min-height:80px; font-family:monospace; font-size:12px; background:#0B0F19; color:#E8EBFF; border:1px solid #334; border-radius:6px; padding:10px;"></textarea>
+    </div>
+  </div>
+
+  <script>
+    const FULL_TEMPLATE = `Title:
+{{Title}}
+
+Angle / Hook:
+{{Angle}}
+
+Topic Description (balanced perspective):
+Analyze the topic {{Title}}, exploring both the positive and negative dimensions of the issue. Discuss how {{Angle}} relates to larger trends in society, technology, or policy.
+Examine key themes such as {{Keywords}} — highlighting both progress and problems. Consider successes like innovation, reform, or cooperation, and challenges such as inequality, misinformation, or ethical dilemmas. Conclude by reflecting on what lessons humanity can carry forward to build a more resilient and informed future.
+
+Keywords:
+{{Keywords}}
+
+YouTube Description:
+{{YouTube_Description}}`;
+
+    const CONDENSED_TEMPLATE = `Analyze {{Title}}, exploring both the benefits and drawbacks of {{Angle}}. Discuss how it shaped or reflected key issues in {{Keywords}}, noting both progress (innovation, cooperation, reform) and challenges (inequality, misinformation, ethical conflict). Summarize what lessons society can learn and how these insights might guide future policy or understanding.`;
+
+    function normalizeKeywords(v) {
+      if (Array.isArray(v)) {
+        return v.map(x => String(x).trim()).filter(x => x).join(", ");
+      }
+      if (typeof v === 'string') {
+        const parts = v.includes(',') ? v.split(',').map(p => p.trim()) : v.split(/\s+/);
+        return parts.filter(p => p).join(", ");
+      }
+      return "";
+    }
+
+    function fillTemplate(tpl, fields) {
+      let out = tpl;
+      for (const [k, v] of Object.entries(fields)) {
+        out = out.replaceAll(`{{${k}}}`, v);
+      }
+      return out;
+    }
+
+    function generateNotebookLMPrompts() {
+      const title = document.getElementById('liteTitle')?.value.trim() || '';
+      const angle = document.getElementById('liteHook')?.value.trim() || '';
+      const keywordsInput = document.getElementById('liteKeywords')?.value.trim() || '';
+      const keywords = normalizeKeywords(keywordsInput);
+
+      // Try to get description from localStorage topic
+      let ytDesc = '';
+      try {
+        const raw = localStorage.getItem('editingTopic');
+        if (raw) {
+          const topic = JSON.parse(raw);
+          ytDesc = topic.yt_description || topic.description || '';
+        }
+      } catch {}
+
+      const fields = {
+        'Title': title || '{{Title}}',
+        'Angle': angle || '{{Angle}}',
+        'Keywords': keywords || '{{Keywords}}',
+        'YouTube_Description': ytDesc || '{{YouTube_Description}}'
+      };
+
+      const fullPrompt = fillTemplate(FULL_TEMPLATE, fields).trim();
+      const condensedPrompt = fillTemplate(CONDENSED_TEMPLATE, fields).trim();
+
+      document.getElementById('fullPrompt').value = fullPrompt;
+      document.getElementById('condensedPrompt').value = condensedPrompt;
+    }
+
+    document.getElementById('generatePrompts')?.addEventListener('click', generateNotebookLMPrompts);
+
+    document.getElementById('copyFullPrompt')?.addEventListener('click', async () => {
+      const text = document.getElementById('fullPrompt').value;
+      try {
+        await navigator.clipboard.writeText(text);
+        alert('Full prompt copied to clipboard!');
+      } catch (e) {
+        alert('Failed to copy: ' + e.message);
+      }
+    });
+
+    document.getElementById('copyCondensedPrompt')?.addEventListener('click', async () => {
+      const text = document.getElementById('condensedPrompt').value;
+      try {
+        await navigator.clipboard.writeText(text);
+        alert('Condensed prompt copied to clipboard!');
+      } catch (e) {
+        alert('Failed to copy: ' + e.message);
+      }
+    });
+
+    document.getElementById('clearPrompts')?.addEventListener('click', () => {
+      document.getElementById('fullPrompt').value = '';
+      document.getElementById('condensedPrompt').value = '';
+    });
+
+    // Auto-generate when topic is loaded
+    const originalLiteLoadLast = document.getElementById('liteLoadLast');
+    if (originalLiteLoadLast) {
+      originalLiteLoadLast.addEventListener('click', () => {
+        setTimeout(generateNotebookLMPrompts, 100);
+      });
+    }
+  </script>
+
+  <div class="card">
     <h1>Video w/Audio Loader</h1>
     <div class="row">
       <label for="mainFile">NotebookLM video (required):</label>
@@ -184,6 +306,10 @@
         Include intro/outro
       </label>
     </div>
+
+    <!-- Usage Limit Warning -->
+    <div id="usageWarning" style="display:none; margin:12px 0;"></div>
+
     <div class="row">
       <button class="btn" id="approveBtn" disabled>Approve & Process</button>
     </div>
@@ -730,6 +856,9 @@ Make it stand out in search results and suggested videos.`;
         const url = `${API_BASE}/out/${data.files.final_video}`;
         preview.src = url; preview.style.display = 'block'; preview.load();
 
+        // Refresh usage limits after successful video creation
+        checkUsageLimits();
+
         // Show YouTube upload section and pre-fill data (DISABLED FOR LAUNCH - uncomment to enable)
         // showYouTubeUploadSection(data.files.final_video);
       } catch (e) {
@@ -921,6 +1050,55 @@ Make it stand out in search results and suggested videos.`;
         }, 2000);
       }
     });
+
+    // Check and display usage limits
+    async function checkUsageLimits() {
+      try {
+        const res = await fetch(`${API_BASE}/api/usage`, {
+          credentials: 'include'
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            const usage = data.usage;
+            const warning = document.getElementById('usageWarning');
+            const percentage = (usage.videos_this_month / usage.monthly_limit) * 100;
+
+            if (usage.at_limit) {
+              // At limit - show error
+              warning.innerHTML = `
+                <div style="padding:12px; background:rgba(239,68,68,0.1); border:1px solid #ef4444; border-radius:8px; color:#ef4444;">
+                  ⚠️ Monthly limit reached (${usage.monthly_limit} videos). <a href="/pricing" style="color:#ef4444; text-decoration:underline;">Upgrade your plan</a> to create more videos.
+                </div>
+              `;
+              warning.style.display = 'block';
+            } else if (percentage >= 80) {
+              // Near limit - show warning
+              warning.innerHTML = `
+                <div style="padding:12px; background:rgba(251,191,36,0.1); border:1px solid #f59e0b; border-radius:8px; color:#f59e0b;">
+                  ⚠️ You have ${usage.videos_remaining} video${usage.videos_remaining !== 1 ? 's' : ''} remaining this month (${usage.videos_this_month}/${usage.monthly_limit} used)
+                </div>
+              `;
+              warning.style.display = 'block';
+            } else {
+              // Plenty remaining - show info
+              warning.innerHTML = `
+                <div style="padding:12px; background:rgba(59,130,246,0.1); border:1px solid #3b82f6; border-radius:8px; color:#3b82f6;">
+                  ${usage.videos_this_month}/${usage.monthly_limit} videos used this month • ${usage.videos_remaining} remaining
+                </div>
+              `;
+              warning.style.display = 'block';
+            }
+          }
+        }
+      } catch (e) {
+        console.log('Could not fetch usage limits:', e);
+      }
+    }
+
+    // Load usage on page load
+    checkUsageLimits();
 
     // Welcome message with keyboard shortcuts
     setTimeout(() => {

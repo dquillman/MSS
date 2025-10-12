@@ -414,6 +414,229 @@ def get_user_by_email(email):
         return {'id': result[0], 'email': result[1], 'username': result[2]}
     return None
 
+# ============ Usage Limits ============
+
+# Subscription tier limits (videos per month)
+USAGE_LIMITS = {
+    'free': 3,
+    'starter': 10,
+    'pro': 50,
+    'agency': 200,
+    'lifetime': 999999
+}
+
+def get_usage_stats(user_id):
+    """Get user's current usage statistics"""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT subscription_tier, videos_this_month, total_videos, reset_day
+        FROM users WHERE id = ?
+    ''', (user_id,))
+    result = cursor.fetchone()
+    conn.close()
+
+    if not result:
+        return None
+
+    tier = result[0] or 'free'
+    videos_this_month = result[1] or 0
+    total_videos = result[2] or 0
+    reset_day = result[3] or 1
+
+    limit = USAGE_LIMITS.get(tier, 3)
+    remaining = max(0, limit - videos_this_month)
+
+    return {
+        'subscription_tier': tier,
+        'videos_this_month': videos_this_month,
+        'total_videos': total_videos,
+        'monthly_limit': limit,
+        'videos_remaining': remaining,
+        'reset_day': reset_day,
+        'at_limit': videos_this_month >= limit
+    }
+
+def _check_and_reset_monthly_usage(user_id):
+    """Check if it's a new month and reset usage counter if needed"""
+    from datetime import datetime
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    # First, ensure last_reset_month column exists
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN last_reset_month TEXT")
+        conn.commit()
+    except:
+        pass  # Column already exists
+
+    # Get user's current month tracking
+    cursor.execute('''
+        SELECT last_reset_month, videos_this_month
+        FROM users WHERE id = ?
+    ''', (user_id,))
+    result = cursor.fetchone()
+
+    if not result:
+        conn.close()
+        return
+
+    last_reset_month = result[0]
+    current_count = result[1] or 0
+
+    # Get current month/year as string
+    now = datetime.now()
+    current_month_str = now.strftime('%Y-%m')  # e.g. "2025-10"
+
+    # If last_reset_month is different from current month, reset counter
+    if last_reset_month != current_month_str and current_count > 0:
+        cursor.execute('''
+            UPDATE users
+            SET videos_this_month = 0,
+                last_reset_month = ?,
+                email_sent_80 = 0,
+                email_sent_100 = 0
+            WHERE id = ?
+        ''', (current_month_str, user_id))
+        conn.commit()
+        print(f"[AUTO-RESET] Reset monthly usage for user {user_id} (was {current_count}, now 0)")
+    elif not last_reset_month:
+        # First time, just set the month
+        cursor.execute('''
+            UPDATE users
+            SET last_reset_month = ?
+            WHERE id = ?
+        ''', (current_month_str, user_id))
+        conn.commit()
+
+    conn.close()
+
+def can_create_video(user_id):
+    """Check if user can create a video based on their subscription limits"""
+    # Check if we need to reset monthly counter
+    _check_and_reset_monthly_usage(user_id)
+
+    stats = get_usage_stats(user_id)
+    if not stats:
+        return {'allowed': False, 'error': 'User not found'}
+
+    if stats['at_limit']:
+        return {
+            'allowed': False,
+            'error': f"Monthly limit reached ({stats['monthly_limit']} videos). Upgrade your plan for more videos.",
+            'stats': stats
+        }
+
+    return {'allowed': True, 'stats': stats}
+
+def increment_video_count(user_id):
+    """Increment user's video creation count and send email notifications if needed"""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    # Add notification tracking column if it doesn't exist
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN email_sent_80 INTEGER DEFAULT 0")
+        cursor.execute("ALTER TABLE users ADD COLUMN email_sent_100 INTEGER DEFAULT 0")
+        conn.commit()
+    except:
+        pass  # Columns already exist
+
+    cursor.execute('''
+        UPDATE users
+        SET videos_this_month = videos_this_month + 1,
+            total_videos = total_videos + 1
+        WHERE id = ?
+    ''', (user_id,))
+
+    conn.commit()
+
+    # Get updated stats to check if we should send notification
+    cursor.execute('''
+        SELECT email, username, videos_this_month, subscription_tier, email_sent_80, email_sent_100
+        FROM users WHERE id = ?
+    ''', (user_id,))
+    result = cursor.fetchone()
+    conn.close()
+
+    if result:
+        email = result[0]
+        username = result[1]
+        videos_this_month = result[2]
+        tier = result[3] or 'free'
+        email_sent_80 = result[4]
+        email_sent_100 = result[5]
+
+        # Get limit for this tier
+        from database import USAGE_LIMITS
+        limit = USAGE_LIMITS.get(tier, 3)
+        percentage = (videos_this_month / limit) * 100
+        remaining = limit - videos_this_month
+
+        # Send warning email at 80% (only once per month)
+        if percentage >= 80 and not email_sent_80:
+            try:
+                from email_notifications import send_usage_warning_email
+                if send_usage_warning_email(email, username, videos_this_month, limit, remaining):
+                    # Mark as sent
+                    conn = get_db()
+                    cursor = conn.cursor()
+                    cursor.execute('UPDATE users SET email_sent_80 = 1 WHERE id = ?', (user_id,))
+                    conn.commit()
+                    conn.close()
+            except Exception as e:
+                print(f"[EMAIL] Failed to send 80% warning: {e}")
+
+        # Send limit reached email at 100% (only once per month)
+        if videos_this_month >= limit and not email_sent_100:
+            try:
+                from email_notifications import send_limit_reached_email
+                if send_limit_reached_email(email, username, limit):
+                    # Mark as sent
+                    conn = get_db()
+                    cursor = conn.cursor()
+                    cursor.execute('UPDATE users SET email_sent_100 = 1 WHERE id = ?', (user_id,))
+                    conn.commit()
+                    conn.close()
+            except Exception as e:
+                print(f"[EMAIL] Failed to send limit reached email: {e}")
+
+    return {'success': True}
+
+def reset_monthly_usage():
+    """Reset monthly video counts for all users (run on 1st of month)"""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute('UPDATE users SET videos_this_month = 0')
+
+    conn.commit()
+    rows_affected = cursor.rowcount
+    conn.close()
+
+    return {'success': True, 'users_reset': rows_affected}
+
+def update_subscription_tier(user_id, tier):
+    """Update user's subscription tier"""
+    if tier not in USAGE_LIMITS:
+        return {'success': False, 'error': f'Invalid tier: {tier}'}
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        UPDATE users
+        SET subscription_tier = ?
+        WHERE id = ?
+    ''', (tier, user_id))
+
+    conn.commit()
+    conn.close()
+
+    return {'success': True, 'tier': tier, 'new_limit': USAGE_LIMITS[tier]}
+
 # Initialize database on import
 if __name__ == '__main__':
     init_db()

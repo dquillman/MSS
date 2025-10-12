@@ -13,8 +13,7 @@
   <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
     <h1 style="margin:0;">Dashboard <span id="userEmail" style="font-size:14px; color:#64748b; font-weight:400;"></span></h1>
     <div style="display:flex; gap:10px; flex-wrap:wrap;">
-      <button class="btn" onclick="window.location.href='/studio'">🎬 Studio</button>
-      <button class="btn" onclick="window.location.href='/topics'">📝 Topics</button>
+      <button class="btn" style="background:#3b82f6; border-color:#3b82f6;" onclick="window.location.href='/studio'">🎬 Studio</button>
       <button class="btn" onclick="window.location.href='/pricing'">💰 Pricing</button>
       <button class="btn" onclick="logout()" style="background:#ef4444; border-color:#ef4444;">🚪 Logout</button>
     </div>
@@ -137,53 +136,57 @@
         document.getElementById('videosMonth').textContent = user.videos_this_month || 0;
         document.getElementById('videosTotal').textContent = user.total_videos || 0;
 
-        // Get stats and limits
-        const statsRes = await fetch(`${API_BASE}/api/stats`, {
+        // Get usage stats
+        const usageRes = await fetch(`${API_BASE}/api/usage`, {
           credentials: 'include'
         });
 
-        const statsData = await statsRes.json();
-        if (statsData.success) {
-          const limits = statsData.limits;
-          const stats = statsData.stats;
+        const usageData = await usageRes.json();
+        if (usageData.success) {
+          const usage = usageData.usage;
 
           // Update limits display
-          if (limits.limit === Infinity || limits.limit === 'unlimited') {
-            document.getElementById('videoLimit').textContent = 'Unlimited videos';
-            document.getElementById('usageBar').style.width = '100%';
-          } else {
-            document.getElementById('videoLimit').textContent = `of ${limits.limit} videos used`;
-            const percentage = (limits.current / limits.limit) * 100;
-            document.getElementById('usageBar').style.width = `${percentage}%`;
-
-            // Change color if near limit
-            if (percentage >= 90) {
-              document.getElementById('usageBar').style.background = 'linear-gradient(90deg, #ef4444, #dc2626)';
-            } else if (percentage >= 70) {
-              document.getElementById('usageBar').style.background = 'linear-gradient(90deg, #f59e0b, #d97706)';
-            }
-          }
+          const percentage = (usage.videos_this_month / usage.monthly_limit) * 100;
+          const remaining = usage.videos_remaining;
 
           // Show limits info
           const limitsDiv = document.getElementById('limitsInfo');
-          if (limits.allowed) {
+          if (!usage.at_limit) {
             limitsDiv.innerHTML = `
+              <div style="margin-bottom:16px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                  <span style="font-weight:600;">${usage.videos_this_month} / ${usage.monthly_limit} videos used</span>
+                  <span style="color:#A8B3CF;">${remaining} remaining</span>
+                </div>
+                <div style="background:rgba(255,255,255,0.1); border-radius:8px; height:8px; overflow:hidden;">
+                  <div style="height:100%; width:${percentage}%; background:linear-gradient(90deg, ${percentage >= 90 ? '#ef4444' : percentage >= 70 ? '#f59e0b' : '#22c55e'}, ${percentage >= 90 ? '#dc2626' : percentage >= 70 ? '#d97706' : '#16a34a'}); transition:width 0.3s ease;"></div>
+                </div>
+              </div>
               <div style="padding:12px; background:rgba(34,197,94,0.1); border:1px solid #22c55e; border-radius:8px; color:#22c55e;">
-                ✓ You can create ${limits.remaining === 'unlimited' ? 'unlimited' : limits.remaining + ' more'} videos this month
+                ✓ You can create ${remaining} more video${remaining !== 1 ? 's' : ''} this month
               </div>
             `;
           } else {
             limitsDiv.innerHTML = `
+              <div style="margin-bottom:16px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                  <span style="font-weight:600;">${usage.videos_this_month} / ${usage.monthly_limit} videos used</span>
+                  <span style="color:#ef4444;">Limit reached</span>
+                </div>
+                <div style="background:rgba(255,255,255,0.1); border-radius:8px; height:8px; overflow:hidden;">
+                  <div style="height:100%; width:100%; background:linear-gradient(90deg, #ef4444, #dc2626);"></div>
+                </div>
+              </div>
               <div style="padding:12px; background:rgba(239,68,68,0.1); border:1px solid #ef4444; border-radius:8px; color:#ef4444; margin-bottom:12px;">
-                ✗ ${limits.reason}
+                ✗ Monthly limit reached (${usage.monthly_limit} videos). Upgrade your plan for more videos.
               </div>
               <button class="btn" onclick="window.location.href='/pricing'" style="background:#3b82f6; border-color:#3b82f6;">Upgrade to Create More Videos</button>
             `;
           }
 
           // Format member since date
-          if (stats.created_at) {
-            const date = new Date(stats.created_at);
+          if (user.created_at) {
+            const date = new Date(user.created_at);
             document.getElementById('memberSince').textContent = date.toLocaleDateString('en-US', {
               year: 'numeric',
               month: 'long',
@@ -200,10 +203,10 @@
 
           const planInfo = {
             'free': { color: '#64748b', limit: '3 videos/month', price: 'Free' },
-            'starter': { color: '#3b82f6', limit: '30 videos/month', price: '$19/month' },
-            'pro': { color: '#8b5cf6', limit: 'Unlimited videos', price: '$49/month' },
-            'agency': { color: '#ec4899', limit: 'Unlimited + API', price: '$149/month' },
-            'lifetime': { color: '#f59e0b', limit: 'Unlimited forever', price: '$199 (one-time)' }
+            'starter': { color: '#3b82f6', limit: '10 videos/month', price: '$19/month' },
+            'pro': { color: '#8b5cf6', limit: '50 videos/month', price: '$49/month' },
+            'agency': { color: '#ec4899', limit: '200 videos/month', price: '$149/month' },
+            'lifetime': { color: '#f59e0b', limit: 'Unlimited videos', price: '$199 (one-time)' }
           };
 
           const info = planInfo[tier] || planInfo['free'];
@@ -245,19 +248,27 @@
       const gallery = document.getElementById('videoGallery');
 
       try {
-        const res = await fetch(`${API_BASE}/api/my-videos?limit=10`, {
-          credentials: 'include'
-        });
-
+        const res = await fetch(`${API_BASE}/list-outputs?dir=out&limit=50`);
         const data = await res.json();
 
-        if (!data.success || !data.videos || data.videos.length === 0) {
+        let videos = Array.isArray(data.files) ? data.files : [];
+
+        // Filter to only show video files (mp4, mov, etc)
+        videos = videos.filter(v => /\.(mp4|mov|avi|mkv)$/i.test(v.name));
+
+        // Sort by modified time (newest first)
+        videos.sort((a, b) => new Date(b.modified) - new Date(a.modified));
+
+        // Take only the 10 most recent
+        videos = videos.slice(0, 10);
+
+        if (videos.length === 0) {
           gallery.innerHTML = '<div style="text-align:center; padding:40px; color:#A8B3CF;">No videos yet. Create your first video in the Studio!</div>';
           return;
         }
 
-        const videosHTML = data.videos.map(video => {
-          const date = new Date(video.created_at).toLocaleDateString('en-US', {
+        const videosHTML = videos.map(video => {
+          const date = new Date(video.modified).toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'short',
             day: 'numeric'
@@ -266,12 +277,12 @@
           return `
             <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom:10px;">
               <div style="flex:1;">
-                <div style="font-weight:600; margin-bottom:4px;">${video.title || video.filename}</div>
-                <div style="font-size:13px; color:#A8B3CF;">${date}</div>
+                <div style="font-weight:600; margin-bottom:4px;">${video.name}</div>
+                <div style="font-size:13px; color:#A8B3CF;">${date} • ${(video.size_mb || 0).toFixed(1)} MB</div>
               </div>
               <div style="display:flex; gap:8px;">
-                <a href="${API_BASE}/out/${video.filename}" target="_blank" class="btn" style="background:#3b82f6; border-color:#3b82f6; padding:8px 16px; font-size:13px;">View</a>
-                <a href="${API_BASE}/out/${video.filename}" download="${video.filename}" class="btn" style="background:#22c55e; border-color:#22c55e; padding:8px 16px; font-size:13px;">Download</a>
+                <a href="${API_BASE}/out/${video.name}" target="_blank" class="btn" style="background:#3b82f6; border-color:#3b82f6; padding:8px 16px; font-size:13px;">View</a>
+                <a href="${API_BASE}/out/${video.name}" download="${video.name}" class="btn" style="background:#22c55e; border-color:#22c55e; padding:8px 16px; font-size:13px;">Download</a>
               </div>
             </div>
           `;

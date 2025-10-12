@@ -189,7 +189,7 @@ def _health():
     return jsonify({
         'ok': True,
         'service': 'MSS API',
-        'version': '5.3.0',
+        'version': '5.4.0',
         'endpoints': ['/studio', '/topics', '/post-process-video', '/get-avatar-library', '/out/<file>']
     })
 
@@ -967,6 +967,22 @@ def create_video():
                 'error': 'No topic provided'
             }), 400
 
+        # Check usage limits if user is logged in
+        session_id = request.cookies.get('session_id')
+        if session_id:
+            session_result = database.get_session(session_id)
+            if session_result['success']:
+                user_id = session_result['user']['id']
+
+                # Check if user can create video
+                can_create = database.can_create_video(user_id)
+                if not can_create['allowed']:
+                    return jsonify({
+                        'success': False,
+                        'error': can_create['error'],
+                        'usage': can_create.get('stats')
+                    }), 403
+
         print(f"Creating video for topic: {topic.get('title')}")
 
         outdir = Path("out")
@@ -1002,6 +1018,14 @@ def create_video():
         # Generate thumbnails
         print("Generating thumbnails...")
         thumb_variants = generate_thumbnail_variants(title, outdir, count=3)
+
+        # Increment usage counter if user is logged in
+        if session_id:
+            session_result = database.get_session(session_id)
+            if session_result['success']:
+                user_id = session_result['user']['id']
+                database.increment_video_count(user_id)
+                print(f"[USAGE] Incremented video count for user {user_id}")
 
         # Return success with file paths
         return jsonify({
@@ -3897,9 +3921,9 @@ def _read_version() -> str:
                 if v:
                     return v
         # fallback to env or default
-        return os.getenv('MSS_VERSION', '5.3.0')
+        return os.getenv('MSS_VERSION', '5.4.0')
     except Exception:
-        return os.getenv('MSS_VERSION', '5.3.0')
+        return os.getenv('MSS_VERSION', '5.4.0')
 
 
 @app.route('/health', methods=['GET'])
@@ -4278,6 +4302,33 @@ def api_logout():
         response = jsonify({'success': True, 'message': 'Logged out successfully'})
         response.set_cookie('session_id', '', max_age=0, httponly=True, samesite='Lax')
         return response
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/usage', methods=['GET'])
+def api_get_usage():
+    """Get user's current usage statistics"""
+    try:
+        session_id = request.cookies.get('session_id')
+        if not session_id:
+            return jsonify({'success': False, 'error': 'Not logged in'}), 401
+
+        result = database.get_session(session_id)
+        if not result['success']:
+            return jsonify(result), 401
+
+        user_id = result['user']['id']
+        stats = database.get_usage_stats(user_id)
+
+        if not stats:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+
+        return jsonify({
+            'success': True,
+            'usage': stats
+        })
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
