@@ -858,7 +858,7 @@ Make it stand out in search results and suggested videos.`;
         preview.src = url; preview.style.display = 'block'; preview.load();
 
         // Refresh usage limits after successful video creation
-        checkUsageLimits();
+        checkUsageLimitsSafe();
 
         // Show YouTube upload section and pre-fill data (DISABLED FOR LAUNCH - uncomment to enable)
         // showYouTubeUploadSection(data.files.final_video);
@@ -1098,8 +1098,43 @@ Make it stand out in search results and suggested videos.`;
       }
     }
 
+    // Check and display usage limits (401-safe)
+    async function checkUsageLimitsSafe() {
+      const warning = document.getElementById('usageWarning');
+      try {
+        const res = await fetch(`${API_BASE}/api/usage`, { credentials: 'include' });
+        if (res.status === 401 || !res.ok) { if (warning) warning.style.display = 'none'; return; }
+        const data = await res.json();
+        if (!data.success) { if (warning) warning.style.display = 'none'; return; }
+        const usage = data.usage;
+        if (!warning) return;
+        const percentage = (usage.videos_this_month / usage.monthly_limit) * 100;
+        if (usage.at_limit) {
+          warning.innerHTML = `
+            <div style="padding:12px; background:rgba(239,68,68,0.1); border:1px solid #ef4444; border-radius:8px; color:#ef4444;">
+              Monthly limit reached (${usage.monthly_limit} videos). <a href="/pricing" style="color:#ef4444; text-decoration:underline;">Upgrade your plan</a> to create more videos.
+            </div>`;
+          warning.style.display = 'block';
+        } else if (percentage >= 80) {
+          warning.innerHTML = `
+            <div style="padding:12px; background:rgba(251,191,36,0.1); border:1px solid #f59e0b; border-radius:8px; color:#f59e0b;">
+              You have ${usage.videos_remaining} video${usage.videos_remaining !== 1 ? 's' : ''} remaining this month (${usage.videos_this_month}/${usage.monthly_limit} used)
+            </div>`;
+          warning.style.display = 'block';
+        } else {
+          warning.innerHTML = `
+            <div style="padding:12px; background:rgba(59,130,246,0.1); border:1px solid #3b82f6; border-radius:8px; color:#3b82f6;">
+              ${usage.videos_this_month}/${usage.monthly_limit} videos used this month • ${usage.videos_remaining} remaining
+            </div>`;
+          warning.style.display = 'block';
+        }
+      } catch (e) {
+        if (warning) warning.style.display = 'none';
+      }
+    }
+
     // Load usage on page load
-    checkUsageLimits();
+    checkUsageLimitsSafe();
 
     // Welcome message with keyboard shortcuts
     setTimeout(() => {
@@ -1129,8 +1164,6 @@ Make it stand out in search results and suggested videos.`;
   </script>
 </body>
 </html>
-
-
 
 
 

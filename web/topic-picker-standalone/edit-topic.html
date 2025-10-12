@@ -344,7 +344,7 @@
   <div style="margin:8px 0; display:flex; gap:12px; align-items:center;"><label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="optIncludeAvatar" checked> Include avatar (lower right)</label><label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="optIncludeLogo" checked> Include logo (bottom left)</label></div><div id="status"></div>
 
   <script>
-    const API_BASE = 'http://localhost:5000';
+    const API_BASE = window.location.origin;
     let currentTopic = {};
     let keywords = [];
     let tags = [];
@@ -615,7 +615,6 @@ Keywords: ${keywords.join(', ') || '[Keywords]'}`;
   </script>
 </body>
 </html>
-
 
 
 
