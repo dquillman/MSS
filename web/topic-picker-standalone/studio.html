@@ -742,6 +742,9 @@ Make it stand out in search results and suggested videos.`;
       }
     });
 
+    // Feature flags
+    const ENABLE_YT_UPLOAD_UI = false; // set true to show YouTube upload section automatically
+
     // Load topic keywords/tags from localStorage or API fallback
     async function primeFromLocalOrAPI() {
       const tokensEl = document.getElementById('topicTokens');
@@ -870,10 +873,12 @@ Make it stand out in search results and suggested videos.`;
         preview.src = url; preview.style.display = 'block'; preview.load();
 
         // Refresh usage limits after successful video creation
-        checkUsageLimitsSafe();
+        try { if (typeof checkUsageLimitsSafe === 'function') checkUsageLimitsSafe(); } catch {}
 
-        // Show YouTube upload section and pre-fill data (DISABLED FOR LAUNCH - uncomment to enable)
-        // showYouTubeUploadSection(data.files.final_video);
+        // Show YouTube upload section and pre-fill data (enable via flag)
+        if (ENABLE_YT_UPLOAD_UI && data?.files?.final_video) {
+          try { showYouTubeUploadSection(data.files.final_video); } catch {}
+        }
       } catch (e) {
         console.error(e);
         setStatus(`Error: ${e.message}`, 'err');
