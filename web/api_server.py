@@ -1524,6 +1524,22 @@ def post_process_video():
         _save_upload(video_file, video_path)
         print(f"[OK] Video saved: {video_path}")
 
+        # If no processing requested (no avatar, no intro/outro, no logo), just return the uploaded video
+        try:
+            include_logo_flag = request.form.get('include_logo', 'true').lower() == 'true'
+        except Exception:
+            include_logo_flag = True
+        print(f"[OPTIONS] include_avatar={include_avatar}, include_logo={include_logo_flag}, add_intro_outro={add_intro_outro}")
+        if (not include_avatar) and (not add_intro_outro) and (not include_logo_flag):
+            return jsonify({
+                'success': True,
+                'message': 'No processing requested; returning uploaded video as-is.',
+                'files': {
+                    'final_video': video_path.name,
+                    'avatar_video': None
+                }
+            })
+
         # Handle audio
         if audio_file:
             audio_path = outdir / f"uploaded_audio_{int(time.time())}.mp3"
@@ -1536,7 +1552,10 @@ def post_process_video():
             import imageio_ffmpeg
 
             audio_path = outdir / f"extracted_audio_{int(time.time())}.mp3"
-            ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+            try:
+                ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+            except OSError as oe:
+                return jsonify({'success': False, 'error': f'FFmpeg not available: {oe}'}), 500
 
             cmd = [
                 ffmpeg,
