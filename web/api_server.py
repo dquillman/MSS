@@ -1285,13 +1285,110 @@ def create_video_enhanced():
                 result_vertical = future_vertical.result()
                 result_wide = future_wide.result()
 
-            print("[OK] Both renders completed!")
-            result_files['shorts'] = result_vertical['path']
-            result_files['wide'] = result_wide['path']
-            result_files['render_ids'] = {
-                'vertical': result_vertical['render_id'],
-                'wide': result_wide['render_id']
-            }
+        print("[OK] Both renders completed!")
+        result_files['shorts'] = result_vertical['path']
+        result_files['wide'] = result_wide['path']
+        result_files['render_ids'] = {
+            'vertical': result_vertical['render_id'],
+            'wide': result_wide['render_id']
+        }
+
+        # If using Shotstack, add logo overlay locally post-download
+        try:
+            include_logo = bool(data.get('include_logo', True))
+        except Exception:
+            include_logo = True
+
+        if include_logo:
+            def _resolve_logo_path(ui_filename: str = "", default_position: str = 'bottom-left'):
+                """Return (logo_path, position) using UI override, web library, then thumbnail_settings.json."""
+                logo_position = default_position
+                logo_path = None
+                try:
+                    # 1) Explicit UI selection
+                    if ui_filename:
+                        cand_mss = Path(__file__).parent.parent / 'logos' / ui_filename
+                        cand_web = Path(__file__).parent / 'logos' / ui_filename
+                        logo_path = cand_mss if cand_mss.exists() else (cand_web if cand_web.exists() else None)
+                    # 2) Active logo from web/logo_library.json
+                    if not logo_path:
+                        library_file = Path(__file__).parent / 'logo_library.json'
+                        if library_file.exists():
+                            lib = json.loads(library_file.read_text(encoding='utf-8'))
+                            active = next((l for l in lib.get('logos', []) if l.get('active')), None)
+                            if active:
+                                fname = active.get('filename') or (active.get('url','').split('/')[-1])
+                                if fname:
+                                    cand_mss = Path(__file__).parent.parent / 'logos' / fname
+                                    cand_web = Path(__file__).parent / 'logos' / fname
+                                    logo_path = cand_mss if cand_mss.exists() else (cand_web if cand_web.exists() else None)
+                    # 3) Position (and fallback) from root thumbnail_settings.json
+                    ts_path = Path(__file__).parent.parent / 'thumbnail_settings.json'
+                    if ts_path.exists():
+                        ts = json.loads(ts_path.read_text(encoding='utf-8'))
+                        logo_position = ts.get('logoPosition', logo_position)
+                        if not logo_path and ts.get('logoUrl'):
+                            fname = ts.get('logoUrl').split('/')[-1]
+                            cand_mss = Path(__file__).parent.parent / 'logos' / fname
+                            cand_web = Path(__file__).parent / 'logos' / fname
+                            logo_path = cand_mss if cand_mss.exists() else (cand_web if cand_web.exists() else None)
+                except Exception:
+                    pass
+                return logo_path, logo_position
+
+            def _overlay_logo(input_path: Path, output_path: Path, logo_path: Path, position: str, opacity: float = 0.6) -> bool:
+                """Apply a PNG logo over video using ffmpeg. Returns True on success."""
+                try:
+                    import subprocess, imageio_ffmpeg
+                    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+                    pos_map = {
+                        'bottom-right': 'W-w-20:H-h-20',
+                        'bottom-left': '20:H-h-20',
+                        'top-right': 'W-w-20:20',
+                        'top-left': '20:20',
+                        'center': '(W-w)/2:(H-h)/2'
+                    }
+                    pos = pos_map.get(position, '20:H-h-20')
+                    filter_complex = (
+                        f"[1:v]scale=-1:100,format=yuva420p,colorchannelmixer=aa={opacity},"
+                        f"fade=t=in:st=0:d=0.5:alpha=1[logo];[0:v][logo]overlay={pos}"
+                    )
+                    cmd = [
+                        ffmpeg,
+                        '-i', str(input_path),
+                        '-i', str(logo_path),
+                        '-filter_complex', filter_complex,
+                        '-c:v', 'libx264',
+                        '-c:a', 'copy',
+                        '-y', str(output_path)
+                    ]
+                    res = subprocess.run(cmd, capture_output=True, text=True)
+                    if res.returncode == 0 and output_path.exists():
+                        return True
+                    else:
+                        print(f"[LOGO] Overlay failed for {input_path.name}: {res.stderr[:200] if res.stderr else 'no stderr'}")
+                        return False
+                except Exception as e:
+                    print(f"[LOGO] Exception during overlay: {e}")
+                    return False
+
+            # Resolve logo once (optionally from UI)
+            ui_logo_filename = (data.get('logo_filename') or '').strip() if isinstance(data, dict) else ''
+            logo_path, logo_position = _resolve_logo_path(ui_logo_filename)
+
+            if logo_path and logo_path.exists():
+                print(f"[LOGO] Applying logo to Shotstack renders using {logo_path} at {logo_position}")
+                for key in ['shorts', 'wide']:
+                    try:
+                        in_path = outdir / result_files[key]
+                        out_path = outdir / f"{Path(result_files[key]).stem}_logo.mp4"
+                        if _overlay_logo(in_path, out_path, logo_path, logo_position, opacity=0.6):
+                            result_files[key] = out_path.name
+                            print(f"[LOGO] {key} updated with logo -> {out_path.name}")
+                    except Exception as e:
+                        print(f"[LOGO] Skipped {key} overlay: {e}")
+            else:
+                print("[LOGO] No logo file resolved; skipping logo overlay for Shotstack outputs")
 
         except Exception as e:
             print(f"Shotstack rendering error: {e}")
