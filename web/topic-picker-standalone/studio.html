@@ -743,9 +743,9 @@ Make it stand out in search results and suggested videos.`;
     });
 
     // Load topic keywords/tags from localStorage or API fallback
-    (function loadTopicMeta() {
+    async function primeFromLocalOrAPI() {
       const tokensEl = document.getElementById('topicTokens');
-      function renderTokens(arr){
+      const renderTokens = (arr) => {
         tokensEl.innerHTML = '';
         arr.slice(0, 50).forEach(t => {
           const chip = document.createElement('span');
@@ -753,32 +753,43 @@ Make it stand out in search results and suggested videos.`;
           chip.style.cssText = 'background:#1e3a8a; border-radius:14px; padding:6px 10px; font-size:12px; cursor:pointer;';
           tokensEl.appendChild(chip);
         });
-      }
+      };
 
       try {
-        let arr = [];
+        let tokens = [];
         const saved = localStorage.getItem('editingTopic');
         if (saved) {
           const topic = JSON.parse(saved);
-          applyTopicToUI(topic);
-          const kw = topic.keywords || [];
-          const yt = topic.yt_tags || [];
-          arr = [...new Set([...(kw||[]), ...(yt||[])])];
+          if (topic) {
+            applyTopicToUI?.(topic);
+            const kw = Array.isArray(topic.keywords) ? topic.keywords : [];
+            const yt = Array.isArray(topic.yt_tags) ? topic.yt_tags : [];
+            tokens = [...new Set([...kw, ...yt].filter(Boolean))];
+          }
         }
-        if (arr.length > 0) { renderTokens(arr); return; }
-      } catch {}
+        if (tokens.length > 0) { renderTokens(tokens); return; }
+      } catch (e) {
+        console.warn('editingTopic parse failed:', e);
+      }
+
       // Fallback: ask API for last selected topic
-      fetch(`${API_BASE}/get-selected-topic`).then(r => r.json()).then(d => {
-        if (d && d.success && d.topic) {
-          const t = d.topic;
-          applyTopicToUI(t);
-          const kw = t.keywords || [];
-          const yt = t.yt_tags || [];
-          const arr = [...new Set([...(kw||[]), ...(yt||[])])];
-          if (arr.length) renderTokens(arr);
-        }
-      }).catch(()=>{});
-    })();
+      try {
+        const res = await fetch(`${API_BASE}/get-selected-topic`, { credentials: 'include' });
+        if (!res.ok) return;
+        const d = await res.json();
+        const t = d?.topic || (d?.success && d.topic ? d.topic : null);
+        if (!t) return;
+        applyTopicToUI?.(t);
+        const kw = Array.isArray(t.keywords) ? t.keywords : [];
+        const yt = Array.isArray(t.yt_tags) ? t.yt_tags : [];
+        const tokens = [...new Set([...kw, ...yt].filter(Boolean))];
+        if (tokens.length) renderTokens(tokens);
+      } catch (e) {
+        console.log('get-selected-topic failed:', e);
+      }
+    }
+
+    primeFromLocalOrAPI();
 
 
     mainInput.addEventListener('change', () => {
