@@ -366,7 +366,8 @@ YouTube Description:
   </div>
 
   <script>
-    const API_BASE = 'http://127.0.0.1:5000';
+    // Use same-origin API base to avoid cookie domain mismatch (localhost vs 127.0.0.1)
+    const API_BASE = window.location.origin;
     const DEFAULT_PROMPT = `Create a vibrant, eye-catching YouTube thumbnail for a video titled: {{title}}
 
 Style: Bold, high-contrast, professional
@@ -1128,7 +1129,6 @@ Make it stand out in search results and suggested videos.`;
   </script>
 </body>
 </html>
-
 
 
 
