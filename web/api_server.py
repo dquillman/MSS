@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw, ImageFont
 import io
 import requests
 import stripe
+import shutil
 
 # Add parent directory to path so we can import scripts
 import sys
@@ -1498,15 +1499,35 @@ def post_process_video():
         outdir = Path("out")
         ensure_dir(outdir)
 
+        def _save_upload(fs, dest: Path):
+            try:
+                fs.save(str(dest))
+            except Exception as e:
+                print(f"[UPLOAD] .save failed for {dest}: {e}. Falling back to manual copy...")
+                try:
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    if hasattr(fs, 'stream') and fs.stream:
+                        try:
+                            fs.stream.seek(0)
+                        except Exception:
+                            pass
+                        with open(str(dest), 'wb') as out_f:
+                            shutil.copyfileobj(fs.stream, out_f)
+                    else:
+                        data = fs.read()
+                        with open(str(dest), 'wb') as out_f:
+                            out_f.write(data)
+                except Exception as e2:
+                    raise e2
+
         video_path = outdir / f"uploaded_video_{int(time.time())}.mp4"
-        # On Windows, pass plain str path to avoid OSError: Invalid argument
-        video_file.save(str(video_path))
+        _save_upload(video_file, video_path)
         print(f"[OK] Video saved: {video_path}")
 
         # Handle audio
         if audio_file:
             audio_path = outdir / f"uploaded_audio_{int(time.time())}.mp3"
-            audio_file.save(str(audio_path))
+            _save_upload(audio_file, audio_path)
             print(f"[OK] Audio saved: {audio_path}")
         else:
             # Extract audio from video using FFmpeg
