@@ -13,6 +13,7 @@ import io
 import requests
 import stripe
 import shutil
+from scripts.overlay_logo import overlay as overlay_logo
 
 # Add parent directory to path so we can import scripts
 import sys
@@ -1524,18 +1525,50 @@ def post_process_video():
         _save_upload(video_file, video_path)
         print(f"[OK] Video saved: {video_path}")
 
-        # If no processing requested (no avatar, no intro/outro, no logo), just return the uploaded video
+        # If no processing requested (no avatar, no intro/outro), return the uploaded video
         try:
             include_logo_flag = request.form.get('include_logo', 'true').lower() == 'true'
         except Exception:
             include_logo_flag = True
         print(f"[OPTIONS] include_avatar={include_avatar}, include_logo={include_logo_flag}, add_intro_outro={add_intro_outro}")
-        if (not include_avatar) and (not add_intro_outro) and (not include_logo_flag):
+        if (not include_avatar) and (not add_intro_outro):
+            # Optionally apply logo and return immediately
+            final_return = video_path
+            if include_logo_flag:
+                ui_logo_filename = (request.form.get('logo_filename') or '').strip()
+                logo_path = None
+                if ui_logo_filename:
+                    cand_mss = Path(__file__).parent.parent / 'logos' / ui_logo_filename
+                    cand_web = Path(__file__).parent / 'logos' / ui_logo_filename
+                    logo_path = cand_mss if cand_mss.exists() else (cand_web if cand_web.exists() else None)
+                if not logo_path:
+                    # Fallback to thumbnail settings
+                    ts_path = Path(__file__).parent.parent / 'thumbnail_settings.json'
+                    if ts_path.exists():
+                        try:
+                            ts = json.loads(ts_path.read_text(encoding='utf-8'))
+                            lu = ts.get('logoUrl') or ''
+                            if lu:
+                                fname = lu.split('/')[-1]
+                                cand_mss = Path(__file__).parent.parent / 'logos' / fname
+                                cand_web = Path(__file__).parent / 'logos' / fname
+                                logo_path = cand_mss if cand_mss.exists() else (cand_web if cand_web.exists() else None)
+                        except Exception:
+                            pass
+                if logo_path and logo_path.exists():
+                    try:
+                        out_file = overlay_logo(str(video_path), str(logo_path), (request.form.get('logo_position') or 'bottom-left'))
+                        out_path = Path(str(out_file))
+                        if out_path.exists():
+                            final_return = out_path
+                            print(f"[LOGO-NOOP] Applied logo and returning: {out_path}")
+                    except Exception as e:
+                        print(f"[LOGO-NOOP] Overlay failed, returning original: {e}")
             return jsonify({
                 'success': True,
-                'message': 'No processing requested; returning uploaded video as-is.',
+                'message': 'Video post-processed successfully (no intro/outro)',
                 'files': {
-                    'final_video': video_path.name,
+                    'final_video': final_return.name,
                     'avatar_video': None
                 }
             })
