@@ -1499,13 +1499,14 @@ def post_process_video():
         ensure_dir(outdir)
 
         video_path = outdir / f"uploaded_video_{int(time.time())}.mp4"
-        video_file.save(video_path)
+        # On Windows, pass plain str path to avoid OSError: Invalid argument
+        video_file.save(str(video_path))
         print(f"[OK] Video saved: {video_path}")
 
         # Handle audio
         if audio_file:
             audio_path = outdir / f"uploaded_audio_{int(time.time())}.mp3"
-            audio_file.save(audio_path)
+            audio_file.save(str(audio_path))
             print(f"[OK] Audio saved: {audio_path}")
         else:
             # Extract audio from video using FFmpeg
