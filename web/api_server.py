@@ -13,7 +13,7 @@ import io
 import requests
 import stripe
 import shutil
-from scripts.overlay_logo import overlay as overlay_logo
+
 
 # Add parent directory to path so we can import scripts
 import sys
@@ -1557,7 +1557,7 @@ def post_process_video():
                             pass
                 if logo_path and logo_path.exists():
                     try:
-                        out_file = overlay_logo(str(video_path), str(logo_path), (request.form.get('logo_position') or 'bottom-left'))
+                        from scripts.overlay_logo import overlay as overlay_logo\\n                        out_file = overlay_logo(str(video_path), str(logo_path), (request.form.get('logo_position') or 'bottom-left'))
                         out_path = Path(str(out_file))
                         if out_path.exists():
                             final_return = out_path
