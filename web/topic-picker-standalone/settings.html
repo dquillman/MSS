@@ -59,6 +59,10 @@
   <div class="card">
     <h1>YouTube Upload Defaults</h1>
     <div class="row" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+      <div style="grid-column: 1 / span 2; display:flex; align-items:center; gap:10px;">
+        <input type="checkbox" id="enableYtUploadUI">
+        <label for="enableYtUploadUI">Show YouTube upload section automatically after processing</label>
+      </div>
       <div>
         <label>Default Privacy</label>
         <select id="ytDefaultPrivacy" style="width:100%; padding:10px;">
@@ -205,6 +209,8 @@
       if (settings.defaultStartPage) document.getElementById('defaultStartPage').value = settings.defaultStartPage;
 
       // YouTube
+      const ytUI = localStorage.getItem('enableYtUploadUI');
+      if (ytUI !== null) document.getElementById('enableYtUploadUI').checked = (ytUI === 'true');
       if (settings.ytDefaultPrivacy) document.getElementById('ytDefaultPrivacy').value = settings.ytDefaultPrivacy;
       if (settings.ytDefaultCategory) document.getElementById('ytDefaultCategory').value = settings.ytDefaultCategory;
 
@@ -252,6 +258,9 @@
         defaultStrokeWidth: document.getElementById('defaultStrokeWidth').value,
         defaultForceCleanBg: document.getElementById('defaultForceCleanBg').checked,
       };
+
+      // YouTube UI preference is stored as a standalone flag
+      localStorage.setItem('enableYtUploadUI', document.getElementById('enableYtUploadUI').checked ? 'true' : 'false');
 
       localStorage.setItem('mss_settings', JSON.stringify(settings));
       showStatus('Settings saved successfully!', 'ok');
@@ -323,6 +332,11 @@
 
     // Event listeners
     document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+    // Save YouTube UI toggle immediately when changed
+    document.getElementById('enableYtUploadUI').addEventListener('change', () => {
+      localStorage.setItem('enableYtUploadUI', document.getElementById('enableYtUploadUI').checked ? 'true' : 'false');
+      showStatus('YouTube upload UI preference saved', 'ok');
+    });
     document.getElementById('resetSettingsBtn').addEventListener('click', resetSettings);
     document.getElementById('exportSettingsBtn').addEventListener('click', exportSettings);
     document.getElementById('importSettingsBtn').addEventListener('click', importSettings);

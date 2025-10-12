@@ -742,8 +742,8 @@ Make it stand out in search results and suggested videos.`;
       }
     });
 
-    // Feature flags
-    const ENABLE_YT_UPLOAD_UI = false; // set true to show YouTube upload section automatically
+    // Feature flags (read from localStorage)
+    const ENABLE_YT_UPLOAD_UI = (localStorage.getItem('enableYtUploadUI') || 'false').toLowerCase() === 'true';
 
     // Load topic keywords/tags from localStorage or API fallback
     async function primeFromLocalOrAPI() {
