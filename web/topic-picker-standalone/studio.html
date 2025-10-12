@@ -669,34 +669,53 @@ Make it stand out in search results and suggested videos.`;
     // Load logos dropdown
     const logoSelect = document.getElementById('logoSelect');
     async function loadLogos() {
+      const activeLogoImg = document.getElementById('activeLogoImg');
+      logoSelect.innerHTML = '<option value="">Loading...</option>';
+      // Try new files API first
       try {
         const res = await fetch(`${API_BASE}/api/logo-files`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        logoSelect.innerHTML = '';
-        const list = (data && data.logos) ? data.logos : [];
-        if (list.length === 0) {
-          logoSelect.innerHTML = '<option value="">No logos found</option>';
+        if (res.ok) {
+          const data = await res.json();
+          const list = (data && Array.isArray(data.logos)) ? data.logos : [];
+          logoSelect.innerHTML = '';
+          if (list.length === 0) {
+            logoSelect.innerHTML = '<option value="">No logos found</option>';
+          } else {
+            list.forEach(logo => {
+              const opt = document.createElement('option');
+              opt.value = logo.filename;
+              opt.textContent = logo.filename;
+              if (logo.url) opt.dataset.url = logo.url;
+              logoSelect.appendChild(opt);
+            });
+          }
+          if (activeLogoImg) activeLogoImg.style.display = 'none';
           return;
         }
-
-        const activeLogoImg = document.getElementById('activeLogoImg');
-        let activeLogo = null;
-
-        list.forEach(logo => {
-          const opt = document.createElement('option');
-          // Use filename as value and label to match actual files
-          opt.value = logo.filename;
-          opt.textContent = logo.filename;
-          logoSelect.appendChild(opt);
-        });
-
-        // Display active logo image
+      } catch {}
+      // Fallback to legacy library
+      try {
+        const res = await fetch(`${API_BASE}/get-logo-library`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const list = (data && Array.isArray(data.logos)) ? data.logos : [];
+        logoSelect.innerHTML = '';
+        if (list.length === 0) {
+          logoSelect.innerHTML = '<option value="">No logos found</option>';
+        } else {
+          list.forEach(logo => {
+            const opt = document.createElement('option');
+            const fname = logo.filename || ((logo.url||'').split('/').pop());
+            opt.value = fname || '';
+            opt.textContent = fname || (logo.name || logo.id || 'logo');
+            if (logo.url) opt.dataset.url = logo.url;
+            logoSelect.appendChild(opt);
+          });
+        }
         if (activeLogoImg) activeLogoImg.style.display = 'none';
       } catch (e) {
         console.error('Error loading logos:', e);
         logoSelect.innerHTML = '<option value="">Error loading logos</option>';
-        const activeLogoImg = document.getElementById('activeLogoImg');
         if (activeLogoImg) activeLogoImg.style.display = 'none';
       }
     }
@@ -719,7 +738,13 @@ Make it stand out in search results and suggested videos.`;
         console.log('Logo changed to filename:', filename);
       } catch (e) {
         console.error('Error loading logo image:', e);
-        activeLogoImg.style.display = 'none';
+        const sel = logoSelect.selectedOptions && logoSelect.selectedOptions[0];
+        if (sel && sel.dataset && sel.dataset.url) {
+          activeLogoImg.src = sel.dataset.url;
+          activeLogoImg.style.display = 'inline-block';
+        } else {
+          activeLogoImg.style.display = 'none';
+        }
       }
     });
 
