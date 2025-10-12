@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -18,9 +18,9 @@
       <button class="btn" onclick="window.location.href='meme-library.html'">Memes</button>
       <button class="btn" onclick="window.location.href='intro-outro.html'">Intro/Outro</button>
       <button class="btn" onclick="window.location.href='viewer.html'">Viewer</button>
-      <button class="btn" onclick="window.location.href='/dashboard'">📊 Dashboard</button>
-      <button class="btn" onclick="window.location.href='settings.html'" style="background:#7c3aed; border-color:#7c3aed;">⚙️ Settings</button>
-      <button class="btn" onclick="logout()" style="background:#ef4444; border-color:#ef4444;">🚪 Logout</button>
+      <button class="btn" onclick="window.location.href='/dashboard'">ðŸ“Š Dashboard</button>
+      <button class="btn" onclick="window.location.href='settings.html'" style="background:#7c3aed; border-color:#7c3aed;">âš™ï¸ Settings</button>
+      <button class="btn" onclick="logout()" style="background:#ef4444; border-color:#ef4444;">ðŸšª Logout</button>
       <div class="dropdown" id="oldMenusContainer" style="position:relative;display:none;">
         <button class="btn" id="oldMenusBtn">Old Menus</button>
         <div class="dropdown-content" id="oldMenus" style="display:none; position:absolute; top:110%; left:0; background:#0B0F19; border:1px solid #334; border-radius:8px; min-width:180px; z-index:20; box-shadow:0 6px 18px rgba(0,0,0,0.4);">
@@ -163,7 +163,7 @@ Angle / Hook:
 
 Topic Description (balanced perspective):
 Analyze the topic {{Title}}, exploring both the positive and negative dimensions of the issue. Discuss how {{Angle}} relates to larger trends in society, technology, or policy.
-Examine key themes such as {{Keywords}} — highlighting both progress and problems. Consider successes like innovation, reform, or cooperation, and challenges such as inequality, misinformation, or ethical dilemmas. Conclude by reflecting on what lessons humanity can carry forward to build a more resilient and informed future.
+Examine key themes such as {{Keywords}} â€” highlighting both progress and problems. Consider successes like innovation, reform, or cooperation, and challenges such as inequality, misinformation, or ethical dilemmas. Conclude by reflecting on what lessons humanity can carry forward to build a more resilient and informed future.
 
 Keywords:
 {{Keywords}}
@@ -354,7 +354,7 @@ YouTube Description:
       </div>
     </div>
     <div class="row">
-      <button class="btn" id="uploadToYouTubeBtn" style="background:#FF0000; border-color:#FF0000;">📤 Upload to YouTube</button>
+      <button class="btn" id="uploadToYouTubeBtn" style="background:#FF0000; border-color:#FF0000;">ðŸ“¤ Upload to YouTube</button>
     </div>
     <div id="ytStatus" class="status"></div>
     <div id="ytProgress" style="display:none; margin-top:12px; padding:12px; background:rgba(59,130,246,0.1); border:1px solid var(--accent-blue); border-radius:6px;">
@@ -526,7 +526,7 @@ Make it stand out in search results and suggested videos.`;
       toast.className = `toast ${type}`;
       toast.innerHTML = `
         <span>${message}</span>
-        <span class="toast-close">✕</span>
+        <span class="toast-close">âœ•</span>
       `;
 
       document.body.appendChild(toast);
@@ -536,7 +536,8 @@ Make it stand out in search results and suggested videos.`;
         setTimeout(() => toast.remove(), 300);
       };
 
-      toast.querySelector('.toast-close').addEventListener('click', close);
+      const closeEl = toast.querySelector('.toast-close');
+      if (closeEl) closeEl.addEventListener('click', close);
 
       if (duration > 0) {
         setTimeout(close, duration);
@@ -797,7 +798,7 @@ Make it stand out in search results and suggested videos.`;
       approveBtn.disabled = true;
       const loadingBar = document.getElementById('loadingBar');
       if (loadingBar) loadingBar.style.display = 'block';
-      setStatus('Processing…', 'info');
+      setStatus('Processingâ€¦', 'info');
       isProcessing = true;  // Set processing flag
       showToast('Video processing started. You can navigate away - processing continues in background!', 'info', 5000);
       try {
@@ -909,7 +910,7 @@ Make it stand out in search results and suggested videos.`;
     setTimeout(() => {
       const stats = JSON.parse(localStorage.getItem('mss_stats') || '{}');
       if (stats.counters) {
-        console.log('📊 MSS Analytics:', stats.counters);
+        console.log('ðŸ“Š MSS Analytics:', stats.counters);
         console.log(`Total actions: ${stats.counters.total || 0}`);
       }
     }, 2000);
@@ -1033,8 +1034,8 @@ Make it stand out in search results and suggested videos.`;
         }
 
         statusEl.className = 'status ok';
-        statusEl.innerHTML = `✅ Video uploaded successfully!<br><a href="${data.url}" target="_blank" style="color:#22c55e; text-decoration:underline;">${data.url}</a>`;
-        showToast(`Video uploaded to YouTube! 🎉`, 'success', 8000);
+        statusEl.innerHTML = `âœ… Video uploaded successfully!<br><a href="${data.url}" target="_blank" style="color:#22c55e; text-decoration:underline;">${data.url}</a>`;
+        showToast(`Video uploaded to YouTube! ðŸŽ‰`, 'success', 8000);
         trackEvent('youtube_upload_success', { video_id: data.video_id });
 
       } catch (e) {
@@ -1070,7 +1071,7 @@ Make it stand out in search results and suggested videos.`;
               // At limit - show error
               warning.innerHTML = `
                 <div style="padding:12px; background:rgba(239,68,68,0.1); border:1px solid #ef4444; border-radius:8px; color:#ef4444;">
-                  ⚠️ Monthly limit reached (${usage.monthly_limit} videos). <a href="/pricing" style="color:#ef4444; text-decoration:underline;">Upgrade your plan</a> to create more videos.
+                  âš ï¸ Monthly limit reached (${usage.monthly_limit} videos). <a href="/pricing" style="color:#ef4444; text-decoration:underline;">Upgrade your plan</a> to create more videos.
                 </div>
               `;
               warning.style.display = 'block';
@@ -1078,7 +1079,7 @@ Make it stand out in search results and suggested videos.`;
               // Near limit - show warning
               warning.innerHTML = `
                 <div style="padding:12px; background:rgba(251,191,36,0.1); border:1px solid #f59e0b; border-radius:8px; color:#f59e0b;">
-                  ⚠️ You have ${usage.videos_remaining} video${usage.videos_remaining !== 1 ? 's' : ''} remaining this month (${usage.videos_this_month}/${usage.monthly_limit} used)
+                  âš ï¸ You have ${usage.videos_remaining} video${usage.videos_remaining !== 1 ? 's' : ''} remaining this month (${usage.videos_this_month}/${usage.monthly_limit} used)
                 </div>
               `;
               warning.style.display = 'block';
@@ -1086,7 +1087,7 @@ Make it stand out in search results and suggested videos.`;
               // Plenty remaining - show info
               warning.innerHTML = `
                 <div style="padding:12px; background:rgba(59,130,246,0.1); border:1px solid #3b82f6; border-radius:8px; color:#3b82f6;">
-                  ${usage.videos_this_month}/${usage.monthly_limit} videos used this month • ${usage.videos_remaining} remaining
+                  ${usage.videos_this_month}/${usage.monthly_limit} videos used this month â€¢ ${usage.videos_remaining} remaining
                 </div>
               `;
               warning.style.display = 'block';
@@ -1124,7 +1125,7 @@ Make it stand out in search results and suggested videos.`;
         } else {
           warning.innerHTML = `
             <div style="padding:12px; background:rgba(59,130,246,0.1); border:1px solid #3b82f6; border-radius:8px; color:#3b82f6;">
-              ${usage.videos_this_month}/${usage.monthly_limit} videos used this month • ${usage.videos_remaining} remaining
+              ${usage.videos_this_month}/${usage.monthly_limit} videos used this month â€¢ ${usage.videos_remaining} remaining
             </div>`;
           warning.style.display = 'block';
         }
@@ -1138,7 +1139,7 @@ Make it stand out in search results and suggested videos.`;
 
     // Welcome message with keyboard shortcuts
     setTimeout(() => {
-      showToast('💡 Shortcuts: Ctrl+S (Generate Video), Esc (Cancel)', 'info', 6000);
+      showToast('ðŸ’¡ Shortcuts: Ctrl+S (Generate Video), Esc (Cancel)', 'info', 6000);
     }, 1000);
 
     // Logout function
@@ -1164,6 +1165,7 @@ Make it stand out in search results and suggested videos.`;
   </script>
 </body>
 </html>
+
 
 
 
