@@ -670,7 +670,7 @@ Make it stand out in search results and suggested videos.`;
     const logoSelect = document.getElementById('logoSelect');
     async function loadLogos() {
       try {
-        const res = await fetch(`${API_BASE}/get-logo-library`);
+        const res = await fetch(`${API_BASE}/api/logo-files`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         logoSelect.innerHTML = '';
@@ -685,23 +685,14 @@ Make it stand out in search results and suggested videos.`;
 
         list.forEach(logo => {
           const opt = document.createElement('option');
-          opt.value = logo.id;
-          opt.textContent = logo.name || logo.filename || logo.id;
-          if (logo.active) {
-            opt.selected = true;
-            activeLogo = logo;
-          }
+          // Use filename as value and label to match actual files
+          opt.value = logo.filename;
+          opt.textContent = logo.filename;
           logoSelect.appendChild(opt);
         });
 
         // Display active logo image
-        if (activeLogo && activeLogoImg) {
-          activeLogoImg.src = activeLogo.url;
-          activeLogoImg.style.display = 'inline-block';
-          console.log('Active logo loaded:', activeLogo.name, activeLogo.url);
-        } else if (activeLogoImg) {
-          activeLogoImg.style.display = 'none';
-        }
+        if (activeLogoImg) activeLogoImg.style.display = 'none';
       } catch (e) {
         console.error('Error loading logos:', e);
         logoSelect.innerHTML = '<option value="">Error loading logos</option>';
@@ -716,26 +707,16 @@ Make it stand out in search results and suggested videos.`;
       const activeLogoImg = document.getElementById('activeLogoImg');
       if (!activeLogoImg) return;
 
-      const selectedId = logoSelect.value;
-      if (!selectedId) {
+      const filename = logoSelect.value;
+      if (!filename) {
         activeLogoImg.style.display = 'none';
         return;
       }
 
       try {
-        const res = await fetch(`${API_BASE}/get-logo-library`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const list = (data && data.logos) ? data.logos : [];
-        const selectedLogo = list.find(logo => logo.id === selectedId);
-
-        if (selectedLogo && selectedLogo.url) {
-          activeLogoImg.src = selectedLogo.url;
-          activeLogoImg.style.display = 'inline-block';
-          console.log('Logo changed to:', selectedLogo.name, selectedLogo.url);
-        } else {
-          activeLogoImg.style.display = 'none';
-        }
+        activeLogoImg.src = `${API_BASE}/logos/${filename}`;
+        activeLogoImg.style.display = 'inline-block';
+        console.log('Logo changed to filename:', filename);
       } catch (e) {
         console.error('Error loading logo image:', e);
         activeLogoImg.style.display = 'none';
@@ -837,19 +818,9 @@ Make it stand out in search results and suggested videos.`;
         }
         // Explicitly pass the selected logo filename to guarantee correct file is used
         if (toggleLogo.checked && logoSelect.value) {
-          try {
-            const lib = await fetch(`${API_BASE}/get-logo-library`).then(r => r.json());
-            const selected = (lib && Array.isArray(lib.logos)) ? lib.logos.find(l => l.id === logoSelect.value) : null;
-            console.log('[LOGO] Selected logo:', selected);
-            if (selected && selected.filename) {
-              fd.append('logo_filename', selected.filename);
-              console.log('[LOGO] Sending logo_filename:', selected.filename);
-            } else {
-              console.warn('[LOGO] No filename found for selected logo');
-            }
-          } catch (e) {
-            console.error('[LOGO] Error fetching logo:', e);
-          }
+          // Pass filename directly from dropdown
+          fd.append('logo_filename', logoSelect.value);
+          console.log('[LOGO] Sending logo_filename:', logoSelect.value);
         } else {
           console.log('[LOGO] Logo not enabled or no logo selected. toggleLogo:', toggleLogo.checked, 'logoSelect:', logoSelect.value);
         }

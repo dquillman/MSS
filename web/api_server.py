@@ -2740,6 +2740,33 @@ def serve_logo_file(filename):
         return jsonify({'error': str(e)}), 404
 
 
+@app.route('/api/logo-files', methods=['GET'])
+def api_logo_files():
+    """Return list of logo files from the root logos/ folder.
+    Format: { logos: [ { filename, url, size } ] }
+    """
+    try:
+        logos_dir = Path('logos')
+        if not logos_dir.exists():
+            return jsonify({'success': True, 'logos': []})
+        items = []
+        for ext in ('*.png', '*.jpg', '*.jpeg', '*.svg', '*.webp'):
+            for f in logos_dir.glob(ext):
+                try:
+                    items.append({
+                        'filename': f.name,
+                        'url': f"http://localhost:5000/logos/{f.name}",
+                        'size': f.stat().st_size,
+                    })
+                except Exception:
+                    pass
+        # sort by modified time desc
+        items.sort(key=lambda x: (logos_dir / x['filename']).stat().st_mtime, reverse=True)
+        return jsonify({'success': True, 'logos': items})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/thumbnails/<path:filename>', methods=['GET'])
 def serve_thumbnail_file(filename):
     """Serve files from the thumbnails directory"""
