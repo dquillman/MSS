@@ -2477,6 +2477,26 @@ def post_process_video():
 
     except Exception as e:
         print(f"Error post-processing video: {e}")
+        # If this is a Windows path/handle error (OSError 22) and we saved the upload, return it as-is
+        try:
+            import errno
+            is_oserr_22 = isinstance(e, OSError) and getattr(e, 'errno', None) in (22, errno.EINVAL)
+        except Exception:
+            is_oserr_22 = False
+        try:
+            saved_name = Path(video_path).name if 'video_path' in locals() and video_path else None
+        except Exception:
+            saved_name = None
+        if is_oserr_22 and saved_name:
+            print(f"[FALLBACK] OSError(22) encountered; returning uploaded video {saved_name} without processing")
+            return jsonify({
+                'success': True,
+                'message': 'OSError(22) encountered; returning uploaded video as-is.',
+                'files': {
+                    'final_video': saved_name,
+                    'avatar_video': None
+                }
+            })
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
