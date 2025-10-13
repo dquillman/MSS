@@ -624,7 +624,7 @@ CRITICAL: BACKGROUND ONLY — absolutely no text, letters, words, numbers, typog
         // Prefer new clean background route; fallback to legacy if not available
         let res = await fetch(`${API_BASE}/generate-clean-bg`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, hook, description: desc, keywords, prompt: userPrompt, enforce_no_text: document.getElementById('forceCleanBg').checked, retry_on_text: true, retry_max: 2 })
+          body: JSON.stringify({ title, hook, description: desc, keywords, prompt: userPrompt, enforce_no_text: document.getElementById('forceCleanBg').checked, retry_on_text: true, retry_max: 3 })
         }).catch(()=>null);
         if (!res || !res.ok) {
           res = await fetch(`${API_BASE}/generate-meme-bg`, {
@@ -968,7 +968,7 @@ CRITICAL: BACKGROUND ONLY — absolutely no text, letters, words, numbers, typog
               prompt: userPrompt,
               enforce_no_text: document.getElementById('forceCleanBg').checked,
               retry_on_text: true,
-              retry_max: 2
+              retry_max: 3
             })
           });
 

@@ -441,14 +441,48 @@ def generate_meme_bg():
                 print(f"[OCR] Error during OCR: {_ocr_err}")
                 return False
 
+        def _vision_detects_text_or_logo(path: Path) -> bool:
+            try:
+                if not bool(int(os.getenv('ENABLE_BG_VISION_AUDIT', '1'))):
+                    return False
+                api_key = os.getenv('OPENAI_API_KEY')
+                if not api_key:
+                    return False
+                from openai import OpenAI
+                import base64
+                client = OpenAI(api_key=api_key)
+                b64 = base64.b64encode(path.read_bytes()).decode('utf-8')
+                data_url = f"data:image/{path.suffix.lstrip('.').lower()};base64,{b64}"
+                prompt = (
+                    "Does this image contain any readable or stylized text, letters, numbers, signage,"
+                    " labels, banners, title cards, or recognizable logos/icons (e.g., play button, app UI)?"
+                    " Answer with a single word: YES or NO."
+                )
+                resp = client.chat.completions.create(
+                    model=os.getenv('OPENAI_MODEL_SEO', 'gpt-4o-mini'),
+                    messages=[
+                        {"role": "user", "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": data_url}},
+                        ]}
+                    ],
+                    temperature=0,
+                )
+                ans = (resp.choices[0].message.content or '').strip().upper()
+                return ans.startswith('Y')
+            except Exception as _v_err:
+                print(f"[VISION] Audit skipped: {_v_err}")
+                return False
+
         img_path = None
         source = None
         try:
             if os.getenv("OPENAI_API_KEY"):
                 bg_prompt = (
-                    f"Design a cinematic, high-contrast abstract background for a YouTube thumbnail. "
+                    f"Design a cinematic, high-contrast abstract background for a video thumbnail. "
                     f"Topic: {title}. Hook: {hook}. Description: {description}. Keywords: {key_str}. "
                     f"Mood: bold, modern, subtle depth, soft lighting, safe-zone friendly. "
+                    f"Strictly avoid all logos, UI, and iconography (e.g., play buttons). "
                     f"CRITICAL: NO TEXT, NO LETTERS, NO WORDS anywhere in the image."
                 )
                 img_path = _openai_background(bg_prompt, outdir)
@@ -463,7 +497,7 @@ def generate_meme_bg():
         # Auto-retry on text if enabled and using AI source
         if retry_on_text and source == 'openai':
             attempts = 0
-            while attempts < retry_max and _image_contains_text(img_path):
+            while attempts < retry_max and (_image_contains_text(img_path) or _vision_detects_text_or_logo(img_path)):
                 attempts += 1
                 try:
                     # remove previous image to avoid clutter
@@ -563,6 +597,39 @@ def generate_clean_bg():
                 print(f"[OCR] Error during OCR: {_ocr_err}")
                 return False
 
+        def _vision_detects_text_or_logo(path: Path) -> bool:
+            try:
+                if not bool(int(os.getenv('ENABLE_BG_VISION_AUDIT', '1'))):
+                    return False
+                api_key = os.getenv('OPENAI_API_KEY')
+                if not api_key:
+                    return False
+                from openai import OpenAI
+                import base64
+                client = OpenAI(api_key=api_key)
+                b64 = base64.b64encode(path.read_bytes()).decode('utf-8')
+                data_url = f"data:image/{path.suffix.lstrip('.').lower()};base64,{b64}"
+                prompt = (
+                    "Does this image contain any readable or stylized text, letters, numbers, signage,"
+                    " labels, banners, title cards, or recognizable logos/icons (e.g., play button, app UI)?"
+                    " Answer with a single word: YES or NO."
+                )
+                resp = client.chat.completions.create(
+                    model=os.getenv('OPENAI_MODEL_SEO', 'gpt-4o-mini'),
+                    messages=[
+                        {"role": "user", "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": data_url}},
+                        ]}
+                    ],
+                    temperature=0,
+                )
+                ans = (resp.choices[0].message.content or '').strip().upper()
+                return ans.startswith('Y')
+            except Exception as _v_err:
+                print(f"[VISION] Audit skipped: {_v_err}")
+                return False
+
         img_path = None
         source = None
         try:
@@ -588,13 +655,13 @@ def generate_clean_bg():
                         pass
                 else:
                     bg_prompt = (
-                        f"Design a cinematic, high-contrast abstract background for a YouTube thumbnail. "
+                        f"Design a cinematic, high-contrast abstract background for a video thumbnail. "
                         f"Topic: {title}. Hook: {hook}. Description: {description}. Keywords: {key_str}. "
                         f"Mood: bold, modern, subtle depth, soft lighting, safe-zone friendly."
                     )
                 if enforce_no_text:
                     bg_prompt += (
-                        "\nCRITICAL: BACKGROUND ONLY — absolutely no text, words, letters, numbers, typography, signage, labels, logos, UI, or watermarks."
+                        "\nCRITICAL: BACKGROUND ONLY - absolutely no text, words, letters, numbers, typography, signage, labels, logos, icons (including play buttons), UI, or watermarks."
                         " Use abstract shapes, gradients, lighting, and texture only."
                     )
                 img_path = _openai_background(bg_prompt, outdir)
@@ -609,7 +676,7 @@ def generate_clean_bg():
         # Auto-retry on text if enabled and using AI source
         if retry_on_text and source == 'openai':
             attempts = 0
-            while attempts < retry_max and _image_contains_text(img_path):
+            while attempts < retry_max and (_image_contains_text(img_path) or _vision_detects_text_or_logo(img_path)):
                 attempts += 1
                 try:
                     try:
