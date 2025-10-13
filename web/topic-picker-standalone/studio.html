@@ -671,8 +671,8 @@ Make it stand out in search results and suggested videos.`;
     const logoSelect = document.getElementById('logoSelect');
     async function loadLogos() {
       const activeLogoImg = document.getElementById('activeLogoImg');
-      if (!ENABLE_LOGO_LIST) {
-        logoSelect.innerHTML = '<option value="">Use "Choose Logo File"</option>';
+      const listFlag =  !!(window && window.ENABLE_LOGO_LIST); 
+      if ( !listFlag) { 
         if (activeLogoImg) activeLogoImg.style.display = 'none';
         return;
       }
