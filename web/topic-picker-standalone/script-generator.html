@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -134,7 +134,7 @@
   </script>
 
   <div class="card" style="margin-top:16px;">
-    <h1>🎬 AI Script Generator</h1>
+    <h1>ðŸŽ¬ AI Script Generator</h1>
     <div class="row" style="background:rgba(59,130,246,0.1); border:1px solid var(--accent-blue); border-radius:6px; padding:12px;">
       <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">
         Generate a complete video script based on your topic. Uses your title, hook, and keywords.
@@ -159,8 +159,8 @@
       </select>
     </div>
     <div class="controls">
-      <button class="btn" id="generateScript" style="background:#8b5cf6; border-color:#8b5cf6;">✨ Generate Script</button>
-      <button class="btn" id="copyScript" style="display:none;">📋 Copy Script</button>
+      <button class="btn" id="generateScript" style="background:#8b5cf6; border-color:#8b5cf6;">âœ¨ Generate Script</button>
+      <button class="btn" id="copyScript" style="display:none;">ðŸ“‹ Copy Script</button>
     </div>
     <div id="scriptStatus" class="status" style="display:none;"></div>
     <div class="row" id="scriptOutputRow" style="display:none;">
@@ -209,7 +209,7 @@
       toast.className = `toast ${type}`;
       toast.innerHTML = `
         <span>${message}</span>
-        <span class="toast-close">✕</span>
+        <span class="toast-close">âœ•</span>
       `;
 
       document.body.appendChild(toast);
@@ -229,7 +229,7 @@
     }
 
     // Override toast to stack without overlap
-    if (typeof showToast === \"function\" && !window.__toastStackPatched) {
+    if (typeof showToast === 'function' && !window.__toastStackPatched) {
       const __origShowToast = showToast;
       window.showToast = function(message, type = 'info', duration = 4000) {
         let container = document.getElementById('toastContainer');
@@ -428,8 +428,8 @@ Make it engaging and optimized for viewer retention.`;
         document.getElementById('scriptDuration').textContent = `Est. Duration: ${Math.floor(duration / 60)}:${(duration % 60).toString().padStart(2, '0')}`;
 
         scriptStatus.className = 'status ok';
-        scriptStatus.textContent = '✅ Script generated successfully!';
-        showToast('🎬 Script generated!', 'success', 3000);
+        scriptStatus.textContent = 'âœ… Script generated successfully!';
+        showToast('ðŸŽ¬ Script generated!', 'success', 3000);
 
         // Track event
         trackEvent('script_generated', { length, style, words });
@@ -438,7 +438,7 @@ Make it engaging and optimized for viewer retention.`;
         console.error('Script generation error:', e);
         scriptStatus.className = 'status err';
         scriptStatus.textContent = `Error: ${e.message}`;
-        showToast(`❌ Script generation failed: ${e.message}`, 'error', 5000);
+        showToast(`âŒ Script generation failed: ${e.message}`, 'error', 5000);
       } finally {
         generateBtn.disabled = false;
         if (loadingBar) loadingBar.style.display = 'none';
@@ -450,7 +450,7 @@ Make it engaging and optimized for viewer retention.`;
       const scriptOutput = document.getElementById('scriptOutput');
       scriptOutput.select();
       document.execCommand('copy');
-      showToast('📋 Script copied to clipboard', 'success', 2000);
+      showToast('ðŸ“‹ Script copied to clipboard', 'success', 2000);
     });
 
     // Update word count on edit

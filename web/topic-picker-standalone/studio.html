@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ï»¿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -183,7 +183,7 @@ Angle / Hook:
 
 Topic Description (balanced perspective):
 Analyze the topic {{Title}}, exploring both the positive and negative dimensions of the issue. Discuss how {{Angle}} relates to larger trends in society, technology, or policy.
-Examine key themes such as {{Keywords}} — highlighting both progress and problems. Consider successes like innovation, reform, or cooperation, and challenges such as inequality, misinformation, or ethical dilemmas. Conclude by reflecting on what lessons humanity can carry forward to build a more resilient and informed future.
+Examine key themes such as {{Keywords}} â€” highlighting both progress and problems. Consider successes like innovation, reform, or cooperation, and challenges such as inequality, misinformation, or ethical dilemmas. Conclude by reflecting on what lessons humanity can carry forward to build a more resilient and informed future.
 
 Keywords:
 {{Keywords}}
@@ -580,7 +580,7 @@ Make it stand out in search results and suggested videos.`;
     }
 
     // Override toast to stack without overlap
-    if (typeof showToast === \"function\" && !window.__toastStackPatched) {
+    if (typeof showToast === 'function' && !window.__toastStackPatched) {
       const __origShowToast = showToast;
       window.showToast = function(message, type = 'info', duration = 4000) {
         let container = document.getElementById('toastContainer');
@@ -755,7 +755,7 @@ Make it stand out in search results and suggested videos.`;
             if (activeLogoImg) activeLogoImg.style.display = 'none';
             return; // library had usable entries; done
           }
-          // Else: library exists but empty/stale — fall through to files API
+          // Else: library exists but empty/stale â€” fall through to files API
         }
       } catch {}
 
