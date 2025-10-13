@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MSS Studio</title>
   <link rel="stylesheet" href="studio.css">
+  <!-- Silence favicon requests by using a blank data URI -->
+  <link rel="icon" href="data:,">
   <script src="version.js" defer></script>
 </head>
 <body>
@@ -18,23 +20,41 @@
       <button class="btn" onclick="window.location.href='meme-library.html'">Memes</button>
       <button class="btn" onclick="window.location.href='intro-outro.html'">Intro/Outro</button>
       <button class="btn" onclick="window.location.href='viewer.html'">Viewer</button>
-      <button class="btn" onclick="window.location.href='index.html'">Topics</button>
-      <button class="btn" onclick="window.location.href='avatar-manager.html'">Avatars</button>
-      <button class="btn" onclick="window.location.href='logo-manager.html'">Logos</button>
-      <button class="btn" onclick="window.location.href='meme-library.html'">Memes</button>
-      <button class="btn" onclick="window.location.href='intro-outro.html'">Intro/Outro</button>
-      <button class="btn" onclick="window.location.href='viewer.html'">Viewer</button>
       <button class="btn" onclick="window.location.href='/dashboard'">Dashboard</button>
       <button class="btn" onclick="window.location.href='settings.html'" style="background:#7c3aed; border-color:#7c3aed;">Settings</button>
       <button class="btn" onclick="logout()" style="background:#ef4444; border-color:#ef4444;">Logout</button>
-          <a href="post-process.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Post-Process</a>
-          <a href="preview.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Preview</a>
-        </div>
-      </div>
     </div>
   </div>
 
 <script>(function(){ const btn=document.getElementById("oldMenusBtn"); const menu=document.getElementById("oldMenus"); const $oldMenusContainer = document.getElementById('oldMenusContainer'); if(btn&&menu&&$oldMenusContainer){ btn.addEventListener("click",(e)=>{ e.stopPropagation(); menu.style.display=(menu.style.display==="block"?"none":"block");}); document.addEventListener("click",()=>{ menu.style.display="none";}); menu.addEventListener("click",(e)=>e.stopPropagation()); document.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key.toLowerCase()==='o'){ e.preventDefault(); $oldMenusContainer.style.display = ($oldMenusContainer.style.display==='none'||!$oldMenusContainer.style.display)?'block':'none'; } }); }})();</script>
+
+<!-- Minimal global helpers so inline handlers work even if later scripts fail to parse -->
+<script>
+  window.logout = async function logout(){
+    try {
+      const base = (window.location && window.location.origin) ? window.location.origin : '';
+      await fetch(base + '/api/logout', { method: 'POST', credentials: 'include' });
+    } catch(e) {}
+    try { window.location.href = '/auth?logout=true'; } catch(_) {}
+  };
+
+  (function(){
+    function clearPicker(){
+      try {
+        var t=document.getElementById('liteTitle'); if (t) t.value='';
+        var h=document.getElementById('liteHook'); if (h) h.value='';
+        var k=document.getElementById('liteKeywords'); if (k) k.value='';
+        var s=document.getElementById('liteStatus');
+        if (s) { s.textContent='Topic picker cleared'; s.className='status ok'; s.style.display='block'; }
+      } catch(e) { console.warn('clearPicker failed:', e); }
+    }
+    var btn=document.getElementById('liteClear');
+    if (btn) btn.addEventListener('click', clearPicker);
+    else document.addEventListener('DOMContentLoaded', function(){
+      var b=document.getElementById('liteClear'); if (b) b.addEventListener('click', clearPicker);
+    });
+  })();
+</script>
 
   <div class="card">
     <h1>Topic Picker</h1>
@@ -442,7 +462,7 @@ Make it stand out in search results and suggested videos.`;
         if (el && j && j.Version) el.textContent = 'v-' + j.Version;
       }).catch(()=>{
         const el = document.getElementById('appVersion');
-        if (el) el.textContent = 'v-2.3.1';
+        if (el) el.textContent = 'v-5.5.1';
       });
     })();
 
@@ -1111,7 +1131,7 @@ Make it stand out in search results and suggested videos.`;
 
         statusEl.className = 'status ok';
         statusEl.className = 'status ok';
-        statusEl.innerHTML = `✓ Video uploaded successfully!<br><a href="${data.url}" target="_blank" style="color:#22c55e; text-decoration:underline;">${data.url}</a>`;
+        statusEl.innerHTML = `Video uploaded successfully!<br><a href="${data.url}" target="_blank" style="color:#22c55e; text-decoration:underline;">${data.url}</a>`;
         showToast('Video uploaded to YouTube!', 'success', 8000);
 
       } catch (e) {
@@ -1147,25 +1167,22 @@ Make it stand out in search results and suggested videos.`;
               // At limit - show error
               warning.innerHTML = `
                 <div style="padding:12px; background:rgba(239,68,68,0.1); border:1px solid #ef4444; border-radius:8px; color:#ef4444;">
-                <div style="padding:12px; background:rgba(239,68,68,0.1); border:1px solid #ef4444; border-radius:8px; color:#ef4444;">
                   Warning: Monthly limit reached (${usage.monthly_limit} videos). <a href="/pricing" style="color:#ef4444; text-decoration:underline;">Upgrade your plan</a> to create more videos.
-                </div>
+                </div>`;
               warning.style.display = 'block';
             } else if (percentage >= 80) {
               // Near limit - show warning
               warning.innerHTML = `
                 <div style="padding:12px; background:rgba(251,191,36,0.1); border:1px solid #f59e0b; border-radius:8px; color:#f59e0b;">
-                <div style="padding:12px; background:rgba(251,191,36,0.1); border:1px solid #f59e0b; border-radius:8px; color:#f59e0b;">
                   Warning: You have ${usage.videos_remaining} video${usage.videos_remaining !== 1 ? 's' : ''} remaining this month (${usage.videos_this_month}/${usage.monthly_limit} used)
-                </div>
+                </div>`;
               warning.style.display = 'block';
             } else {
               // Plenty remaining - show info
               warning.innerHTML = `
                 <div style="padding:12px; background:rgba(59,130,246,0.1); border:1px solid #3b82f6; border-radius:8px; color:#3b82f6;">
-                <div style="padding:12px; background:rgba(59,130,246,0.1); border:1px solid #3b82f6; border-radius:8px; color:#3b82f6;">
                   ${usage.videos_this_month}/${usage.monthly_limit} videos used this month - ${usage.videos_remaining} remaining
-                </div>
+                </div>`;
               warning.style.display = 'block';
             }
           }
@@ -1201,9 +1218,9 @@ Make it stand out in search results and suggested videos.`;
         } else {
           warning.innerHTML = `
             <div style="padding:12px; background:rgba(59,130,246,0.1); border:1px solid #3b82f6; border-radius:8px; color:#3b82f6;">
-            <div style="padding:12px; background:rgba(59,130,246,0.1); border:1px solid #3b82f6; border-radius:8px; color:#3b82f6;">
               ${usage.videos_this_month}/${usage.monthly_limit} videos used this month - ${usage.videos_remaining} remaining
-            </div>
+            </div>`;
+          warning.style.display = 'block';
         }
       } catch (e) {
         if (warning) warning.style.display = 'none';
@@ -1241,6 +1258,7 @@ Make it stand out in search results and suggested videos.`;
   </script>
 </body>
 </html>
+
 
 
 

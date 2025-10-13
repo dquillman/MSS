@@ -594,4 +594,4 @@ If you encounter issues:
 ---
 
 **Last Updated:** 2025-10-11
-**Version:** 5.2.0
+**Version:** 5.5.1

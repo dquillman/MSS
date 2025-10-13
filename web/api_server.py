@@ -77,6 +77,27 @@ def _load_env_file():
         root = _Path(__file__).parent.parent
         env_path = root / ".env"
         if env_path.exists():
+            # Safety: back up .env on boot (timestamped + rolling .env.bak)
+            try:
+                backups = root / "backups"
+                backups.mkdir(exist_ok=True)
+                import time as _time
+                ts = _time.strftime("%Y%m%d-%H%M%S")
+                # Rolling backup
+                bak_path = root / ".env.bak"
+                try:
+                    env_path.replace(bak_path)
+                    bak_path.replace(env_path)  # move back to original place
+                except Exception:
+                    pass
+                # Timestamped copy
+                ts_path = backups / f".env-{ts}"
+                try:
+                    ts_path.write_text(env_path.read_text(encoding="utf-8"), encoding="utf-8")
+                except Exception:
+                    pass
+            except Exception:
+                pass
             for line in env_path.read_text(encoding="utf-8").splitlines():
                 line = line.strip()
                 if not line or line.startswith('#'):
@@ -192,6 +213,13 @@ def serve_privacy():
     return send_from_directory('topic-picker-standalone', 'privacy.html')
 
 
+# Quiet favicon requests to avoid 404 noise
+@app.route('/favicon.ico')
+def favicon_silence():
+    from flask import Response
+    return Response(status=204)
+
+
 # -------------------- Auth API --------------------
 @app.route('/api/login', methods=['POST'])
 def api_login():
@@ -278,7 +306,7 @@ def _health():
     return jsonify({
         'ok': True,
         'service': 'MSS API',
-        'version': '5.5.0',
+        'version': '5.5.1',
         'endpoints': [
             '/studio', '/topics', '/post-process-video',
             '/get-avatar-library', '/get-logo-library', '/api/logo-files',
@@ -347,7 +375,7 @@ def generate_meme_bg():
         key_str = ', '.join([str(k) for k in keywords][:10])
         rich_title = f"{title}. Hook: {hook}. Description: {description}. Keywords: {key_str}. Create a bold, high-contrast, safe-zone friendly background with depth and subtle lighting; NO text."
 
-        outdir = Path('thumbnails')
+        outdir = Path(__file__).parent.parent / 'thumbnails'
         outdir.mkdir(exist_ok=True)
 
         # Prefer AI image generation with NO TEXT
@@ -355,12 +383,12 @@ def generate_meme_bg():
             from openai import OpenAI
             import requests as _req
             client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            model = os.getenv("OPENAI_IMAGE_MODEL", "dall-e-3")
+            model = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-1")
             resp = client.images.generate(
                 model=model,
                 prompt=prompt,
-                size="1792x1024",
-                quality="standard",
+                size=os.getenv("OPENAI_IMAGE_SIZE", "1536x1024"),
+                quality=os.getenv("OPENAI_IMAGE_QUALITY", "high"),
                 n=1,
             )
             image_url = resp.data[0].url
@@ -394,6 +422,25 @@ def generate_meme_bg():
             img.save(path, quality=92)
             return path
 
+        # Optional auto-retry if OCR detects text in the image
+        retry_on_text = bool(data.get('retry_on_text', False))
+        retry_max = int(data.get('retry_max', 2))
+
+        def _image_contains_text(path: Path) -> bool:
+            try:
+                import pytesseract  # type: ignore
+            except Exception as _imp_err:
+                print(f"[OCR] pytesseract not available, skipping text check: {_imp_err}")
+                return False
+            try:
+                from PIL import Image as _PILImage
+                text = pytesseract.image_to_string(_PILImage.open(path))
+                alnum = ''.join(ch for ch in text if ch.isalnum())
+                return len(alnum) >= 2
+            except Exception as _ocr_err:
+                print(f"[OCR] Error during OCR: {_ocr_err}")
+                return False
+
         img_path = None
         source = None
         try:
@@ -413,7 +460,25 @@ def generate_meme_bg():
             img_path = _gradient_background(outdir)
             source = 'gradient'
 
-        url = f"http://localhost:5000/thumbnails/{img_path.name}" if '://' not in str(img_path) else str(img_path)
+        # Auto-retry on text if enabled and using AI source
+        if retry_on_text and source == 'openai':
+            attempts = 0
+            while attempts < retry_max and _image_contains_text(img_path):
+                attempts += 1
+                try:
+                    # remove previous image to avoid clutter
+                    try:
+                        img_path.unlink()
+                    except Exception:
+                        pass
+                    img_path = _openai_background(bg_prompt, outdir)
+                except Exception as _re_err:
+                    print(f"[BG AI] Retry failed: {_re_err}")
+                    break
+
+        from urllib.parse import urljoin
+        base = request.host_url if hasattr(request, 'host_url') else 'http://127.0.0.1:5000/'
+        url = urljoin(base, f"thumbnails/{img_path.name}") if '://' not in str(img_path) else str(img_path)
         return jsonify({'success': True, 'file': img_path.name, 'url': url, 'source': source})
     except Exception as e:
         import traceback
@@ -436,21 +501,23 @@ def generate_clean_bg():
         keywords = data.get('keywords') or []
         prompt_override = (data.get('prompt') or '').strip()
         enforce_no_text = bool(data.get('enforce_no_text', False))
+        retry_on_text = bool(data.get('retry_on_text', False))
+        retry_max = int(data.get('retry_max', 2))
         key_str = ', '.join([str(k) for k in keywords][:10])
 
-        outdir = Path('thumbnails')
+        outdir = Path(__file__).parent.parent / 'thumbnails'
         outdir.mkdir(exist_ok=True)
 
         def _openai_background(prompt: str, outdir: Path) -> Path:
             from openai import OpenAI
             import requests as _req
             client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            model = os.getenv("OPENAI_IMAGE_MODEL", "dall-e-3")
+            model = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-1")
             resp = client.images.generate(
                 model=model,
                 prompt=prompt,
-                size="1792x1024",
-                quality="standard",
+                size=os.getenv("OPENAI_IMAGE_SIZE", "1536x1024"),
+                quality=os.getenv("OPENAI_IMAGE_QUALITY", "high"),
                 n=1,
             )
             image_url = resp.data[0].url
@@ -481,12 +548,44 @@ def generate_clean_bg():
             img.save(path, quality=92)
             return path
 
+        def _image_contains_text(path: Path) -> bool:
+            try:
+                import pytesseract  # type: ignore
+            except Exception as _imp_err:
+                print(f"[OCR] pytesseract not available, skipping text check: {_imp_err}")
+                return False
+            try:
+                from PIL import Image as _PILImage
+                text = pytesseract.image_to_string(_PILImage.open(path))
+                alnum = ''.join(ch for ch in text if ch.isalnum())
+                return len(alnum) >= 2
+            except Exception as _ocr_err:
+                print(f"[OCR] Error during OCR: {_ocr_err}")
+                return False
+
         img_path = None
         source = None
         try:
             if os.getenv("OPENAI_API_KEY"):
                 if prompt_override:
                     bg_prompt = prompt_override
+                    # Substitute common placeholders so the prompt reflects the current topic
+                    try:
+                        subs = {
+                            '{{title}}': title,
+                            '{{Title}}': title,
+                            '{{hook}}': hook,
+                            '{{Hook}}': hook,
+                            '{{description}}': description,
+                            '{{Description}}': description,
+                            '{{keywords}}': key_str,
+                            '{{Keywords}}': key_str,
+                        }
+                        for k, v in subs.items():
+                            if k in bg_prompt:
+                                bg_prompt = bg_prompt.replace(k, v)
+                    except Exception:
+                        pass
                 else:
                     bg_prompt = (
                         f"Design a cinematic, high-contrast abstract background for a YouTube thumbnail. "
@@ -494,7 +593,10 @@ def generate_clean_bg():
                         f"Mood: bold, modern, subtle depth, soft lighting, safe-zone friendly."
                     )
                 if enforce_no_text:
-                    bg_prompt += " CRITICAL: This is a BACKGROUND ONLY. NO TEXT/WORDS/LETTERS anywhere."
+                    bg_prompt += (
+                        "\nCRITICAL: BACKGROUND ONLY — absolutely no text, words, letters, numbers, typography, signage, labels, logos, UI, or watermarks."
+                        " Use abstract shapes, gradients, lighting, and texture only."
+                    )
                 img_path = _openai_background(bg_prompt, outdir)
                 source = 'openai'
         except Exception as _e:
@@ -504,7 +606,24 @@ def generate_clean_bg():
             img_path = _gradient_background(outdir)
             source = 'gradient'
 
-        url = f"http://localhost:5000/thumbnails/{img_path.name}"
+        # Auto-retry on text if enabled and using AI source
+        if retry_on_text and source == 'openai':
+            attempts = 0
+            while attempts < retry_max and _image_contains_text(img_path):
+                attempts += 1
+                try:
+                    try:
+                        img_path.unlink()
+                    except Exception:
+                        pass
+                    img_path = _openai_background(bg_prompt, outdir)
+                except Exception as _re_err:
+                    print(f"[BG AI] Retry failed (clean route): {_re_err}")
+                    break
+
+        from urllib.parse import urljoin
+        base = request.host_url if hasattr(request, 'host_url') else 'http://127.0.0.1:5000/'
+        url = urljoin(base, f"thumbnails/{img_path.name}")
         return jsonify({'success': True, 'file': img_path.name, 'url': url, 'source': source})
     except Exception as e:
         import traceback
@@ -2893,6 +3012,72 @@ def serve_intro_outro_file(filename):
         return jsonify({'error': str(e)}), 404
 
 
+@app.route('/thumbnails/<path:filename>', methods=['GET'])
+def serve_thumbnail_file(filename):
+    """Serve generated thumbnail/background images"""
+    try:
+        thumbnails_dir = (Path(__file__).parent.parent / 'thumbnails').absolute()
+        return send_from_directory(thumbnails_dir, filename)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 404
+
+
+@app.route('/api/thumbnails', methods=['GET'])
+def api_list_thumbnails():
+    """Return a JSON listing of generated thumbnails/backgrounds."""
+    try:
+        from urllib.parse import urljoin
+        base = request.host_url if hasattr(request, 'host_url') else 'http://127.0.0.1:5000/'
+        thumbnails_dir = Path('thumbnails').absolute()
+        items = []
+        if thumbnails_dir.exists():
+            files = []
+            for ext in ('*.png', '*.jpg', '*.jpeg', '*.webp'):
+                files.extend(thumbnails_dir.glob(ext))
+            files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            for f in files:
+                try:
+                    items.append({
+                        'filename': f.name,
+                        'size': f.stat().st_size,
+                        'mtime': f.stat().st_mtime,
+                        'url': urljoin(base, f'thumbnails/{f.name}')
+                    })
+                except Exception:
+                    pass
+        return jsonify({'success': True, 'items': items})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/thumbnails', methods=['GET'])
+def browse_thumbnails():
+    """Simple HTML index to browse thumbnails/backgrounds."""
+    try:
+        from urllib.parse import urljoin
+        base = request.host_url if hasattr(request, 'host_url') else 'http://127.0.0.1:5000/'
+        thumbnails_dir = Path('thumbnails').absolute()
+        rows = []
+        if thumbnails_dir.exists():
+            files = []
+            for ext in ('*.png', '*.jpg', '*.jpeg', '*.webp'):
+                files.extend(thumbnails_dir.glob(ext))
+            files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            for f in files:
+                url = urljoin(base, f'thumbnails/{f.name}')
+                rows.append(f'<div style="margin:8px 0;"><a href="{url}">{f.name}</a><br><img src="{url}" style="max-width:420px; height:auto; border:1px solid #334; border-radius:6px;"/></div>')
+        html = (
+            '<!DOCTYPE html><html><head><meta charset="utf-8"/>'
+            '<title>Thumbnails</title>'
+            '<style>body{background:#0B0F19;color:#E8EBFF;font-family:system-ui,Segoe UI,Arial; padding:16px;} a{color:#60a5fa;}</style>'
+            '</head><body>'
+            '<h1>Thumbnails</h1>' + (''.join(rows) if rows else '<p>No thumbnails found.</p>') + '</body></html>'
+        )
+        return html
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/usage', methods=['GET'])
 def api_usage():
     try:
@@ -3115,3 +3300,4 @@ def upload_logo_to_library():
         return jsonify({'success': True, 'url': url, 'logo': entry})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+

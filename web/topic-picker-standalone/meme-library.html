@@ -60,7 +60,7 @@
       <label>Prompt (persists locally; only changes if you edit it)</label>
       <textarea id="memePrompt" class="large" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF; height:140px;"></textarea>
     </div>
-    <div class="row" style="color:#94a3b8; font-size:12px;">Tip: {{title}} will be replaced with the Title above.</div>
+    <div class="row" style="color:#94a3b8; font-size:12px;">Tip: {{title}}, {{hook}}, {{description}}, and {{keywords}} will be replaced from the fields above.</div>
   </div>
 
   <div class="card" style="margin-top:16px;">
@@ -121,14 +121,16 @@
 
   <script>
     const API_BASE = window.location.origin;
-    const DEFAULT_PROMPT = `Create a vibrant, eye-catching YouTube thumbnail for a video titled: {{title}}
+    const DEFAULT_PROMPT = `Design a cinematic, high-contrast abstract BACKGROUND (no typography) that captures the topic.
 
-Style: Bold, high-contrast, professional
-Elements: Large readable text, dramatic visuals, bright colors
-Emotion: Exciting, curiosity-inducing, click-worthy
-Format: 1280x720 pixels, 16:9 aspect ratio
+Topic: {{title}}
+Hook: {{hook}}
+Description: {{description}}
+Keywords: {{keywords}}
 
-Make it stand out in search results and suggested videos.`;
+Mood: bold, modern, subtle depth, soft lighting, safe-zone friendly
+
+CRITICAL: BACKGROUND ONLY — absolutely no text, letters, words, numbers, typography, signage, labels, logos, UI, or watermarks anywhere in the image. Use abstract shapes, gradients, lighting, and texture only.`;
 
     function liteStatus(msg, kind='info') {
       const el = document.getElementById('liteStatus');
@@ -178,7 +180,7 @@ Make it stand out in search results and suggested videos.`;
         if (el && j && j.Version) el.textContent = 'v-' + j.Version;
       }).catch(()=>{
         const el = document.getElementById('appVersion');
-        if (el) el.textContent = 'v-2.3.1';
+        if (el) el.textContent = 'v-5.5.1';
       });
     })();
 
@@ -598,7 +600,7 @@ Make it stand out in search results and suggested videos.`;
         // Prefer new clean background route; fallback to legacy if not available
         let res = await fetch(`${API_BASE}/generate-clean-bg`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, hook, description: desc, keywords, prompt: userPrompt, enforce_no_text: document.getElementById('forceCleanBg').checked })
+          body: JSON.stringify({ title, hook, description: desc, keywords, prompt: userPrompt, enforce_no_text: document.getElementById('forceCleanBg').checked, retry_on_text: true, retry_max: 2 })
         }).catch(()=>null);
         if (!res || !res.ok) {
           res = await fetch(`${API_BASE}/generate-meme-bg`, {
@@ -923,15 +925,16 @@ Make it stand out in search results and suggested videos.`;
           userPrompt = userPrompt.replace(/\{\{\s*hook\s*\}\}/g, hook || '');
           userPrompt = userPrompt.replace(/\{\{\s*description\s*\}\}/g, desc || '');
 
-          // Add variety to each variant
+          // Lock subject; vary only lighting/composition to reduce drift
+          const lockedSubject = `\n\nPrimary visual motif: ${title || 'the core concept'} — depict this concept clearly as the main focus (no typography).`;
           const styleVariants = [
-            'vibrant and energetic',
-            'professional and clean',
-            'dramatic and bold',
-            'modern and minimalist',
-            'warm and inviting'
+            'Lighting: dramatic low-key with rim lighting; Composition: centered portrait, shallow depth of field',
+            'Lighting: soft diffused; Composition: rule-of-thirds, negative space on right',
+            'Lighting: high-contrast with edge glow; Composition: dynamic diagonal lines',
+            'Lighting: golden-hour warm; Composition: wide shot with strong foreground/background separation',
+            'Lighting: cool cinematic teal/orange; Composition: symmetrical, subtle vignette'
           ];
-          userPrompt += `\n\nStyle emphasis: ${styleVariants[i]}`;
+          userPrompt += lockedSubject + `\nVariation: ${styleVariants[i]}`;
 
           const res = await fetch(`${API_BASE}/generate-clean-bg`, {
             method: 'POST',
@@ -939,7 +942,9 @@ Make it stand out in search results and suggested videos.`;
             body: JSON.stringify({
               title, hook, description: desc, keywords,
               prompt: userPrompt,
-              enforce_no_text: document.getElementById('forceCleanBg').checked
+              enforce_no_text: document.getElementById('forceCleanBg').checked,
+              retry_on_text: true,
+              retry_max: 2
             })
           });
 
