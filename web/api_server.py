@@ -2733,34 +2733,23 @@ def serve_intro_outro_file(filename):
 
 @app.route('/logos/<path:filename>', methods=['GET'])
 def serve_logo_file(filename):
-    """Serve logo files. Prefer ./logos, then ./web/logos."""
+    """Serve logo files from the canonical repo_root/logos folder."""
     try:
-        for d in [Path('logos').absolute(), (Path(__file__).parent / 'logos').absolute()]:
-            f = d / filename
-            if f.exists():
-                return send_from_directory(d, filename)
-        return jsonify({'error': 'Logo not found'}), 404
+        logos_dir = Path(__file__).parent.parent / 'logos'
+        return send_from_directory(logos_dir, filename)
     except Exception as e:
         return jsonify({'error': str(e)}), 404
 
 
 @app.route('/api/logo-files', methods=['GET'])
 def api_logo_files():
-    """Return list of logo files from ./logos and ./web/logos.
-    Response: { success, logos: [ { filename, url, size } ] }
-    """
+    """List logo files from repo_root/logos (filenames only)."""
     try:
-        dirs = [Path('logos'), Path(__file__).parent / 'logos']
+        logos_dir = Path(__file__).parent.parent / 'logos'
         items = []
-        seen = set()
-        for d in dirs:
-            if not d.exists():
-                continue
+        if logos_dir.exists():
             for ext in ('*.png', '*.jpg', '*.jpeg', '*.svg', '*.webp'):
-                for f in d.glob(ext):
-                    if f.name in seen:
-                        continue
-                    seen.add(f.name)
+                for f in logos_dir.glob(ext):
                     try:
                         items.append({
                             'filename': f.name,
@@ -2769,14 +2758,7 @@ def api_logo_files():
                         })
                     except Exception:
                         pass
-        # Sort by most recent mtime
-        def _mtime(name: str) -> float:
-            for d in dirs:
-                p = d / name
-                if p.exists():
-                    return p.stat().st_mtime
-            return 0.0
-        items.sort(key=lambda x: _mtime(x['filename']), reverse=True)
+            items.sort(key=lambda x: (logos_dir / x['filename']).stat().st_mtime, reverse=True)
         return jsonify({'success': True, 'logos': items})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
