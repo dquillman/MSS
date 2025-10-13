@@ -13,6 +13,7 @@ import io
 import requests
 import stripe
 import shutil
+import uuid
 
 
 # Add parent directory to path so we can import scripts
@@ -239,6 +240,151 @@ def api_login():
         resp = jsonify({'success': True, 'user': {'id': user['id'], 'email': user['email']}})
         resp.set_cookie('session_id', session_id, httponly=True, samesite='Lax', secure=False, path='/')
         return resp
+    except Exception as e:
+    return jsonify({'success': False, 'error': str(e)}), 500
+
+# ---------------- Intro/Outro Library Endpoints ----------------
+
+LIB_DIR = Path('intro_outro')
+LIB_DIR.mkdir(exist_ok=True)
+LIB_PATH = LIB_DIR / 'library.json'
+
+def _load_intro_outro_library():
+    try:
+        if LIB_PATH.exists():
+            data = json.loads(LIB_PATH.read_text(encoding='utf-8') or '{}')
+            data.setdefault('intros', [])
+            data.setdefault('outros', [])
+            data.setdefault('active', {'intro': None, 'outro': None})
+            return data
+    except Exception:
+        pass
+    return {'intros': [], 'outros': [], 'active': {'intro': None, 'outro': None}}
+
+def _save_intro_outro_library(data: dict):
+    LIB_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+
+@app.route('/intro_outro/<path:filename>', methods=['GET'])
+def serve_intro_outro_file(filename):
+    try:
+        return send_from_directory(LIB_DIR.absolute(), filename)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 404
+
+@app.route('/get-intro-outro-library', methods=['GET'])
+def get_intro_outro_library():
+    try:
+        data = _load_intro_outro_library()
+        return jsonify({'success': True, **data})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/upload-intro-outro-file', methods=['POST'])
+def upload_intro_outro_file():
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'No file uploaded'}), 400
+        f = request.files['file']
+        if not f.filename:
+            return jsonify({'success': False, 'error': 'Empty filename'}), 400
+        ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else 'bin'
+        fname = f"io_{int(time.time())}_{uuid.uuid4().hex[:8]}.{ext}"
+        path = LIB_DIR / fname
+        f.save(str(path))
+        from urllib.parse import urljoin
+        base = request.host_url if hasattr(request, 'host_url') else 'http://127.0.0.1:5000/'
+        url = urljoin(base, f"intro_outro/{fname}")
+        return jsonify({'success': True, 'file': fname, 'url': url})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/save-intro-outro', methods=['POST'])
+def save_intro_outro():
+    try:
+        payload = request.get_json(silent=True) or {}
+        typ = (payload.get('type') or '').strip().lower()  # 'intro' or 'outro'
+        if typ not in ('intro', 'outro'):
+            return jsonify({'success': False, 'error': 'type must be intro or outro'}), 400
+        data = _load_intro_outro_library()
+        bucket = data['intros'] if typ == 'intro' else data['outros']
+        item_id = payload.get('id') or f"{int(time.time()*1000)}-{uuid.uuid4().hex[:6]}"
+        new_item = {
+            'id': item_id,
+            'name': payload.get('name') or f"{typ.title()} {item_id}",
+            'duration': float(payload.get('duration') or 3),
+            'html': payload.get('html') or '',
+            'audio': payload.get('audio') or '',
+            'videoUrl': payload.get('videoUrl') or '',
+            'itemType': payload.get('itemType') or ('video' if payload.get('videoUrl') else 'html'),
+            'updated_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+        }
+        # Update if exists
+        idx = next((i for i, x in enumerate(bucket) if x.get('id') == item_id), None)
+        if idx is None:
+            bucket.append(new_item)
+        else:
+            bucket[idx] = new_item
+        _save_intro_outro_library(data)
+        return jsonify({'success': True, 'id': item_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/delete-intro-outro', methods=['POST'])
+def delete_intro_outro():
+    try:
+        payload = request.get_json(silent=True) or {}
+        typ = (payload.get('type') or '').strip().lower()
+        item_id = payload.get('id')
+        if typ not in ('intro', 'outro') or not item_id:
+            return jsonify({'success': False, 'error': 'type and id required'}), 400
+        data = _load_intro_outro_library()
+        key = 'intros' if typ == 'intro' else 'outros'
+        before = len(data[key])
+        data[key] = [x for x in data[key] if x.get('id') != item_id]
+        if data.get('active', {}).get(typ) == item_id:
+            data['active'][typ] = None
+        _save_intro_outro_library(data)
+        return jsonify({'success': True, 'deleted': before - len(data[key])})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/set-active-intro-outro', methods=['POST'])
+def set_active_intro_outro():
+    try:
+        payload = request.get_json(silent=True) or {}
+        typ = (payload.get('type') or '').strip().lower()
+        item_id = payload.get('id')
+        if typ not in ('intro', 'outro'):
+            return jsonify({'success': False, 'error': 'type must be intro or outro'}), 400
+        data = _load_intro_outro_library()
+        data.setdefault('active', {'intro': None, 'outro': None})
+        data['active'][typ] = item_id
+        _save_intro_outro_library(data)
+        return jsonify({'success': True, 'active': data['active']})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/preview-tts', methods=['POST'])
+def preview_tts():
+    """Generate a short MP3 preview for provided text. Falls back to a small silent MP3 if TTS fails."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        text = (payload.get('text') or '').strip()
+        if not text:
+            return jsonify({'success': False, 'error': 'text required'}), 400
+        out = LIB_DIR / f"tts_preview_{int(time.time())}.mp3"
+        try:
+            # Try Google TTS if configured
+            google_tts(text, out)
+        except Exception as e:
+            print(f"[TTS] preview fallback: {e}")
+            # Write a tiny silent MP3 so UI can play something
+            mp3_data = bytes([0xFF, 0xFB, 0x90, 0x00] * 5000)
+            out.write_bytes(mp3_data)
+        from urllib.parse import urljoin
+        base = request.host_url if hasattr(request, 'host_url') else 'http://127.0.0.1:5000/'
+        url = urljoin(base, f"intro_outro/{out.name}")
+        return jsonify({'success': True, 'audio_url': url})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
