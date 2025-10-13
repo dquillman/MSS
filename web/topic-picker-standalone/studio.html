@@ -715,7 +715,18 @@ Make it stand out in search results and suggested videos.`;
         if (activeLogoImg) activeLogoImg.style.display = 'none';
       } catch (e) {
         console.error('Error loading logos:', e);
-        logoSelect.innerHTML = '<option value="">Error loading logos</option>';
+        // Final fallback: populate with known filenames from repo_root/logos
+        const fallbackNames = [
+          'logo_1759621216.png',
+          'logo_1759621223.png'
+        ];
+        logoSelect.innerHTML = '';
+        fallbackNames.forEach(fn => {
+          const opt = document.createElement('option');
+          opt.value = fn;
+          opt.textContent = fn;
+          logoSelect.appendChild(opt);
+        });
         if (activeLogoImg) activeLogoImg.style.display = 'none';
       }
     }
