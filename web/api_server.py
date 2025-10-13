@@ -2611,26 +2611,42 @@ def post_process_video():
         print(f"[INFO] Video dimensions: {width}x{height}")
 
         # Load active intro/outro from library
-        # Intro/outro library is in parent directory (MSS/intro_outro_library.json)
-        intro_outro_library_file = Path(__file__).parent.parent / "intro_outro_library.json"
+        # Prefer new library at ./intro_outro/library.json, then legacy ./intro_outro_library.json
         active_intro = None
         active_outro = None
+        # Legacy path (items may have `active: true` inline)
+        legacy_lib = Path(__file__).parent.parent / "intro_outro_library.json"
+        # New path (separate active map { intro, outro })
+        new_lib = Path('intro_outro') / 'library.json'
 
-        print(f"[DEBUG] Looking for intro/outro library at: {intro_outro_library_file}")
-        print(f"[DEBUG] Intro/outro library exists: {intro_outro_library_file.exists()}")
+        print(f"[DEBUG] Looking for intro/outro libraries: new={new_lib}, legacy={legacy_lib}")
+        try:
+            if new_lib.exists():
+                lib = json.loads(new_lib.read_text(encoding='utf-8') or '{}')
+                act = (lib.get('active') or {}) if isinstance(lib, dict) else {}
+                intro_id = act.get('intro')
+                outro_id = act.get('outro')
+                if intro_id:
+                    active_intro = next((x for x in (lib.get('intros') or []) if x.get('id') == intro_id), None)
+                if outro_id:
+                    active_outro = next((x for x in (lib.get('outros') or []) if x.get('id') == outro_id), None)
+            if (not active_intro or not active_outro) and legacy_lib.exists():
+                legacy = json.loads(legacy_lib.read_text(encoding='utf-8') or '{}')
+                if not active_intro:
+                    active_intro = next((x for x in legacy.get('intros', []) if x.get('active')), None)
+                if not active_outro:
+                    active_outro = next((x for x in legacy.get('outros', []) if x.get('active')), None)
+        except Exception as e:
+            print(f"[WARN] Could not load intro/outro libraries: {e}")
 
-        if intro_outro_library_file.exists():
-            try:
-                library = json.loads(intro_outro_library_file.read_text(encoding="utf-8"))
-                active_intro = next((x for x in library.get('intros', []) if x.get('active')), None)
-                active_outro = next((x for x in library.get('outros', []) if x.get('active')), None)
-
-                if active_intro:
-                    print(f"[INTRO] Found active intro: {active_intro.get('name')}")
-                if active_outro:
-                    print(f"[OUTRO] Found active outro: {active_outro.get('name')}")
-            except Exception as e:
-                print(f"[WARN] Could not load intro/outro library: {e}")
+        if active_intro:
+            print(f"[INTRO] Active intro: {active_intro.get('name')}")
+        else:
+            print(f"[INTRO] No active intro selected; will use defaults")
+        if active_outro:
+            print(f"[OUTRO] Active outro: {active_outro.get('name')}")
+        else:
+            print(f"[OUTRO] No active outro selected; will use defaults")
 
         # Create intro video
         intro_path = outdir / f"intro_{int(time.time())}.mp4"

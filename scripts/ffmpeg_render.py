@@ -125,12 +125,40 @@ def _extract_lines_from_html(html: str, max_lines: int = 2) -> List[str]:
     text = re.sub(r"<[^>]+>", "\n", html or "")
     text = re.sub(r"\s+", " ", text)
     # Recover line breaks between blocks
-    lines = [s.strip() for s in re.split(r"\n+", text) if s and s.strip()]
-    # Heuristic: pick up to max_lines of non-empty strings with reasonable length
-    out = []
-    for s in lines:
+    raw_lines = [s.strip() for s in re.split(r"\n+", text) if s and s.strip()]
+
+    # Wrap a long single line into two balanced lines (simple word-based wrap)
+    def wrap_two_lines(s: str) -> List[str]:
+        words = s.split()
+        if len(s) <= 28 or len(words) <= 1:
+            return [s]
+        total = len(s)
+        # Find split near half length
+        target = total // 2
+        best_idx = None
+        best_diff = 1e9
+        acc = 0
+        for i, w in enumerate(words[:-1], start=1):
+            acc += len(w) + 1
+            diff = abs(acc - target)
+            if diff < best_diff:
+                best_diff = diff
+                best_idx = i
+        if best_idx is None:
+            return [s]
+        line1 = " ".join(words[:best_idx]).strip()
+        line2 = " ".join(words[best_idx:]).strip()
+        return [line1, line2] if line1 and line2 else [s]
+
+    out: List[str] = []
+    for s in raw_lines:
         if 1 <= len(s) <= 200:
-            out.append(s)
+            wrapped = wrap_two_lines(s)
+            for part in wrapped:
+                if part:
+                    out.append(part)
+                if len(out) >= max_lines:
+                    break
         if len(out) >= max_lines:
             break
     if not out:
