@@ -479,11 +479,33 @@ def get_selected_topic():
 def get_avatar_library():
     try:
         path = Path(__file__).parent.parent / 'avatar_library.json'
-        if not path.exists():
-            return jsonify({'success': True, 'avatars': []})
-        raw = path.read_text(encoding='utf-8')
-        data = json.loads(raw or '{}') if raw is not None else {}
-        return jsonify({'success': True, 'avatars': data.get('avatars', [])})
+        avatars_dir = Path(__file__).parent.parent / 'avatars'
+        avatars = []
+        if path.exists():
+            try:
+                raw = path.read_text(encoding='utf-8')
+                data = json.loads(raw or '{}') if raw is not None else {}
+                avatars = data.get('avatars', []) if isinstance(data, dict) else []
+            except Exception:
+                avatars = []
+        # Fallback: scan avatars directory if library is missing/empty
+        if (not avatars) and avatars_dir.exists():
+            allowed_ext = ('.png', '.jpg', '.jpeg', '.webp')
+            for f in avatars_dir.iterdir():
+                if f.is_file() and f.suffix.lower() in allowed_ext:
+                    stem = f.stem
+                    avatars.append({
+                        'id': stem,
+                        'name': stem.replace('_', ' ').title(),
+                        'image_url': f"http://127.0.0.1:5000/avatars/{f.name}",
+                        'active': False,
+                    })
+            # Sort newest first where possible
+            try:
+                avatars.sort(key=lambda a: (avatars_dir / (a.get('id', '') + '.png')).stat().st_mtime if (avatars_dir / (a.get('id', '') + '.png')).exists() else 0, reverse=True)
+            except Exception:
+                pass
+        return jsonify({'success': True, 'avatars': avatars})
     except Exception as e:
         # Still return 200 so UI can proceed
         return jsonify({'success': False, 'error': str(e), 'avatars': []}), 200
@@ -3327,18 +3349,24 @@ def youtube_categories():
     return jsonify({'success': True, 'categories': cats})
 @app.route('/logos/<path:filename>', methods=['GET'])
 def serve_logo_file(filename):
-    """Serve logo files from the canonical repo_root/logos folder."""
+    """Serve logo files. Prefer ./logos, then ./web/logos, then ./web/logos_migrated.
+
+    This keeps existing projects working even if files were dragged into the web folder.
+    """
     try:
-        # Sanitize filename to avoid path traversal and Windows-invalid chars
         allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
         safe_name = ''.join(ch for ch in Path(filename).name if ch in allowed)
         if not safe_name:
             return jsonify({'error': 'Invalid filename'}), 404
 
-        # Only serve from canonical repo_root/logos
-        repo_logos = Path(__file__).parent.parent / 'logos' / safe_name
-        if repo_logos.exists():
-            return send_from_directory(repo_logos.parent, repo_logos.name)
+        candidates = [
+            Path(__file__).parent.parent / 'logos' / safe_name,
+            Path(__file__).parent / 'logos' / safe_name,
+            Path(__file__).parent / 'logos_migrated' / safe_name,
+        ]
+        for p in candidates:
+            if p.exists():
+                return send_from_directory(p.parent, p.name)
 
         return jsonify({'error': 'Logo not found', 'filename': safe_name}), 404
     except Exception as e:
@@ -3347,11 +3375,21 @@ def serve_logo_file(filename):
 @app.route('/api/logo-files', methods=['GET'])
 def api_logo_files():
     try:
-        logos_dir = Path(__file__).parent.parent / 'logos'
+        dirs = [
+            Path(__file__).parent.parent / 'logos',
+            Path(__file__).parent / 'logos',
+            Path(__file__).parent / 'logos_migrated',
+        ]
+        seen = set()
         items = []
-        if logos_dir.exists():
+        for d in dirs:
+            if not d.exists():
+                continue
             for ext in ('*.png', '*.jpg', '*.jpeg', '*.svg', '*.webp'):
-                for f in logos_dir.glob(ext):
+                for f in d.glob(ext):
+                    if f.name in seen:
+                        continue
+                    seen.add(f.name)
                     try:
                         items.append({
                             'filename': f.name,
@@ -3360,10 +3398,14 @@ def api_logo_files():
                         })
                     except Exception:
                         pass
-            try:
-                items.sort(key=lambda x: (logos_dir / x['filename']).stat().st_mtime, reverse=True)
-            except Exception:
-                pass
+        # Sort by mtime across possible dirs
+        def _mtime(name: str) -> float:
+            for d in dirs:
+                p = d / name
+                if p.exists():
+                    return p.stat().st_mtime
+            return 0.0
+        items.sort(key=lambda x: _mtime(x['filename']), reverse=True)
         return jsonify({'success': True, 'logos': items})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -3372,7 +3414,11 @@ def api_logo_files():
 def get_logo_library_route():
     try:
         path = Path('logo_library.json')
-        logos_dir_repo = Path(__file__).parent.parent / 'logos'
+        dirs = [
+            Path(__file__).parent.parent / 'logos',
+            Path(__file__).parent / 'logos',
+            Path(__file__).parent / 'logos_migrated',
+        ]
         if not path.exists():
             return jsonify({'success': True, 'logos': []})
 
@@ -3384,7 +3430,6 @@ def get_logo_library_route():
         except Exception:
             raw_list = []
 
-        # Sanitize + filter to files that actually exist in repo_root/logos; de-duplicate by filename
         allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
         uniq = {}
         for item in raw_list:
@@ -3394,11 +3439,9 @@ def get_logo_library_route():
                 fname = ''.join(ch for ch in Path(fname).name if ch in allowed)
                 if not fname:
                     continue
-                cand_repo = logos_dir_repo / fname
-                if not cand_repo.exists():
-                    # Skip stale entries that don't have a backing file
+                exists = any((d / fname).exists() for d in dirs)
+                if not exists:
                     continue
-                # Normalize URL to current server
                 normalized_url = f"http://127.0.0.1:5000/logos/{fname}"
                 name = (item.get('name') or '').strip() or fname
                 uniq[fname] = {
@@ -3411,19 +3454,20 @@ def get_logo_library_route():
             except Exception:
                 continue
 
-        # Sort by file mtime desc when possible
-        def _mtime(f):
-            p = logos_dir_repo / f
-            try:
-                return p.stat().st_mtime
-            except Exception:
-                return 0
+        def _mtime(fname: str) -> float:
+            for d in dirs:
+                p = d / fname
+                if p.exists():
+                    try:
+                        return p.stat().st_mtime
+                    except Exception:
+                        return 0
+            return 0
 
         cleaned = list(uniq.values())
         cleaned.sort(key=lambda x: _mtime(x['filename']), reverse=True)
         return jsonify({'success': True, 'logos': cleaned})
     except Exception:
-        # On any error, return an empty list rather than 500 to keep UI happy
         return jsonify({'success': True, 'logos': []})
 
 @app.route('/set-active-logo', methods=['POST'])
