@@ -579,6 +579,29 @@ Make it stand out in search results and suggested videos.`;
       return toast;
     }
 
+    // Override toast to stack without overlap
+    if (!window.__toastStackPatched) {
+      const __origShowToast = showToast;
+      window.showToast = function(message, type = 'info', duration = 4000) {
+        let container = document.getElementById('toastContainer');
+        if (!container) {
+          container = document.createElement('div');
+          container.id = 'toastContainer';
+          Object.assign(container.style, {
+            position: 'fixed', top: '80px', right: '24px', display: 'flex',
+            flexDirection: 'column', alignItems: 'flex-end', gap: '8px', zIndex: '10000'
+          });
+          document.body.appendChild(container);
+        }
+        const toast = __origShowToast(message, type, duration);
+        try { document.body.removeChild(toast); } catch {}
+        Object.assign(toast.style, { position: 'relative', top: 'auto', right: 'auto', margin: '0' });
+        container.appendChild(toast);
+        return toast;
+      };
+      window.__toastStackPatched = true;
+    }
+
     // Enhanced error handling with retry
     async function fetchWithRetry(url, options = {}, retries = 2) {
       for (let i = 0; i <= retries; i++) {
