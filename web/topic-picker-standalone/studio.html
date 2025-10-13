@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -286,9 +286,10 @@ YouTube Description:
         <input type="checkbox" id="toggleLogo" checked>
         Include logo
       </label>
-      <div id="logoSelectWrap" style="display:flex; align-items:center; gap:6px;">
+      <div id="logoSelectWrap" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
         <span style="font-size:13px; color:#94a3b8;">Logo:</span>
         <select id="logoSelect" style="padding:6px 10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;"></select>
+        <input type="file" id="logoFile" accept="image/*" style="padding:6px 10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
         <img id="activeLogoImg" alt="Active Logo" style="width:48px; height:48px; border-radius:8px; object-fit:contain; border:1px solid #334; background:#0B0F19; display:none; vertical-align:middle;"/>
       </div>
       <div id="logoPositionWrap" style="display:flex; align-items:center; gap:6px;">
@@ -759,6 +760,31 @@ Make it stand out in search results and suggested videos.`;
       }
     });
 
+    // Update preview when a logo file is chosen
+    const logoFile = document.getElementById('logoFile');
+    if (logoFile) {
+      logoFile.addEventListener('change', () => {
+        const f = logoFile.files && logoFile.files[0];
+        const img = document.getElementById('activeLogoImg');
+        if (!img) return;
+        if (f) {
+          try {
+            const url = URL.createObjectURL(f);
+            img.src = url;
+            img.style.display = 'inline-block';
+            // Clear dropdown value to indicate file upload is used
+            const logoSelectEl = document.getElementById('logoSelect');
+            if (logoSelectEl) logoSelectEl.value = '';
+          } catch (_) {
+            img.style.display = 'none';
+          }
+        } else {
+          img.style.display = 'none';
+        }
+      });
+    }
+
+
     // Feature flags (read from localStorage)
     const ENABLE_YT_UPLOAD_UI = (localStorage.getItem('enableYtUploadUI') || 'false').toLowerCase() === 'true';
 
@@ -852,8 +878,12 @@ Make it stand out in search results and suggested videos.`;
         if (logoPos && logoPos.value) {
           fd.append('logo_position', logoPos.value);
         }
-        // Explicitly pass the selected logo filename to guarantee correct file is used
-        if (toggleLogo.checked && logoSelect.value) {
+        // Send uploaded logo file if provided; otherwise pass selected filename
+        const logoFileEl = document.getElementById('logoFile');
+        if (toggleLogo.checked && logoFileEl && logoFileEl.files && logoFileEl.files[0]) {
+          fd.append('logo_file', logoFileEl.files[0], logoFileEl.files[0].name);
+          console.log('[LOGO] Sending uploaded logo file:', logoFileEl.files[0].name);
+        } else if (toggleLogo.checked && logoSelect.value) {
           // Pass filename directly from dropdown
           fd.append('logo_filename', logoSelect.value);
           console.log('[LOGO] Sending logo_filename:', logoSelect.value);

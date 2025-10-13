@@ -1537,6 +1537,20 @@ def post_process_video():
             if include_logo_flag:
                 ui_logo_filename = (request.form.get('logo_filename') or '').strip()
                 logo_path = None
+                # Prefer an uploaded logo file if provided
+                try:
+                    logo_upload = request.files.get('logo_file')
+                    if logo_upload:
+                        logos_dir = Path(__file__).parent.parent / 'logos'
+                        logos_dir.mkdir(exist_ok=True)
+                        up_name = f"uploaded_logo_{int(time.time())}.png"
+                        up_path = logos_dir / up_name
+                        logo_upload.save(str(up_path))
+                        if up_path.exists() and up_path.stat().st_size > 0:
+                            logo_path = up_path
+                            print(f"[LOGO-NOOP] Using uploaded logo file: {up_path}")
+                except Exception as _e:
+                    print(f"[LOGO-NOOP] Upload logo save failed: {_e}")
                 if ui_logo_filename:
                     cand_mss = Path(__file__).parent.parent / 'logos' / ui_logo_filename
                     cand_web = Path(__file__).parent / 'logos' / ui_logo_filename
@@ -1626,8 +1640,22 @@ def post_process_video():
                 ui_logo_position = (request.form.get('logo_position') or '').strip()
                 print(f"[LOGO-FIRST] UI provided: logo_filename='{ui_logo_filename}', logo_position='{ui_logo_position}'")
                 logo_position = ui_logo_position if ui_logo_position else 'bottom-left'
-                # 1) Try UI override, then active logo from web/logo_library.json
+                # 1) Try UI override (filename or uploaded file), then active logo from web/logo_library.json
                 logo_path = None
+                # Uploaded logo file has highest priority
+                try:
+                    logo_upload = request.files.get('logo_file')
+                    if logo_upload:
+                        logos_dir = Path(__file__).parent.parent / 'logos'
+                        logos_dir.mkdir(exist_ok=True)
+                        up_name = f"uploaded_logo_{int(time.time())}.png"
+                        up_path = logos_dir / up_name
+                        logo_upload.save(str(up_path))
+                        if up_path.exists() and up_path.stat().st_size > 0:
+                            logo_path = up_path
+                            print(f"[LOGO-FIRST] Using uploaded logo file: {up_path}")
+                except Exception as _e:
+                    print(f"[LOGO-FIRST] Upload logo save failed: {_e}")
                 if ui_logo_filename:
                     cand_mss = Path(__file__).parent.parent / 'logos' / ui_logo_filename
                     cand_web = Path(__file__).parent / 'logos' / ui_logo_filename
