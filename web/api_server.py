@@ -19,6 +19,35 @@ import shutil
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Database access (robust import regardless of how app is launched)
+try:
+    # When installed as a package or run via `flask --app web.api_server`
+    from web import database as database  # type: ignore
+except Exception:
+    try:
+        # When running directly: `python web\api_server.py`
+        import database  # type: ignore
+    except Exception:
+        # Fallback shim to avoid crashes if DB layer is unavailable
+        class _DatabaseShim:
+            @staticmethod
+            def get_session(session_id):
+                return {'success': False, 'error': 'db unavailable'}
+
+            @staticmethod
+            def can_create_video(user_id):
+                return {'allowed': True, 'remaining': 'unlimited'}
+
+            @staticmethod
+            def increment_video_count(user_id):
+                return {'success': True}
+
+            @staticmethod
+            def add_video_to_history(user_id, video_filename, title):
+                return {'success': True}
+
+        database = _DatabaseShim()  # type: ignore
+
 from scripts.make_video import (
     read_env,
     ensure_dir,
@@ -162,6 +191,64 @@ def serve_privacy():
     """Serve Privacy Policy page"""
     return send_from_directory('topic-picker-standalone', 'privacy.html')
 
+
+# -------------------- Auth API --------------------
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    try:
+        data = request.get_json(force=True) or {}
+        email = (data.get('email') or '').strip()
+        password = (data.get('password') or '').strip()
+        if not email or not password:
+            return jsonify({'success': False, 'error': 'Email and password required'}), 400
+
+        result = database.verify_user(email, password)
+        if not result.get('success'):
+            return jsonify({'success': False, 'error': result.get('error', 'Invalid credentials')}), 401
+
+        user = result['user']
+        session_id = database.create_session(user['id'])
+        resp = jsonify({'success': True, 'user': {'id': user['id'], 'email': user['email']}})
+        resp.set_cookie('session_id', session_id, httponly=True, samesite='Lax', secure=False, path='/')
+        return resp
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/logout', methods=['POST'])
+def api_logout():
+    try:
+        sid = request.cookies.get('session_id')
+        if sid:
+            database.delete_session(sid)
+        resp = jsonify({'success': True})
+        resp.set_cookie('session_id', '', expires=0, path='/')
+        return resp
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/signup', methods=['POST'])
+def api_signup():
+    try:
+        data = request.get_json(force=True) or {}
+        email = (data.get('email') or '').strip()
+        password = (data.get('password') or '').strip()
+        username = (data.get('username') or '').strip() or None
+        if not email or not password:
+            return jsonify({'success': False, 'error': 'Email and password required'}), 400
+
+        res = database.create_user(email, password, username=username)
+        if not res.get('success'):
+            return jsonify({'success': False, 'error': res.get('error', 'Signup failed')}), 400
+        user_id = res['user_id']
+        session_id = database.create_session(user_id)
+        resp = jsonify({'success': True, 'user': {'id': user_id, 'email': email}})
+        resp.set_cookie('session_id', session_id, httponly=True, samesite='Lax', secure=False, path='/')
+        return resp
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/dashboard')
 @app.route('/dashboard.html')
 def serve_dashboard():
@@ -191,8 +278,12 @@ def _health():
     return jsonify({
         'ok': True,
         'service': 'MSS API',
-        'version': '5.4.0',
-        'endpoints': ['/studio', '/topics', '/post-process-video', '/get-avatar-library', '/out/<file>']
+        'version': '5.5.0',
+        'endpoints': [
+            '/studio', '/topics', '/post-process-video',
+            '/get-avatar-library', '/get-logo-library', '/api/logo-files',
+            '/api/usage', '/youtube-categories', '/out/<file>', '/logos/<file>'
+        ]
     })
 
 @app.route('/get-selected-topic', methods=['GET'])
@@ -208,6 +299,20 @@ def get_selected_topic():
             return jsonify({'success': False, 'error': 'No topic saved yet'}), 404
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/get-avatar-library', methods=['GET'])
+def get_avatar_library():
+    try:
+        path = Path(__file__).parent.parent / 'avatar_library.json'
+        if not path.exists():
+            return jsonify({'success': True, 'avatars': []})
+        raw = path.read_text(encoding='utf-8')
+        data = json.loads(raw or '{}') if raw is not None else {}
+        return jsonify({'success': True, 'avatars': data.get('avatars', [])})
+    except Exception as e:
+        # Still return 200 so UI can proceed
+        return jsonify({'success': False, 'error': str(e), 'avatars': []}), 200
 
 
 @app.route('/set-selected-topic', methods=['POST'])
@@ -1451,6 +1556,30 @@ def post_process_video():
     - use_did (optional): Use D-ID for talking avatar (default: true)
     """
     try:
+        # Safe logger to avoid Windows console encoding errors
+        def _log(msg: str):
+            try:
+                __builtins__['print'](msg)
+            except Exception:
+                try:
+                    __builtins__['print'](str(msg).encode('ascii', 'ignore').decode('ascii'))
+                except Exception:
+                    pass
+
+        # Sanitize any filename provided by UI
+        def _sanitize_basename(name: str) -> str:
+            try:
+                if not name:
+                    return ''
+                base = Path(name).name  # drop directories
+                allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+                return ''.join(ch for ch in base if ch in allowed)
+            except Exception:
+                return ''
+
+        # Route-local print override for safe logging
+        print = _log
+
         print("=" * 70)
         print("[VIDEO] POST-PROCESS VIDEO ENDPOINT CALLED")
         print("=" * 70)
@@ -1472,7 +1601,8 @@ def post_process_video():
                         'error': can_create['reason'],
                         'upgrade_required': True
                     }), 403
-                print(f"[AUTH] User can create video: {can_create['remaining']} remaining")
+                remaining = (can_create.get('remaining') or (can_create.get('stats') or {}).get('videos_remaining') or 'unlimited')
+                print(f'[AUTH] User can create video; remaining={remaining}')
             else:
                 print("[AUTH] Session expired or invalid")
         else:
@@ -1523,19 +1653,19 @@ def post_process_video():
 
         video_path = outdir / f"uploaded_video_{int(time.time())}.mp4"
         _save_upload(video_file, video_path)
-        print(f"[OK] Video saved: {video_path}")
+        _log(f"[OK] Video saved: {video_path}")
 
         # If no processing requested (no avatar, no intro/outro), return the uploaded video
         try:
             include_logo_flag = request.form.get('include_logo', 'true').lower() == 'true'
         except Exception:
             include_logo_flag = True
-        print(f"[OPTIONS] include_avatar={include_avatar}, include_logo={include_logo_flag}, add_intro_outro={add_intro_outro}")
+        _log(f"[OPTIONS] include_avatar={include_avatar}, include_logo={include_logo_flag}, add_intro_outro={add_intro_outro}")
         if (not include_avatar) and (not add_intro_outro):
             # Optionally apply logo and return immediately
             final_return = video_path
             if include_logo_flag:
-                ui_logo_filename = (request.form.get('logo_filename') or '').strip()
+                ui_logo_filename = _sanitize_basename((request.form.get('logo_filename') or '').strip())
                 logo_path = None
                 # Prefer an uploaded logo file if provided
                 try:
@@ -1548,9 +1678,9 @@ def post_process_video():
                         logo_upload.save(str(up_path))
                         if up_path.exists() and up_path.stat().st_size > 0:
                             logo_path = up_path
-                            print(f"[LOGO-NOOP] Using uploaded logo file: {up_path}")
+                            _log(f"[LOGO-NOOP] Using uploaded logo file: {up_path}")
                 except Exception as _e:
-                    print(f"[LOGO-NOOP] Upload logo save failed: {_e}")
+                    _log(f"[LOGO-NOOP] Upload logo save failed: {_e}")
                 if ui_logo_filename:
                     cand_mss = Path(__file__).parent.parent / 'logos' / ui_logo_filename
                     cand_web = Path(__file__).parent / 'logos' / ui_logo_filename
@@ -1576,9 +1706,9 @@ def post_process_video():
                         out_path = Path(str(out_file))
                         if out_path.exists():
                             final_return = out_path
-                            print(f"[LOGO-NOOP] Applied logo and returning: {out_path}")
+                            _log(f"[LOGO-NOOP] Applied logo and returning: {out_path}")
                     except Exception as e:
-                        print(f"[LOGO-NOOP] Overlay failed, returning original: {e}")
+                        _log(f"[LOGO-NOOP] Overlay failed, returning original: {e}")
             return jsonify({
                 'success': True,
                 'message': 'Video post-processed successfully (no intro/outro)',
@@ -1636,7 +1766,7 @@ def post_process_video():
             if include_logo_early:
                 logo_url = None
                 # Allow UI to pass an explicit filename and/or position
-                ui_logo_filename = (request.form.get('logo_filename') or '').strip()
+                ui_logo_filename = _sanitize_basename((request.form.get('logo_filename') or '').strip())
                 ui_logo_position = (request.form.get('logo_position') or '').strip()
                 print(f"[LOGO-FIRST] UI provided: logo_filename='{ui_logo_filename}', logo_position='{ui_logo_position}'")
                 logo_position = ui_logo_position if ui_logo_position else 'bottom-left'
@@ -1658,9 +1788,8 @@ def post_process_video():
                     print(f"[LOGO-FIRST] Upload logo save failed: {_e}")
                 if ui_logo_filename:
                     cand_mss = Path(__file__).parent.parent / 'logos' / ui_logo_filename
-                    cand_web = Path(__file__).parent / 'logos' / ui_logo_filename
-                    print(f"[LOGO-FIRST] UI override => MSS: {cand_mss.exists()} {cand_mss} | WEB: {cand_web.exists()} {cand_web}")
-                    logo_path = cand_mss if cand_mss.exists() else (cand_web if cand_web.exists() else None)
+                    print(f"[LOGO-FIRST] UI override => MSS: {cand_mss.exists()} {cand_mss}")
+                    logo_path = cand_mss if cand_mss.exists() else None
                     print(f"[LOGO-FIRST] Selected logo_path from UI: {logo_path}")
                 # Only check library if UI didn't provide a logo
                 if not logo_path:
@@ -1673,9 +1802,8 @@ def post_process_video():
                                 fname = active.get('filename') or (active.get('url','').split('/')[-1])
                                 if fname:
                                     cand_mss = Path(__file__).parent.parent / 'logos' / fname
-                                    cand_web = Path(__file__).parent / 'logos' / fname
-                                    print(f"[LOGO-FIRST] Candidates => MSS: {cand_mss.exists()} {cand_mss} | WEB: {cand_web.exists()} {cand_web}")
-                                    logo_path = cand_mss if cand_mss.exists() else (cand_web if cand_web.exists() else None)
+                                    print(f"[LOGO-FIRST] Candidates => MSS: {cand_mss.exists()} {cand_mss}")
+                                    logo_path = cand_mss if cand_mss.exists() else None
                         except Exception:
                             pass
                 # 2) Position from thumbnail settings (ignore its logoUrl if file missing)
@@ -1689,13 +1817,12 @@ def post_process_video():
                             if lu:
                                 fname = lu.split('/')[-1]
                                 cand_mss = Path(__file__).parent.parent / 'logos' / fname
-                                cand_web = Path(__file__).parent / 'logos' / fname
-                                print(f"[LOGO-FIRST] Candidates => MSS: {cand_mss.exists()} {cand_mss} | WEB: {cand_web.exists()} {cand_web}")
-                                logo_path = cand_mss if cand_mss.exists() else (cand_web if cand_web.exists() else None)
+                                print(f"[LOGO-FIRST] Candidates => MSS: {cand_mss.exists()} {cand_mss}")
+                                logo_path = cand_mss if cand_mss.exists() else None
                     except Exception:
                         pass
                 if logo_path and logo_path.exists():
-                    print(f"[LOGO-FIRST] ✅ Logo file found! Applying logo before avatar: {logo_path}")
+                    print(f"[LOGO-FIRST] ? Logo file found! Applying logo before avatar: {logo_path}")
                     logo_opacity = request.form.get('logo_opacity', '1.0')
                     try:
                         logo_opacity_val = max(0.0, min(1.0, float(logo_opacity)))
@@ -1732,16 +1859,16 @@ def post_process_video():
                             result = subprocess.run(cmd, capture_output=True, text=True)
                             print(f"[LOGO-FIRST] ffmpeg return code: {result.returncode}")
                             if result.returncode != 0:
-                                print(f"[LOGO-FIRST] ❌ ffmpeg ERROR: {result.stderr}")
+                                print(f"[LOGO-FIRST] ? ffmpeg ERROR: {result.stderr}")
                             if result.returncode == 0 and video_with_logo.exists():
                                 current_video = video_with_logo
                                 logo_already_applied = True
-                                print(f"[LOGO-FIRST] ✅ Logo applied successfully! Video: {video_with_logo}")
+                                print(f"[LOGO-FIRST] ? Logo applied successfully! Video: {video_with_logo}")
                             else:
-                                print(f"[LOGO-FIRST] ❌ Logo application failed!")
+                                print(f"[LOGO-FIRST] ? Logo application failed!")
                                 print(f"[LOGO-FIRST] Logo overlay failed, continuing without early logo: {result.stderr[:300] if result.stderr else 'no stderr'}")
                 else:
-                    print(f"[LOGO-FIRST] ❌ No logo_path found or file doesn't exist")
+                    print(f"[LOGO-FIRST] ? No logo_path found or file doesn't exist")
         except Exception as e:
             print(f"[LOGO-FIRST] Exception while applying early logo: {e}")
 
@@ -1827,7 +1954,7 @@ def post_process_video():
                                 from scripts.avatar_animator import add_avatar_to_video
                                 static_out = outdir / f"video_with_avatar_{int(time.time())}.mp4"
                                 add_avatar_to_video(
-                                    base_video_path=video_path,
+                                    base_video_path=current_video,
                                     avatar_image_path=avatar_local_path,
                                     output_path=static_out,
                                     avatar_position=selected_avatar.get('position', 'bottom-right'),
@@ -1835,8 +1962,8 @@ def post_process_video():
                                     animate=False
                                 )
                                 if static_out.exists():
-                                    avatar_video_path = static_out
-                                    print(f"[OK] Static avatar overlay created: {avatar_video_path}")
+                                    pre_applied_video = static_out
+                                    print(f"[OK] Static avatar overlay created (pre-applied): {pre_applied_video}")
                             except Exception as e:
                                 print(f"[!] Static avatar overlay failed: {e}")
                                 avatar_video_path = None
@@ -1921,25 +2048,33 @@ def post_process_video():
             }
             pos = position_map.get(position, 'W-w-20:H-h-20')
 
-            # Overlay avatar on video
-            # eof_action=pass means if avatar ends, continue with main video (avatar will fade out)
-            filter_complex = f"[1:v]scale=iw*{scale}:ih*{scale}[avatar];[0:v][avatar]overlay={pos}:eof_action=pass"
+            # Avoid PiP of the same source; if avatar clip equals base, skip overlay
+            try:
+                same_source = (Path(avatar_video_path).resolve() == Path(current_video).resolve())
+            except Exception:
+                same_source = False
+            if same_source:
+                print("[OVERLAY] Avatar video equals base video; skipping overlay")
+            else:
+                # Overlay avatar on video
+                # eof_action=pass means if avatar ends, continue with main video (avatar will fade out)
+                filter_complex = f"[1:v]scale=iw*{scale}:ih*{scale}[avatar];[0:v][avatar]overlay={pos}:eof_action=pass"
 
-            cmd = [
-                ffmpeg,
-                '-i', str(video_path),
-                '-i', str(avatar_video_path),
-                '-filter_complex', filter_complex,
-                '-c:v', 'libx264',
-                '-c:a', 'aac',  # Re-encode audio to ensure compatibility
-                '-map', '0:a',  # Use audio from main video (input 0), not avatar
-                '-y',
-                str(video_with_avatar)
-            ]
+                cmd = [
+                    ffmpeg,
+                    '-i', str(current_video),
+                    '-i', str(avatar_video_path),
+                    '-filter_complex', filter_complex,
+                    '-c:v', 'libx264',
+                    '-c:a', 'aac',  # Re-encode audio to ensure compatibility
+                    '-map', '0:a',  # Use audio from main video (input 0), not avatar
+                    '-y',
+                    str(video_with_avatar)
+                ]
 
             print(f"[DEBUG] Avatar overlay command:")
             print(f"[DEBUG] FFmpeg: {ffmpeg}")
-            print(f"[DEBUG] Main video: {video_path} (size: {video_path.stat().st_size} bytes)")
+            print(f"[DEBUG] Main video: {current_video} (size: {Path(current_video).stat().st_size} bytes)")
             print(f"[DEBUG] Avatar video: {avatar_video_path} (size: {Path(avatar_video_path).stat().st_size} bytes)")
             print(f"[DEBUG] Filter: {filter_complex}")
             print(f"[DEBUG] Position: {position}, Scale: {scale}")
@@ -1953,10 +2088,12 @@ def post_process_video():
             if result.stderr:
                 print(f"[DEBUG] FFmpeg stderr: {result.stderr[:500]}")
 
-            if result.returncode != 0:
+            if same_source:
+                video_with_avatar = current_video
+            elif result.returncode != 0:
                 print(f"[!] Avatar overlay FAILED")
                 print(f"[!] Full error: {result.stderr}")
-                video_with_avatar = video_path
+                video_with_avatar = current_video
             else:
                 if video_with_avatar.exists():
                     print(f"[OK] Avatar overlay SUCCESS")
@@ -1964,7 +2101,7 @@ def post_process_video():
                     print(f"[OK] Video with avatar: {video_with_avatar}")
                 else:
                     print(f"[!] Avatar overlay claimed success but file not found!")
-                    video_with_avatar = video_path
+                    video_with_avatar = current_video
         else:
             video_with_avatar = current_video
             # Try a last-resort static overlay directly onto the base video
@@ -1974,7 +2111,7 @@ def post_process_video():
                     from scripts.avatar_animator import add_avatar_to_video
                     static_out = outdir / f"video_with_avatar_{int(time.time())}.mp4"
                     add_avatar_to_video(
-                        base_video_path=video_path,
+                        base_video_path=current_video,
                         avatar_image_path=avatar_local_path,
                         output_path=static_out,
                         avatar_position=selected_avatar.get('position', 'bottom-right'),
@@ -2000,9 +2137,8 @@ def post_process_video():
             logo_path = None
             if ui_logo_filename:
                 cand_mss = Path(__file__).parent.parent / 'logos' / ui_logo_filename
-                cand_web = Path(__file__).parent / 'logos' / ui_logo_filename
-                print(f"[LOGO-LATE] UI override => MSS: {cand_mss.exists()} {cand_mss} | WEB: {cand_web.exists()} {cand_web}")
-                logo_path = cand_mss if cand_mss.exists() else (cand_web if cand_web.exists() else None)
+                print(f"[LOGO-LATE] UI override => MSS: {cand_mss.exists()} {cand_mss}")
+                logo_path = cand_mss if cand_mss.exists() else None
             # Active logo
             library_file = Path(__file__).parent / 'logo_library.json'
             if library_file.exists() and (not logo_path):
@@ -2013,9 +2149,8 @@ def post_process_video():
                         fname = active.get('filename') or (active.get('url','').split('/')[-1])
                         if fname:
                             cand_mss = Path(__file__).parent.parent / 'logos' / fname
-                            cand_web = Path(__file__).parent / 'logos' / fname
-                            print(f"[LOGO-LATE] Candidates => MSS: {cand_mss.exists()} {cand_mss} | WEB: {cand_web.exists()} {cand_web}")
-                            logo_path = cand_mss if cand_mss.exists() else (cand_web if cand_web.exists() else None)
+                            print(f"[LOGO-LATE] Candidates => MSS: {cand_mss.exists()} {cand_mss}")
+                            logo_path = cand_mss if cand_mss.exists() else None
                 except Exception:
                     pass
             # Position / fallback URL
@@ -2027,9 +2162,8 @@ def post_process_video():
                     if not logo_path and ts.get('logoUrl'):
                         fname = ts.get('logoUrl').split('/')[-1]
                         cand_mss = Path(__file__).parent.parent / 'logos' / fname
-                        cand_web = Path(__file__).parent / 'logos' / fname
-                        print(f"[LOGO-LATE] Candidates => MSS: {cand_mss.exists()} {cand_mss} | WEB: {cand_web.exists()} {cand_web}")
-                        logo_path = cand_mss if cand_mss.exists() else (cand_web if cand_web.exists() else None)
+                        print(f"[LOGO-LATE] Candidates => MSS: {cand_mss.exists()} {cand_mss}")
+                        logo_path = cand_mss if cand_mss.exists() else None
                 except Exception:
                     pass
             if logo_path and logo_path.exists():
@@ -2759,19 +2893,61 @@ def serve_intro_outro_file(filename):
         return jsonify({'error': str(e)}), 404
 
 
+@app.route('/api/usage', methods=['GET'])
+def api_usage():
+    try:
+        usage = {
+            'videos_this_month': 0,
+            'monthly_limit': 999,
+            'videos_remaining': 999,
+            'at_limit': False,
+            'tier': 'dev'
+        }
+        return jsonify({'success': True, 'usage': usage})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 200
+
+
+@app.route('/youtube-categories', methods=['GET'])
+def youtube_categories():
+    cats = {
+        '1': 'Film & Animation',
+        '2': 'Autos & Vehicles',
+        '10': 'Music',
+        '15': 'Pets & Animals',
+        '17': 'Sports',
+        '19': 'Travel & Events',
+        '20': 'Gaming',
+        '22': 'People & Blogs',
+        '23': 'Comedy',
+        '24': 'Entertainment',
+        '25': 'News & Politics',
+        '26': 'Howto & Style',
+        '27': 'Education',
+        '28': 'Science & Technology',
+    }
+    return jsonify({'success': True, 'categories': cats})
 @app.route('/logos/<path:filename>', methods=['GET'])
 def serve_logo_file(filename):
     """Serve logo files from the canonical repo_root/logos folder."""
     try:
-        logos_dir = Path(__file__).parent.parent / 'logos'
-        return send_from_directory(logos_dir, filename)
+        # Sanitize filename to avoid path traversal and Windows-invalid chars
+        allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+        safe_name = ''.join(ch for ch in Path(filename).name if ch in allowed)
+        if not safe_name:
+            return jsonify({'error': 'Invalid filename'}), 404
+
+        # Only serve from canonical repo_root/logos
+        repo_logos = Path(__file__).parent.parent / 'logos' / safe_name
+        if repo_logos.exists():
+            return send_from_directory(repo_logos.parent, repo_logos.name)
+
+        return jsonify({'error': 'Logo not found', 'filename': safe_name}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 404
 
-
 @app.route('/api/logo-files', methods=['GET'])
 def api_logo_files():
-    """List logo files from repo_root/logos (filenames only)."""
     try:
         logos_dir = Path(__file__).parent.parent / 'logos'
         items = []
@@ -2781,2282 +2957,161 @@ def api_logo_files():
                     try:
                         items.append({
                             'filename': f.name,
-                            'url': f"http://localhost:5000/logos/{f.name}",
+                            'url': f"http://127.0.0.1:5000/logos/{f.name}",
                             'size': f.stat().st_size,
                         })
                     except Exception:
                         pass
-            items.sort(key=lambda x: (logos_dir / x['filename']).stat().st_mtime, reverse=True)
+            try:
+                items.sort(key=lambda x: (logos_dir / x['filename']).stat().st_mtime, reverse=True)
+            except Exception:
+                pass
         return jsonify({'success': True, 'logos': items})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-
-@app.route('/thumbnails/<path:filename>', methods=['GET'])
-def serve_thumbnail_file(filename):
-    """Serve files from the thumbnails directory"""
-    try:
-        thumbnails_dir = Path("thumbnails").absolute()
-        return send_from_directory(thumbnails_dir, filename)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 404
-
-
-@app.route('/get-intro-outro-library', methods=['GET'])
-def get_intro_outro_library():
-    """Get all saved intros and outros"""
-    try:
-        # Intro/outro library is in parent directory (MSS/intro_outro_library.json)
-        library_file = Path(__file__).parent.parent / "intro_outro_library.json"
-
-        if not library_file.exists():
-            # Create default library with current intro/outro
-            default_library = {
-                "intros": [{
-                    "id": "default",
-                    "name": "Default Brand Intro",
-                    "duration": 3.0,
-                    "html": """<div style='width:100%;height:100%;background:linear-gradient(135deg, #0B0F19 0%, #1a2332 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;'>
-                <div style='font-family:Inter,Arial,sans-serif;font-size:96px;font-weight:900;color:#FFD700;text-shadow:0 6px 20px rgba(255,215,0,.5);margin-bottom:20px;'>MANY SOURCES SAY</div>
-                <div style='font-family:Inter,Arial,sans-serif;font-size:32px;font-weight:400;color:#94a3b8;font-style:italic;'>Because one source is NEVER enough</div>
-            </div>""",
-                    "active": True
-                }],
-                "outros": [{
-                    "id": "default",
-                    "name": "Default Brand Outro",
-                    "duration": 3.0,
-                    "html": """<div style='width:100%;height:100%;background:linear-gradient(135deg, #0B0F19 0%, #1a2332 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;'>
-                <div style='font-family:Inter,Arial,sans-serif;font-size:72px;font-weight:900;color:#FFD700;text-shadow:0 6px 20px rgba(255,215,0,.5);margin-bottom:30px;'>THANKS FOR WATCHING!</div>
-                <div style='font-family:Inter,Arial,sans-serif;font-size:48px;font-weight:700;color:#E8EBFF;margin-bottom:15px;'>MANY SOURCES SAY</div>
-                <div style='font-family:Inter,Arial,sans-serif;font-size:28px;font-weight:400;color:#94a3b8;'>Subscribe for more insights</div>
-            </div>""",
-                    "active": True
-                }]
-            }
-            library_file.write_text(json.dumps(default_library, indent=2), encoding="utf-8")
-
-        library = json.loads(library_file.read_text(encoding="utf-8"))
-
-        return jsonify({
-            'success': True,
-            'intros': library.get('intros', []),
-            'outros': library.get('outros', [])
-        })
-
-    except Exception as e:
-        print(f"Error loading intro/outro library: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/save-intro-outro', methods=['POST'])
-def save_intro_outro():
-    """Save a new or updated intro/outro"""
-    try:
-        data = request.get_json()
-        item_type = data.get('type')  # 'intro' or 'outro'
-        item_id = data.get('id')
-        name = data.get('name')
-        duration = data.get('duration', 3.0)
-        html = data.get('html')
-        audio = data.get('audio', '')  # Audio text for TTS
-
-        if not item_type or not name or not html:
-            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
-
-        # Intro/outro library is in parent directory (MSS/intro_outro_library.json)
-        library_file = Path(__file__).parent.parent / "intro_outro_library.json"
-        library = json.loads(library_file.read_text(encoding="utf-8")) if library_file.exists() else {"intros": [], "outros": []}
-
-        # Generate ID if new
-        if not item_id:
-            import time
-            item_id = f"{item_type}_{int(time.time())}"
-
-        new_item = {
-            "id": item_id,
-            "name": name,
-            "duration": duration,
-            "html": html,
-            "audio": audio,
-            "active": False
-        }
-
-        # Add or update
-        items_key = 'intros' if item_type == 'intro' else 'outros'
-        existing_idx = next((i for i, x in enumerate(library[items_key]) if x['id'] == item_id), None)
-
-        if existing_idx is not None:
-            # Keep active status when updating
-            new_item['active'] = library[items_key][existing_idx]['active']
-            library[items_key][existing_idx] = new_item
-        else:
-            library[items_key].append(new_item)
-
-        library_file.write_text(json.dumps(library, indent=2), encoding="utf-8")
-
-        return jsonify({'success': True, 'message': 'Saved successfully'})
-
-    except Exception as e:
-        print(f"Error saving intro/outro: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/set-active-intro-outro', methods=['POST'])
-def set_active_intro_outro():
-    """Set which intro/outro is active"""
-    try:
-        data = request.get_json()
-        item_type = data.get('type')
-        item_id = data.get('id')
-
-        # Intro/outro library is in parent directory (MSS/intro_outro_library.json)
-        library_file = Path(__file__).parent.parent / "intro_outro_library.json"
-        library = json.loads(library_file.read_text(encoding="utf-8"))
-
-        items_key = 'intros' if item_type == 'intro' else 'outros'
-
-        # Deactivate all, then activate the selected one
-        for item in library[items_key]:
-            item['active'] = (item['id'] == item_id)
-
-        library_file.write_text(json.dumps(library, indent=2), encoding="utf-8")
-
-        return jsonify({'success': True})
-
-    except Exception as e:
-        print(f"Error setting active intro/outro: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/delete-intro-outro', methods=['POST'])
-def delete_intro_outro():
-    """Delete an intro/outro"""
-    try:
-        data = request.get_json()
-        item_type = data.get('type')
-        item_id = data.get('id')
-
-        # Intro/outro library is in parent directory (MSS/intro_outro_library.json)
-        library_file = Path(__file__).parent.parent / "intro_outro_library.json"
-        library = json.loads(library_file.read_text(encoding="utf-8"))
-
-        items_key = 'intros' if item_type == 'intro' else 'outros'
-        library[items_key] = [x for x in library[items_key] if x['id'] != item_id]
-
-        library_file.write_text(json.dumps(library, indent=2), encoding="utf-8")
-
-        return jsonify({'success': True})
-
-    except Exception as e:
-        print(f"Error deleting intro/outro: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/save-thumbnail-settings', methods=['POST'])
-def save_thumbnail_settings():
-    """Save thumbnail design settings"""
-    try:
-        settings = request.get_json()
-
-        settings_file = Path("thumbnail_settings.json")
-        settings_file.write_text(json.dumps(settings, indent=2), encoding="utf-8")
-
-        return jsonify({'success': True, 'message': 'Thumbnail settings saved'})
-
-    except Exception as e:
-        print(f"Error saving thumbnail settings: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/get-thumbnail-settings', methods=['GET'])
-def get_thumbnail_settings():
-    """Get saved thumbnail design settings"""
-    try:
-        settings_file = Path("thumbnail_settings.json")
-
-        if settings_file.exists():
-            settings = json.loads(settings_file.read_text(encoding="utf-8"))
-            return jsonify({'success': True, 'settings': settings})
-        else:
-            return jsonify({'success': True, 'settings': None})
-
-    except Exception as e:
-        print(f"Error loading thumbnail settings: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/preview-tts', methods=['POST'])
-def preview_tts():
-    """Generate TTS audio preview for intro/outro"""
-    try:
-        data = request.get_json()
-        text = data.get('text', '')
-
-        if not text:
-            return jsonify({'success': False, 'error': 'No text provided'}), 400
-
-        # Import the TTS function from make_video
-        import sys
-        sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
-        from make_video import google_tts_to_drive
-
-        # Generate TTS and upload to Drive
-        audio_url = google_tts_to_drive(text, filename_prefix="preview_tts")
-
-        return jsonify({'success': True, 'audio_url': audio_url})
-
-    except Exception as e:
-        print(f"Error generating TTS preview: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-# ==================== AVATAR ENDPOINTS ====================
-
-@app.route('/upload-avatar-file', methods=['POST'])
-def upload_avatar_file():
-    """Upload avatar image/video file locally and return URL"""
-    try:
-        if 'file' not in request.files:
-            return jsonify({'success': False, 'error': 'No file provided'}), 400
-
-        file = request.files['file']
-
-        if file.filename == '':
-            return jsonify({'success': False, 'error': 'No file selected'}), 400
-
-        # Create avatars directory
-        avatars_dir = Path("avatars")
-        avatars_dir.mkdir(exist_ok=True)
-
-        # Generate unique filename
-        import mimetypes
-        ext = Path(file.filename).suffix or '.png'
-        unique_filename = f"avatar_{int(time.time())}{ext}"
-        save_path = avatars_dir / unique_filename
-
-        # Save file
-        file.save(save_path)
-        print(f"[OK] Avatar saved locally: {save_path}")
-
-        # Check if it's an image file - if so, try to remove background
-        mimetype, _ = mimetypes.guess_type(str(save_path))
-        if mimetype and mimetype.startswith('image/'):
-            try:
-                from rembg import remove
-                from PIL import Image
-
-                print(f"Removing background from image: {file.filename}")
-                input_img = Image.open(save_path)
-                output_img = remove(input_img)
-
-                # Save as PNG to preserve transparency
-                png_path = save_path.with_suffix('.png')
-                output_img.save(png_path)
-
-                # Remove original if different extension
-                if png_path != save_path:
-                    save_path.unlink()
-                    save_path = png_path
-                    unique_filename = save_path.name
-
-                print(f"[OK] Background removed successfully")
-            except Exception as bg_error:
-                print(f"[WARN] Background removal failed (continuing with original): {bg_error}")
-
-        # Return full URL so it works from the frontend
-        local_url = f"http://localhost:5000/avatars/{unique_filename}"
-        print(f"[OK] Avatar URL: {local_url}")
-
-        return jsonify({'success': True, 'url': local_url})
-
-    except Exception as e:
-        print(f"Error uploading avatar file: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/upload-intro-outro-file', methods=['POST'])
-def upload_intro_outro_file():
-    """Upload intro/outro video file locally and return URL"""
-    try:
-        if 'file' not in request.files:
-            return jsonify({'success': False, 'error': 'No file provided'}), 400
-
-        file = request.files['file']
-
-        if file.filename == '':
-            return jsonify({'success': False, 'error': 'No file selected'}), 400
-
-        # Create intro_outro directory
-        intro_outro_dir = Path("intro_outro")
-        intro_outro_dir.mkdir(exist_ok=True)
-
-        # Generate unique filename
-        ext = Path(file.filename).suffix or '.mp4'
-        unique_filename = f"intro_outro_{int(time.time())}{ext}"
-        save_path = intro_outro_dir / unique_filename
-
-        # Save file
-        file.save(save_path)
-        print(f"[OK] Intro/Outro saved locally: {save_path}")
-
-        # Return full URL so it works from the frontend
-        local_url = f"http://localhost:5000/intro_outro/{unique_filename}"
-        print(f"[OK] Intro/Outro URL: {local_url}")
-
-        return jsonify({'success': True, 'url': local_url})
-
-    except Exception as e:
-        print(f"Error uploading intro/outro file: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/upload-logo', methods=['POST'])
-def upload_logo():
-    """Upload MSS logo file locally and return URL"""
-    try:
-        if 'file' not in request.files:
-            return jsonify({'success': False, 'error': 'No file provided'}), 400
-
-        file = request.files['file']
-
-        if file.filename == '':
-            return jsonify({'success': False, 'error': 'No file selected'}), 400
-
-        # Create logos directory
-        logos_dir = Path("logos")
-        logos_dir.mkdir(exist_ok=True)
-
-        # Generate unique filename
-        ext = Path(file.filename).suffix or '.png'
-        unique_filename = f"mss_logo_{int(time.time())}{ext}"
-        save_path = logos_dir / unique_filename
-
-        # Save file
-        file.save(save_path)
-        print(f"[OK] Logo saved locally: {save_path}")
-
-        # Return full URL so it works from the frontend
-        local_url = f"http://localhost:5000/logos/{unique_filename}"
-        print(f"[OK] Logo URL: {local_url}")
-
-        return jsonify({'success': True, 'url': local_url})
-
-    except Exception as e:
-        print(f"Error uploading logo: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/upload-logo-to-library', methods=['POST'])
-def upload_logo_to_library():
-    """Upload logo file to library"""
-    try:
-        if 'file' not in request.files:
-            return jsonify({'success': False, 'error': 'No file provided'}), 400
-
-        file = request.files['file']
-
-        if file.filename == '':
-            return jsonify({'success': False, 'error': 'No file selected'}), 400
-
-        # Create logos directory
-        logos_dir = Path("logos")
-        logos_dir.mkdir(exist_ok=True)
-
-        # Generate unique filename
-        ext = Path(file.filename).suffix or '.png'
-        unique_filename = f"logo_{int(time.time())}{ext}"
-        save_path = logos_dir / unique_filename
-
-        # Save file
-        file.save(save_path)
-        print(f"[OK] Logo saved locally: {save_path}")
-
-        # Return full URL
-        local_url = f"http://localhost:5000/logos/{unique_filename}"
-
-        # Load library
-        library_file = Path("logo_library.json")
-        if library_file.exists():
-            library = json.loads(library_file.read_text(encoding="utf-8"))
-        else:
-            library = {'logos': []}
-
-        # Get name from request or use filename
-        name = request.form.get('name', file.filename)
-
-        # Add to library
-        logo_entry = {
-            'id': str(int(time.time() * 1000)),
-            'name': name,
-            'url': local_url,
-            'filename': unique_filename,
-            'active': False,
-            'uploadedAt': time.strftime('%Y-%m-%d %H:%M:%S')
-        }
-
-        library['logos'].append(logo_entry)
-        library_file.write_text(json.dumps(library, indent=2), encoding="utf-8")
-
-        print(f"[OK] Logo added to library: {name}")
-
-        return jsonify({'success': True, 'url': local_url, 'logo': logo_entry})
-
-    except Exception as e:
-        print(f"Error uploading logo to library: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
 @app.route('/get-logo-library', methods=['GET'])
-def get_logo_library():
-    """Get all uploaded logos"""
+def get_logo_library_route():
     try:
-        library_file = Path("logo_library.json")
-
-        if not library_file.exists():
+        path = Path('logo_library.json')
+        logos_dir_repo = Path(__file__).parent.parent / 'logos'
+        if not path.exists():
             return jsonify({'success': True, 'logos': []})
 
-        # Read robustly; if corrupt, back up and return empty list
+        # Load library; tolerate empty/invalid content
         try:
-            raw = library_file.read_text(encoding="utf-8")
-            library = json.loads(raw or "{}")
-            logos = library.get('logos', []) if isinstance(library, dict) else []
-            return jsonify({'success': True, 'logos': logos})
-        except Exception as e:
-            # Backup corrupt file so UI can continue
+            raw = path.read_text(encoding='utf-8')
+            data = json.loads(raw or '{}') if raw is not None else {}
+            raw_list = data.get('logos', []) if isinstance(data, dict) else []
+        except Exception:
+            raw_list = []
+
+        # Sanitize + filter to files that actually exist in repo_root/logos; de-duplicate by filename
+        allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+        uniq = {}
+        for item in raw_list:
             try:
-                backup = library_file.with_suffix('.json.bak')
-                library_file.replace(backup)
+                url = (item.get('url') or '').strip()
+                fname = (item.get('filename') or (url.split('/')[-1] if url else '')).strip()
+                fname = ''.join(ch for ch in Path(fname).name if ch in allowed)
+                if not fname:
+                    continue
+                cand_repo = logos_dir_repo / fname
+                if not cand_repo.exists():
+                    # Skip stale entries that don't have a backing file
+                    continue
+                # Normalize URL to current server
+                normalized_url = f"http://127.0.0.1:5000/logos/{fname}"
+                name = (item.get('name') or '').strip() or fname
+                uniq[fname] = {
+                    'id': item.get('id') or fname,
+                    'name': name,
+                    'url': normalized_url,
+                    'filename': fname,
+                    'active': bool(item.get('active', False)),
+                }
             except Exception:
-                pass
-            print(f"[WARN] Corrupt logo_library.json; backed up and returning empty list: {e}")
-            return jsonify({'success': True, 'logos': []})
+                continue
 
-    except Exception as e:
-        print(f"Error loading logo library: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        # Sort by file mtime desc when possible
+        def _mtime(f):
+            p = logos_dir_repo / f
+            try:
+                return p.stat().st_mtime
+            except Exception:
+                return 0
 
+        cleaned = list(uniq.values())
+        cleaned.sort(key=lambda x: _mtime(x['filename']), reverse=True)
+        return jsonify({'success': True, 'logos': cleaned})
+    except Exception:
+        # On any error, return an empty list rather than 500 to keep UI happy
+        return jsonify({'success': True, 'logos': []})
 
 @app.route('/set-active-logo', methods=['POST'])
 def set_active_logo():
-    """Set a logo as active (deactivates all others)"""
     try:
-        data = request.get_json()
-        logo_id = data.get('id')
-
+        data = request.get_json(force=True) or {}
+        logo_id = (data.get('id') or '').strip()
         if not logo_id:
             return jsonify({'success': False, 'error': 'No logo ID provided'}), 400
-
-        library_file = Path("logo_library.json")
-
-        if not library_file.exists():
+        lib_path = Path('logo_library.json')
+        if not lib_path.exists():
             return jsonify({'success': False, 'error': 'Logo library not found'}), 404
-
-        library = json.loads(library_file.read_text(encoding="utf-8"))
-
-        # Deactivate all logos
-        for logo in library.get('logos', []):
-            logo['active'] = False
-
-        # Activate the selected logo
-        found = False
-        active_logo_url = None
-        for logo in library.get('logos', []):
-            if logo['id'] == logo_id:
-                logo['active'] = True
-                active_logo_url = logo['url']
-                found = True
-                print(f"[OK] Activated logo: {logo['name']}")
+        library = json.loads(lib_path.read_text(encoding='utf-8') or '{}')
+        logos = library.get('logos', []) if isinstance(library, dict) else []
+        for l in logos: l['active']=False
+        active_url=None; found=False
+        for l in logos:
+            if l.get('id') == logo_id:
+                l['active']=True
+                active_url=l.get('url')
+                found=True
                 break
-
         if not found:
             return jsonify({'success': False, 'error': 'Logo not found'}), 404
-
-        library_file.write_text(json.dumps(library, indent=2), encoding="utf-8")
-
-        return jsonify({'success': True, 'logoUrl': active_logo_url})
-
+        lib_path.write_text(json.dumps({'logos': logos}, indent=2), encoding='utf-8')
+        return jsonify({'success': True, 'logoUrl': active_url})
     except Exception as e:
-        print(f"Error setting active logo: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
-
 
 @app.route('/delete-logo', methods=['POST'])
 def delete_logo():
-    """Delete a logo from library and file system"""
     try:
-        data = request.get_json()
-        logo_id = data.get('id')
-
+        data = request.get_json(force=True) or {}
+        logo_id = (data.get('id') or '').strip()
         if not logo_id:
             return jsonify({'success': False, 'error': 'No logo ID provided'}), 400
-
-        library_file = Path("logo_library.json")
-
-        if not library_file.exists():
+        lib_path = Path('logo_library.json')
+        if not lib_path.exists():
             return jsonify({'success': False, 'error': 'Logo library not found'}), 404
-
-        library = json.loads(library_file.read_text(encoding="utf-8"))
-
-        # Find and remove logo
-        logo_to_delete = None
-        for logo in library.get('logos', []):
-            if logo['id'] == logo_id:
-                logo_to_delete = logo
-                break
-
-        if not logo_to_delete:
+        library = json.loads(lib_path.read_text(encoding='utf-8') or '{}')
+        logos = library.get('logos', []) if isinstance(library, dict) else []
+        target = next((l for l in logos if l.get('id') == logo_id), None)
+        if not target:
             return jsonify({'success': False, 'error': 'Logo not found'}), 404
-
-        # Delete file if it exists
-        if logo_to_delete.get('filename'):
-            file_path = Path("logos") / logo_to_delete['filename']
-            if file_path.exists():
-                file_path.unlink()
-                print(f"[OK] Deleted logo file: {file_path}")
-
-        # Remove from library
-        library['logos'] = [l for l in library.get('logos', []) if l['id'] != logo_id]
-        library_file.write_text(json.dumps(library, indent=2), encoding="utf-8")
-
-        print(f"[OK] Deleted logo from library: {logo_to_delete['name']}")
-
+        fname = (target.get('filename') or '').strip()
+        if fname:
+            p = Path(__file__).parent.parent / 'logos' / Path(fname).name
+            try:
+                if p.exists(): p.unlink()
+            except Exception:
+                pass
+        logos = [l for l in logos if l.get('id') != logo_id]
+        lib_path.write_text(json.dumps({'logos': logos}, indent=2), encoding='utf-8')
         return jsonify({'success': True})
-
     except Exception as e:
-        print(f"Error deleting logo: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-
-@app.route('/generate-ai-thumbnail', methods=['POST'])
-def generate_ai_thumbnail():
-    """Generate 3 thumbnail variations using AI (DALL-E) with custom prompt"""
-    try:
-        data = request.get_json()
-        video_title = data.get('title', '')
-        ai_prompt = data.get('prompt', '')
-
-        if not video_title:
-            return jsonify({'success': False, 'error': 'No video title provided'}), 400
-
-        if not ai_prompt:
-            return jsonify({'success': False, 'error': 'No AI prompt provided'}), 400
-
-        # Replace {{title}} placeholder in prompt
-        base_prompt = ai_prompt.replace('{{title}}', video_title)
-
-        print(f"[AI THUMBNAIL] Generating 3 thumbnails for: {video_title}")
-        print(f"[AI THUMBNAIL] Base prompt: {base_prompt[:200]}...")
-
-        from openai import OpenAI
-        import requests
-
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-        # Create thumbnails directory
-        thumbnails_dir = Path("thumbnails")
-        thumbnails_dir.mkdir(exist_ok=True)
-
-        # Generate 3 variations with slightly different style prompts
-        # IMPORTANT: Request NO TEXT in the image - text will be added via PIL
-        variations = [
-            {"suffix": " Style: Bold and dramatic with high contrast. NO TEXT OR WORDS in the image.", "label": "Bold"},
-            {"suffix": " Style: Clean and minimal with modern aesthetics. NO TEXT OR WORDS in the image.", "label": "Minimal"},
-            {"suffix": " Style: Vibrant and energetic with gradient effects. NO TEXT OR WORDS in the image.", "label": "Vibrant"}
-        ]
-
-        thumbnails = []
-
-        for i, variation in enumerate(variations, 1):
-            print(f"[AI THUMBNAIL] Generating variation {i}/3: {variation['label']}")
-
-            # Add variation to prompt
-            final_prompt = base_prompt + variation['suffix']
-
-            # Generate image with DALL-E
-            response = client.images.generate(
-                model="dall-e-3",
-                prompt=final_prompt,
-                size="1792x1024",  # Closest to 16:9
-                quality="standard",
-                n=1,
-            )
-
-            image_url = response.data[0].url
-            print(f"[AI THUMBNAIL] Variation {i} image URL: {image_url}")
-
-            # Download the image
-            img_response = requests.get(image_url, timeout=30)
-            img_response.raise_for_status()
-
-            # Generate unique filename
-            timestamp = int(time.time() * 1000)
-            unique_filename = f"thumbnail_{timestamp}_{i}.png"
-            save_path = thumbnails_dir / unique_filename
-
-            # Save file
-            save_path.write_bytes(img_response.content)
-            print(f"[AI THUMBNAIL] Variation {i} saved to: {save_path}")
-
-            # Add text overlay with PIL
-            print(f"[AI THUMBNAIL] Adding text overlay: {video_title}")
-            add_thumbnail_text(str(save_path), video_title)
-
-            # Create thumbnail entry (not added to library yet)
-            local_url = f"http://localhost:5000/thumbnails/{unique_filename}"
-            thumbnail_entry = {
-                'id': str(timestamp + i),
-                'name': f"{video_title} - Variation {i}",
-                'url': local_url,
-                'filename': unique_filename,
-                'variation': variation['label'],
-                'active': False
-            }
-
-            thumbnails.append(thumbnail_entry)
-
-            # Small delay to avoid rate limits
-            if i < 3:
-                import time as time_module
-                time_module.sleep(2)
-
-        print(f"[AI THUMBNAIL] Generated {len(thumbnails)} variations")
-
-        return jsonify({'success': True, 'thumbnails': thumbnails})
-
-    except Exception as e:
-        print(f"[AI THUMBNAIL] Error: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/generate-thumbnail-with-canva', methods=['POST'])
-def generate_thumbnail_with_canva():
-    """Generate thumbnail using DALL-E for background + Canva for text overlay"""
-    try:
-        data = request.get_json()
-        video_title = data.get('title', '')
-        ai_prompt = data.get('prompt', '')
-        variation_type = data.get('variation', 'Bold')  # Bold, Minimal, or Vibrant
-
-        if not video_title:
-            return jsonify({'success': False, 'error': 'No video title provided'}), 400
-
-        if not ai_prompt:
-            return jsonify({'success': False, 'error': 'No AI prompt provided'}), 400
-
-        # Step 1: Generate background image with DALL-E (NO TEXT)
-        print(f"[CANVA THUMBNAIL] Step 1: Generating background for: {video_title}")
-
-        base_prompt = ai_prompt.replace('{{title}}', video_title)
-        # Force no text in the DALL-E image
-        background_prompt = base_prompt + f" IMPORTANT: This is a BACKGROUND IMAGE ONLY. NO TEXT, NO WORDS, NO LETTERS anywhere in the image. Pure visual background suitable for adding text overlay later."
-
-        from openai import OpenAI
-        import requests
-
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-        # Generate background with DALL-E
-        response = client.images.generate(
-            model="dall-e-3",
-            prompt=background_prompt,
-            size="1792x1024",
-            quality="standard",
-            n=1,
-        )
-
-        background_url = response.data[0].url
-        print(f"[CANVA THUMBNAIL] Background generated: {background_url}")
-
-        # Download background image
-        img_response = requests.get(background_url, timeout=30)
-        img_response.raise_for_status()
-
-        # Save background temporarily
-        thumbnails_dir = Path("thumbnails")
-        thumbnails_dir.mkdir(exist_ok=True)
-
-        background_filename = f"bg_{int(time.time())}.png"
-        background_path = thumbnails_dir / background_filename
-        background_path.write_bytes(img_response.content)
-
-        # Step 2: Use Canva API to create thumbnail with text
-        print(f"[CANVA THUMBNAIL] Step 2: Creating Canva design with text overlay")
-
-        canva_api_key = os.getenv("CANVA_API_KEY")
-
-        if not canva_api_key:
-            # If no Canva API, just return the background with instructions
-            print(f"[CANVA THUMBNAIL] No CANVA_API_KEY found - returning background only")
-            print(f"[CANVA THUMBNAIL] To enable text overlay, add CANVA_API_KEY to .env")
-
-            local_url = f"http://localhost:5000/thumbnails/{background_filename}"
-
-            return jsonify({
-                'success': True,
-                'background_only': True,
-                'url': local_url,
-                'message': 'Background generated. Add CANVA_API_KEY to .env for text overlay automation.',
-                'instructions': {
-                    'step1': 'Go to https://www.canva.com/developers/',
-                    'step2': 'Create an app and get your API key',
-                    'step3': 'Add CANVA_API_KEY=your_key to .env file',
-                    'step4': 'Restart the server'
-                }
-            })
-
-        # TODO: Implement Canva API integration
-        # This requires:
-        # 1. Upload background image to Canva
-        # 2. Create design from template
-        # 3. Replace background
-        # 4. Update text layers with video_title
-        # 5. Export final thumbnail
-
-        # For now, return background with manual Canva instructions
-        local_url = f"http://localhost:5000/thumbnails/{background_filename}"
-
-        return jsonify({
-            'success': True,
-            'background_url': local_url,
-            'canva_template_url': 'https://www.canva.com/design/create?template=youtube-thumbnail',
-            'instructions': {
-                'step1': f'Download background: {local_url}',
-                'step2': 'Open Canva template',
-                'step3': 'Replace background with downloaded image',
-                'step4': f'Add text: "{video_title}"',
-                'step5': 'Export as PNG (1280x720)'
-            }
-        })
-
-    except Exception as e:
-        print(f"[CANVA THUMBNAIL] Error: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/save-selected-thumbnail', methods=['POST'])
-def save_selected_thumbnail():
-    """Save user-selected thumbnail to library"""
-    try:
-        thumbnail = request.get_json()
-
-        if not thumbnail or not thumbnail.get('url'):
-            return jsonify({'success': False, 'error': 'No thumbnail data provided'}), 400
-
-        # Load library
-        library_file = Path("thumbnail_library.json")
-        if library_file.exists():
-            library = json.loads(library_file.read_text(encoding="utf-8"))
-        else:
-            library = {'thumbnails': []}
-
-        # Add uploadedAt timestamp
-        thumbnail['uploadedAt'] = time.strftime('%Y-%m-%d %H:%M:%S')
-
-        # Add to library
-        library['thumbnails'].append(thumbnail)
-        library_file.write_text(json.dumps(library, indent=2), encoding="utf-8")
-
-        print(f"[THUMBNAIL] Saved to library: {thumbnail['name']}")
-
-        return jsonify({'success': True, 'thumbnail': thumbnail})
-
-    except Exception as e:
-        print(f"[THUMBNAIL] Error saving: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/upload-thumbnail', methods=['POST'])
-def upload_thumbnail():
-    """Upload thumbnail file locally and save to library"""
+@app.route('/upload-logo-to-library', methods=['POST'])
+def upload_logo_to_library():
     try:
         if 'file' not in request.files:
-            return jsonify({'success': False, 'error': 'No file provided'}), 400
-
+            return jsonify({'success': False, 'error': 'No file uploaded'}), 400
         file = request.files['file']
-
-        if file.filename == '':
-            return jsonify({'success': False, 'error': 'No file selected'}), 400
-
-        # Create thumbnails directory
-        thumbnails_dir = Path("thumbnails")
-        thumbnails_dir.mkdir(exist_ok=True)
-
-        # Generate unique filename
-        ext = Path(file.filename).suffix or '.png'
-        unique_filename = f"thumbnail_{int(time.time())}{ext}"
-        save_path = thumbnails_dir / unique_filename
-
-        # Save file
-        file.save(save_path)
-        print(f"[OK] Thumbnail saved locally: {save_path}")
-
-        # Return full URL
-        local_url = f"http://localhost:5000/thumbnails/{unique_filename}"
-
-        # Load library
-        library_file = Path("thumbnail_library.json")
-        if library_file.exists():
-            library = json.loads(library_file.read_text(encoding="utf-8"))
-        else:
-            library = {'thumbnails': []}
-
-        # Get name from request or use filename
         name = request.form.get('name', file.filename)
-
-        # Add to library
-        thumbnail_entry = {
-            'id': str(int(time.time() * 1000)),
+        logos_dir = Path(__file__).parent.parent / 'logos'
+        logos_dir.mkdir(exist_ok=True)
+        ext = Path(file.filename).suffix or '.png'
+        unique = f"logo_{int(time.time())}{ext}"
+        dest = logos_dir / unique
+        file.save(str(dest))
+        url = f"http://127.0.0.1:5000/logos/{dest.name}"
+        lib_path = Path('logo_library.json')
+        library = {'logos': []}
+        if lib_path.exists():
+            try: library = json.loads(lib_path.read_text(encoding='utf-8') or '{}')
+            except Exception: library = {'logos': []}
+        entry = {
+            'id': str(int(time.time()*1000)),
             'name': name,
-            'url': local_url,
-            'filename': unique_filename,
+            'url': url,
+            'filename': dest.name,
             'active': False,
             'uploadedAt': time.strftime('%Y-%m-%d %H:%M:%S')
         }
-
-        library['thumbnails'].append(thumbnail_entry)
-        library_file.write_text(json.dumps(library, indent=2), encoding="utf-8")
-
-        print(f"[OK] Thumbnail added to library: {name}")
-
-        return jsonify({'success': True, 'url': local_url, 'thumbnail': thumbnail_entry})
-
-    except Exception as e:
-        print(f"Error uploading thumbnail: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/get-thumbnail-library', methods=['GET'])
-def get_thumbnail_library():
-    """Get all uploaded thumbnails"""
-    try:
-        library_file = Path("thumbnail_library.json")
-
-        if library_file.exists():
-            library = json.loads(library_file.read_text(encoding="utf-8"))
-            return jsonify({'success': True, 'thumbnails': library.get('thumbnails', [])})
-        else:
-            return jsonify({'success': True, 'thumbnails': []})
-
-    except Exception as e:
-        print(f"Error loading thumbnail library: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/set-active-thumbnail', methods=['POST'])
-def set_active_thumbnail():
-    """Set a thumbnail as active (deactivates all others)"""
-    try:
-        data = request.get_json()
-        thumbnail_id = data.get('id')
-
-        if not thumbnail_id:
-            return jsonify({'success': False, 'error': 'No thumbnail ID provided'}), 400
-
-        library_file = Path("thumbnail_library.json")
-
-        if not library_file.exists():
-            return jsonify({'success': False, 'error': 'Thumbnail library not found'}), 404
-
-        library = json.loads(library_file.read_text(encoding="utf-8"))
-
-        # Deactivate all thumbnails
-        for thumbnail in library.get('thumbnails', []):
-            thumbnail['active'] = False
-
-        # Activate the selected thumbnail
-        found = False
-        for thumbnail in library.get('thumbnails', []):
-            if thumbnail['id'] == thumbnail_id:
-                thumbnail['active'] = True
-                found = True
-                print(f"[OK] Activated thumbnail: {thumbnail['name']}")
-                break
-
-        if not found:
-            return jsonify({'success': False, 'error': 'Thumbnail not found'}), 404
-
-        library_file.write_text(json.dumps(library, indent=2), encoding="utf-8")
-
-        return jsonify({'success': True})
-
-    except Exception as e:
-        print(f"Error setting active thumbnail: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/delete-thumbnail', methods=['POST'])
-def delete_thumbnail():
-    """Delete a thumbnail from library and file system"""
-    try:
-        data = request.get_json()
-        thumbnail_id = data.get('id')
-
-        if not thumbnail_id:
-            return jsonify({'success': False, 'error': 'No thumbnail ID provided'}), 400
-
-        library_file = Path("thumbnail_library.json")
-
-        if not library_file.exists():
-            return jsonify({'success': False, 'error': 'Thumbnail library not found'}), 404
-
-        library = json.loads(library_file.read_text(encoding="utf-8"))
-
-        # Find and remove thumbnail
-        thumbnail_to_delete = None
-        for thumbnail in library.get('thumbnails', []):
-            if thumbnail['id'] == thumbnail_id:
-                thumbnail_to_delete = thumbnail
-                break
-
-        if not thumbnail_to_delete:
-            return jsonify({'success': False, 'error': 'Thumbnail not found'}), 404
-
-        # Delete file if it exists
-        if thumbnail_to_delete.get('filename'):
-            file_path = Path("thumbnails") / thumbnail_to_delete['filename']
-            if file_path.exists():
-                file_path.unlink()
-                print(f"[OK] Deleted thumbnail file: {file_path}")
-
-        # Remove from library
-        library['thumbnails'] = [t for t in library.get('thumbnails', []) if t['id'] != thumbnail_id]
-        library_file.write_text(json.dumps(library, indent=2), encoding="utf-8")
-
-        print(f"[OK] Deleted thumbnail from library: {thumbnail_to_delete['name']}")
-
-        return jsonify({'success': True})
-
-    except Exception as e:
-        print(f"Error deleting thumbnail: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/get-avatar-library', methods=['GET'])
-def get_avatar_library():
-    """Get all avatars from library"""
-    try:
-        # Avatar library is in parent directory (MSS/avatar_library.json)
-        library_file = Path(__file__).parent.parent / "avatar_library.json"
-
-        if library_file.exists():
-            library = json.loads(library_file.read_text(encoding="utf-8"))
-        else:
-            library = {"avatars": []}
-
-        return jsonify({'success': True, 'avatars': library.get('avatars', [])})
-
-    except Exception as e:
-        print(f"Error loading avatar library: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/save-avatar', methods=['POST'])
-def save_avatar():
-    """Save a new or updated avatar"""
-    try:
-        data = request.get_json()
-        avatar_id = data.get('id')
-        name = data.get('name')
-        avatar_type = data.get('type')  # 'image' or 'video'
-        image_url = data.get('image_url', '')
-        video_url = data.get('video_url', '')
-        position = data.get('position', 'bottom-right')
-        scale = data.get('scale', 25)
-        opacity = data.get('opacity', 100)
-        voice = data.get('voice', 'en-US-Neural2-F')
-
-        if not name or not avatar_type:
-            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
-
-        # Avatar library is in parent directory (MSS/avatar_library.json)
-        library_file = Path(__file__).parent.parent / "avatar_library.json"
-        library = json.loads(library_file.read_text(encoding="utf-8")) if library_file.exists() else {"avatars": []}
-
-        # Generate ID if new
-        if not avatar_id:
-            import time
-            avatar_id = f"avatar_{int(time.time())}"
-
-        new_avatar = {
-            "id": avatar_id,
-            "name": name,
-            "type": avatar_type,
-            "image_url": image_url,
-            "video_url": video_url,
-            "position": position,
-            "scale": scale,
-            "opacity": opacity,
-            "voice": voice,
-            "active": False
-        }
-
-        # Add or update
-        existing_idx = next((i for i, x in enumerate(library['avatars']) if x['id'] == avatar_id), None)
-
-        if existing_idx is not None:
-            # Keep active status when updating
-            new_avatar['active'] = library['avatars'][existing_idx]['active']
-            library['avatars'][existing_idx] = new_avatar
-        else:
-            library['avatars'].append(new_avatar)
-
-        library_file.write_text(json.dumps(library, indent=2), encoding="utf-8")
-
-        return jsonify({'success': True, 'message': 'Avatar saved successfully'})
-
-    except Exception as e:
-        print(f"Error saving avatar: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/set-active-avatar', methods=['POST'])
-def set_active_avatar():
-    """Set which avatar is active"""
-    try:
-        data = request.get_json()
-        avatar_id = data.get('id')
-
-        # Avatar library is in parent directory (MSS/avatar_library.json)
-        library_file = Path(__file__).parent.parent / "avatar_library.json"
-        library = json.loads(library_file.read_text(encoding="utf-8"))
-
-        # Deactivate all, then activate the selected one
-        for avatar in library['avatars']:
-            avatar['active'] = (avatar['id'] == avatar_id)
-
-        library_file.write_text(json.dumps(library, indent=2), encoding="utf-8")
-
-        return jsonify({'success': True})
-
-    except Exception as e:
-        print(f"Error setting active avatar: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/delete-avatar', methods=['POST'])
-def delete_avatar():
-    """Delete an avatar"""
-    try:
-        data = request.get_json()
-        avatar_id = data.get('id')
-
-        # Avatar library is in parent directory (MSS/avatar_library.json)
-        library_file = Path(__file__).parent.parent / "avatar_library.json"
-        library = json.loads(library_file.read_text(encoding="utf-8"))
-
-        library['avatars'] = [x for x in library['avatars'] if x['id'] != avatar_id]
-
-        library_file.write_text(json.dumps(library, indent=2), encoding="utf-8")
-
-        return jsonify({'success': True})
-
-    except Exception as e:
-        print(f"Error deleting intro/outro: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/regenerate-dalle-thumbnail', methods=['POST'])
-def regenerate_dalle_thumbnail():
-    """Regenerate just the DALL-E thumbnail"""
-    try:
-        data = request.get_json()
-        title = data.get('title')
-        description = data.get('description')
-
-        if not title:
-            return jsonify({'success': False, 'error': 'No title provided'}), 400
-
-        print(f"\n[REGEN] Regenerating DALL-E thumbnail for: {title}")
-
-        outdir = Path("out")
-        ensure_dir(outdir)
-
-        # Generate new DALL-E thumbnail
-        thumb_path = generate_dalle_thumbnail(title, outdir)
-
-        return jsonify({
-            'success': True,
-            'thumbnail': thumb_path.name,
-            'message': 'DALL-E thumbnail regenerated successfully'
-        })
-
-    except Exception as e:
-        print(f"Error regenerating DALL-E thumbnail: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-
-@app.route('/archive-video', methods=['POST'])
-def archive_video():
-    """Archive video and all related files to out/{date}_{topic_name} folder"""
-    try:
-        data = request.get_json()
-        topic_name = data.get('topic_name', 'video')
-        thumbnail = data.get('thumbnail')
-
-        if not thumbnail:
-            return jsonify({'success': False, 'error': 'No thumbnail selected'}), 400
-
-        # Get current script data
-        outdir = Path("out")
-        script_file = outdir / "script.json"
-
-        if not script_file.exists():
-            return jsonify({'success': False, 'error': 'No script found'}), 404
-
-        script_data = json.loads(script_file.read_text(encoding="utf-8"))
-
-        # Create archive folder name: YYYY-MM-DD_{topic_name}
-        from datetime import datetime
-        date_str = datetime.now().strftime("%Y-%m-%d")
-
-        # Sanitize topic name for folder
-        import re
-        safe_topic = re.sub(r'[^\w\s-]', '', topic_name).strip()
-        safe_topic = re.sub(r'[-\s]+', '_', safe_topic)[:50]  # Limit length
-
-        archive_folder = outdir / f"{date_str}_{safe_topic}"
-        archive_folder.mkdir(exist_ok=True)
-
-        print(f"[ARCHIVE] Archiving video to: {archive_folder}")
-
-        # Copy files to archive
-        import shutil
-        archived_files = []
-
-        # Copy video files
-        for f in outdir.glob("*.mp4"):
-            dest = archive_folder / f.name
-            shutil.copy2(f, dest)
-            archived_files.append(f.name)
-            print(f"  [OK] Copied: {f.name}")
-
-        # Copy selected thumbnail
-        thumb_src = outdir / thumbnail
-        if thumb_src.exists():
-            thumb_dest = archive_folder / "thumbnail_selected.jpg"
-            shutil.copy2(thumb_src, thumb_dest)
-            archived_files.append("thumbnail_selected.jpg")
-            print(f"  [OK] Copied selected thumbnail: {thumbnail}")
-
-        # Copy all thumbnails for reference
-        for f in outdir.glob("thumb_*.jpg"):
-            dest = archive_folder / f.name
-            shutil.copy2(f, dest)
-            archived_files.append(f.name)
-
-        # Copy script.json
-        dest_script = archive_folder / "script.json"
-        shutil.copy2(script_file, dest_script)
-        archived_files.append("script.json")
-
-        # Copy audio files if they exist
-        for f in outdir.glob("*.mp3"):
-            dest = archive_folder / f.name
-            shutil.copy2(f, dest)
-            archived_files.append(f.name)
-
-        # Create metadata file with publishing info
-        metadata = {
-            "archived_date": datetime.now().isoformat(),
-            "topic_name": topic_name,
-            "selected_thumbnail": thumbnail,
-            "script": script_data,
-            "files": archived_files
-        }
-
-        metadata_file = archive_folder / "metadata.json"
-        metadata_file.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
-
-        print(f"[OK] Archive complete: {archive_folder.name}")
-
-        return jsonify({
-            'success': True,
-            'archive_folder': archive_folder.name,
-            'archived_files': archived_files,
-            'message': f'Video archived successfully to {archive_folder.name}'
-        })
-
-    except Exception as e:
-        print(f"Error archiving video: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/upload-all-to-drive', methods=['POST'])
-def upload_all_to_drive():
-    """Upload all video files and thumbnails to Google Drive (async)"""
-    try:
-        data = request.get_json()
-        files_data = data.get('files', {})
-
-        shorts_file = files_data.get('shorts')
-        wide_file = files_data.get('wide')
-        thumbnails = files_data.get('thumbnails', [])
-        selected_thumbnail = files_data.get('selected_thumbnail')
-
-        # Start upload in background thread
-        from concurrent.futures import ThreadPoolExecutor
-        executor = ThreadPoolExecutor(max_workers=1)
-
-        def upload_all_files():
-            """Background upload function"""
-            try:
-                print(f"[UPLOAD] Starting Google Drive upload in background...")
-
-                outdir = Path("out")
-                uploaded_files = []
-                uploaded_count = 0
-
-                # Upload shorts video
-                if shorts_file:
-                    shorts_path = outdir / shorts_file
-                    if shorts_path.exists():
-                        print(f"  Uploading: {shorts_file}")
-                        result = drive_upload_public(shorts_path, "MSS_Videos")
-                        uploaded_files.append({'name': shorts_file, 'url': result['download_url']})
-                        uploaded_count += 1
-
-                # Upload wide video
-                if wide_file:
-                    wide_path = outdir / wide_file
-                    if wide_path.exists():
-                        print(f"  Uploading: {wide_file}")
-                        result = drive_upload_public(wide_path, "MSS_Videos")
-                        uploaded_files.append({'name': wide_file, 'url': result['download_url']})
-                        uploaded_count += 1
-
-                # Upload thumbnails
-                for thumb in thumbnails:
-                    if thumb:
-                        thumb_path = outdir / thumb
-                        if thumb_path.exists():
-                            print(f"  Uploading: {thumb}")
-                            result = drive_upload_public(thumb_path, "MSS_Thumbnails")
-                            uploaded_files.append({'name': thumb, 'url': result['download_url']})
-                            uploaded_count += 1
-
-                # Mark selected thumbnail
-                if selected_thumbnail and selected_thumbnail not in thumbnails:
-                    selected_path = outdir / selected_thumbnail
-                    if selected_path.exists():
-                        print(f"  Uploading selected thumbnail: {selected_thumbnail}")
-                        result = drive_upload_public(selected_path, "MSS_Thumbnails")
-                        uploaded_files.append({'name': f"{selected_thumbnail} (SELECTED)", 'url': result['download_url']})
-                        uploaded_count += 1
-
-                print(f"[OK] Uploaded {uploaded_count} files to Google Drive")
-                print('\a')  # Ring bell when done
-
-            except Exception as e:
-                print(f"[ERROR] Background upload error: {e}")
-                import traceback
-                traceback.print_exc()
-
-        # Start background upload
-        executor.submit(upload_all_files)
-
-        # Return immediately
-        return jsonify({
-            'success': True,
-            'message': 'Upload started in background. Check console for progress.',
-            'background': True
-        })
-
-    except Exception as e:
-        print(f"Error starting upload: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/public_audio/<path:filename>', methods=['GET'])
-def serve_public_audio(filename):
-    """Serve audio files for Shotstack (publicly accessible)"""
-    try:
-        audio_dir = Path(__file__).parent.parent / "public_audio"
-        return send_from_directory(audio_dir, filename)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 404
-
-
-@app.route('/test-shotstack', methods=['GET'])
-def test_shotstack():
-    """Test Shotstack API connection"""
-    try:
-        # Create a minimal test payload
-        test_payload = {
-            "timeline": {
-                "soundtrack": {
-                    "src": "https://shotstack-assets.s3-ap-southeast-2.amazonaws.com/music/disco.mp3"
-                },
-                "tracks": [
-                    {
-                        "clips": [
-                            {
-                                "asset": {
-                                    "type": "video",
-                                    "src": "https://shotstack-assets.s3-ap-southeast-2.amazonaws.com/footage/beach-overhead.mp4"
-                                },
-                                "start": 0,
-                                "length": 5
-                            }
-                        ]
-                    }
-                ]
-            },
-            "output": {
-                "format": "mp4",
-                "resolution": "sd"
-            }
-        }
-
-        result = shotstack_render(test_payload)
-
-        return jsonify({
-            'success': True,
-            'message': 'Shotstack API is working',
-            'response': result
-        })
-
-    except Exception as e:
-        import traceback
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'traceback': traceback.format_exc()
-        }), 500
-
-
-def _read_version() -> str:
-    try:
-        root = Path(__file__).parent.parent
-        ver_path = root / 'version.json'
-        if ver_path.exists():
-            data = json.loads(ver_path.read_text(encoding='utf-8'))
-            # prefer unified app version if present
-            for key in ('app', 'website', 'version'):
-                v = (data.get(key) or '').strip()
-                if v:
-                    return v
-        # fallback to env or default
-        return os.getenv('MSS_VERSION', '5.4.0')
-    except Exception:
-        return os.getenv('MSS_VERSION', '5.4.0')
-
-
-@app.route('/health', methods=['GET'])
-def health():
-    """Health check endpoint"""
-    return jsonify({
-        'status': 'ok',
-        'service': 'MSS API Server',
-        'version': _read_version()
-    })
-
-
-def openai_draft_from_topic_custom(topic, header_text='', footer_text='', full_prompt=''):
-    """Enhanced version with custom header/footer or full prompt override"""
-    from openai import OpenAI
-
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-    system = "You are an expert YouTube scriptwriter. Create engaging 90-150 second scripts with strong hooks. Return JSON only."
-
-    # Use full_prompt if provided (edited from UI), otherwise build from parts
-    if full_prompt:
-        print("[PROMPT] Using edited full prompt from UI")
-        user_prompt = full_prompt
-    else:
-        # Build user prompt with custom header/footer
-        base_user = f"""Create a concise script. Use the SEO metadata but do not fluff.
-Return JSON with keys: narration (90-150s), overlays (6-10 lines), yt_title, yt_description, yt_tags.
-
-Topic: {topic.get('title')}
-Angle: {topic.get('angle')}
-Keywords: {', '.join(topic.get('keywords', []))}
-Outline: {topic.get('outline')}
-Preferred Title: {topic.get('yt_title')}"""
-
-        user_prompt = ""
-        if header_text:
-            user_prompt += header_text + "\n\n"
-        user_prompt += base_user
-        if footer_text:
-            user_prompt += "\n\n" + footer_text
-
-    completion = client.chat.completions.create(
-        model=os.getenv("OPENAI_MODEL_SCRIPT", "gpt-4o-mini"),
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=0.5,
-        response_format={"type": "json_object"},
-    )
-
-    data = json.loads(completion.choices[0].message.content)
-
-    # Map to expected format
-    return {
-        "narration": data.get("narration", ""),
-        "overlays": data.get("overlays", []),
-        "title": data.get("yt_title", topic.get("yt_title", topic.get("title"))),
-        "description": data.get("yt_description", ""),
-        "keywords": data.get("yt_tags", []),
-    }
-
-
-def generate_dalle_thumbnail(title, out_dir):
-    """Generate thumbnail using DALL-E in Bold Contrast News Cut style"""
-    from openai import OpenAI
-    import requests
-
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-    # Craft prompt for Bold Contrast News Cut style with YELLOW text
-    prompt = f"""Create a bold, high-contrast news-style thumbnail for YouTube:
-
-Title text: "{title}"
-
-Style requirements:
-- Bold, dramatic lighting with high contrast
-- News broadcast aesthetic with dark background
-- Strong shadows and highlights
-- Dark blue or black background for maximum contrast
-- Clean, modern look
-- Text is EXTREMELY LARGE (fills 70% of the image), BOLD, and BRIGHT YELLOW (#FFD700 gold)
-- The yellow text must be MASSIVE and the main focus
-- Cinematic letterbox bars (top and bottom black bars)
-- Professional news studio or dramatic abstract background
-- NO people's faces
-- Focus on abstract shapes, dramatic lighting, and the HUGE YELLOW title text
-- 16:9 aspect ratio optimized for YouTube
-- Text color: BRIGHT YELLOW or GOLD - no other color for text
-
-CRITICAL: The text "{title}" should be the dominant visual element taking up most of the image, in a bold sans-serif font, BRIGHT YELLOW color, with dramatic lighting effects making it glow."""
-
-    try:
-        response = client.images.generate(
-            model="dall-e-3",
-            prompt=prompt,
-            size="1792x1024",  # Closest to 16:9
-            quality="standard",
-            n=1,
-        )
-
-        image_url = response.data[0].url
-
-        # Download the image
-        img_response = requests.get(image_url, timeout=30)
-        img_response.raise_for_status()
-
-        # Save to file
-        thumb_path = out_dir / "thumb_ai_dalle.jpg"
-        thumb_path.write_bytes(img_response.content)
-
-        print(f"[OK] AI thumbnail generated: {thumb_path}")
-        return thumb_path
-
-    except Exception as e:
-        print(f"DALL-E thumbnail generation failed: {e}")
-        raise
-
-
-@app.route('/generate-script', methods=['POST'])
-def generate_script():
-    """
-    Generate a video script using OpenAI/Claude API
-    """
-    try:
-        data = request.get_json() or {}
-        prompt = data.get('prompt', '')
-        title = data.get('title', '')
-        hook = data.get('hook', '')
-        description = data.get('description', '')
-        length = data.get('length', 'medium')
-        style = data.get('style', 'informative')
-
-        if not prompt:
-            return jsonify({'success': False, 'error': 'No prompt provided'}), 400
-
-        # Initialize OpenAI client
-        from openai import OpenAI
-        api_key = os.environ.get('OPENAI_API_KEY')
-        if not api_key:
-            return jsonify({'success': False, 'error': 'OPENAI_API_KEY not configured'}), 500
-
-        client = OpenAI(api_key=api_key)
-
-        print(f"[Script Gen] Generating script for: {title}")
-        print(f"[Script Gen] Length: {length}, Style: {style}")
-
-        # Generate script using GPT-4
-        response = client.chat.completions.create(
-            model="gpt-4-turbo-preview",  # or gpt-3.5-turbo for faster/cheaper
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a professional YouTube script writer with expertise in creating engaging, viewer-retaining content."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            temperature=0.7,
-            max_tokens=2000
-        )
-
-        script = response.choices[0].message.content
-
-        print(f"[Script Gen] Successfully generated {len(script.split())} word script")
-
-        return jsonify({
-            'success': True,
-            'script': script,
-            'metadata': {
-                'title': title,
-                'hook': hook,
-                'length': length,
-                'style': style,
-                'word_count': len(script.split())
-            }
-        })
-
-    except Exception as e:
-        print(f"[Script Gen] Error: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-# Global upload progress tracker
-upload_progress = {'progress': 0, 'status': 'idle', 'filename': ''}
-
-@app.route('/youtube-upload-progress', methods=['GET'])
-def get_youtube_upload_progress():
-    """Get current YouTube upload progress"""
-    return jsonify(upload_progress)
-
-@app.route('/upload-to-youtube', methods=['POST'])
-def upload_to_youtube():
-    """
-    Upload a processed video to YouTube
-    """
-    global upload_progress
-    try:
-        upload_progress = {'progress': 0, 'status': 'starting', 'filename': ''}
-        data = request.get_json() or {}
-        video_filename = data.get('video_filename', '')
-        title = data.get('title', 'Untitled Video')
-        description = data.get('description', '')
-        tags = data.get('tags', [])
-        category = data.get('category', '22')  # Default: People & Blogs
-        privacy_status = data.get('privacy_status', 'private')
-        thumbnail_filename = data.get('thumbnail_filename', '')
-
-        print(f"[YOUTUBE UPLOAD] Request received")
-        print(f"[YOUTUBE UPLOAD] Video: {video_filename}")
-        print(f"[YOUTUBE UPLOAD] Title: {title}")
-
-        if not video_filename:
-            return jsonify({'success': False, 'error': 'No video filename provided'}), 400
-
-        # Find video file
-        video_path = Path('out') / video_filename
-        if not video_path.exists():
-            return jsonify({'success': False, 'error': f'Video file not found: {video_filename}'}), 404
-
-        # Find thumbnail if provided
-        thumbnail_path = None
-        if thumbnail_filename:
-            thumb_path = Path('thumbnails') / thumbnail_filename
-            if thumb_path.exists():
-                thumbnail_path = thumb_path
-
-        # Import YouTube upload utility
-        import sys
-        sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
-        from youtube_upload import upload_video
-
-        # Parse tags if string
-        if isinstance(tags, str):
-            tags = [t.strip() for t in tags.split(',') if t.strip()]
-
-        # Upload to YouTube
-        result = upload_video(
-            video_path=str(video_path),
-            title=title,
-            description=description,
-            tags=tags,
-            category=category,
-            privacy_status=privacy_status,
-            thumbnail_path=str(thumbnail_path) if thumbnail_path else None
-        )
-
-        if result['success']:
-            print(f"[YOUTUBE UPLOAD] ✅ Success! Video ID: {result['video_id']}")
-            return jsonify(result)
-        else:
-            print(f"[YOUTUBE UPLOAD] ❌ Failed: {result.get('error')}")
-            return jsonify(result), 500
-
-    except Exception as e:
-        print(f"[YOUTUBE UPLOAD] Exception: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/youtube-categories', methods=['GET'])
-def get_youtube_categories():
-    """Get list of available YouTube categories"""
-    try:
-        import sys
-        sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
-        from youtube_upload import get_video_categories
-
-        categories = get_video_categories()
-        return jsonify({'success': True, 'categories': categories})
-    except Exception as e:
-        # Return default categories if API call fails
-        default_categories = {
-            '22': 'People & Blogs',
-            '24': 'Entertainment',
-            '27': 'Education',
-            '28': 'Science & Technology',
-            '10': 'Music',
-            '17': 'Sports',
-            '19': 'Travel & Events',
-            '20': 'Gaming',
-            '25': 'News & Politics',
-            '26': 'Howto & Style'
-        }
-        return jsonify({'success': True, 'categories': default_categories})
-
-
-# =============================================================================
-# USER AUTHENTICATION ENDPOINTS
-# =============================================================================
-
-import database
-
-@app.route('/api/signup', methods=['POST'])
-def api_signup():
-    """User registration"""
-    try:
-        data = request.get_json() or {}
-        email = data.get('email', '').strip().lower()
-        password = data.get('password', '')
-        username = data.get('username', '').strip()
-
-        if not email or not password:
-            return jsonify({'success': False, 'error': 'Email and password required'}), 400
-
-        if len(password) < 6:
-            return jsonify({'success': False, 'error': 'Password must be at least 6 characters'}), 400
-
-        result = database.create_user(email, password, username)
-
-        if result['success']:
-            # Create session
-            session_id = database.create_session(result['user_id'])
-            response = jsonify({
-                'success': True,
-                'user_id': result['user_id'],
-                'message': 'Account created successfully'
-            })
-            response.set_cookie('session_id', session_id, max_age=30*24*60*60, httponly=True, samesite='Lax')  # 30 days
-            return response
-        else:
-            return jsonify(result), 400
-
+        library.setdefault('logos', []).append(entry)
+        lib_path.write_text(json.dumps(library, indent=2), encoding='utf-8')
+        return jsonify({'success': True, 'url': url, 'logo': entry})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/login', methods=['POST'])
-def api_login():
-    """User login"""
-    try:
-        data = request.get_json() or {}
-        email = data.get('email', '').strip().lower()
-        password = data.get('password', '')
-
-        if not email or not password:
-            return jsonify({'success': False, 'error': 'Email and password required'}), 400
-
-        result = database.verify_user(email, password)
-
-        if result['success']:
-            # Create session
-            session_id = database.create_session(result['user']['id'])
-            response = jsonify({
-                'success': True,
-                'user': {
-                    'id': result['user']['id'],
-                    'email': result['user']['email'],
-                    'username': result['user']['username'],
-                    'subscription_tier': result['user']['subscription_tier']
-                }
-            })
-            response.set_cookie('session_id', session_id, max_age=30*24*60*60, httponly=True, samesite='Lax')  # 30 days
-            return response
-        else:
-            return jsonify(result), 401
-
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/logout', methods=['POST'])
-def api_logout():
-    """User logout"""
-    try:
-        session_id = request.cookies.get('session_id')
-        if session_id:
-            database.delete_session(session_id)
-
-        response = jsonify({'success': True, 'message': 'Logged out successfully'})
-        response.set_cookie('session_id', '', max_age=0, httponly=True, samesite='Lax')
-        return response
-
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/usage', methods=['GET'])
-def api_get_usage():
-    """Get user's current usage statistics"""
-    try:
-        session_id = request.cookies.get('session_id')
-        if not session_id:
-            return jsonify({'success': False, 'error': 'Not logged in'}), 401
-
-        result = database.get_session(session_id)
-        if not result['success']:
-            return jsonify(result), 401
-
-        user_id = result['user']['id']
-        stats = database.get_usage_stats(user_id)
-
-        if not stats:
-            return jsonify({'success': False, 'error': 'User not found'}), 404
-
-        return jsonify({
-            'success': True,
-            'usage': stats
-        })
-
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/forgot-password', methods=['POST'])
-def api_forgot_password():
-    """Request password reset"""
-    try:
-        data = request.get_json()
-        email = data.get('email')
-
-        if not email:
-            return jsonify({'success': False, 'error': 'Email required'}), 400
-
-        result = database.create_password_reset_token(email)
-
-        if not result['success']:
-            # For security, don't reveal if email exists or not
-            return jsonify({'success': True, 'message': 'If that email exists, a reset link has been sent'})
-
-        token = result['token']
-
-        # TODO: Send email with reset link
-        # For now, return the token in development (remove this in production!)
-        reset_link = f"http://localhost:5000/reset-password?token={token}"
-
-        # In production, you'd send an email here:
-        # send_email(email, "Password Reset", f"Click here to reset: {reset_link}")
-
-        print(f"[DEV] Password reset link for {email}: {reset_link}")
-
-        return jsonify({
-            'success': True,
-            'message': 'If that email exists, a reset link has been sent',
-            'dev_link': reset_link  # Remove this in production!
-        })
-
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/reset-password', methods=['POST'])
-def api_reset_password():
-    """Reset password with token"""
-    try:
-        data = request.get_json()
-        token = data.get('token')
-        new_password = data.get('password')
-
-        if not token or not new_password:
-            return jsonify({'success': False, 'error': 'Token and password required'}), 400
-
-        if len(new_password) < 6:
-            return jsonify({'success': False, 'error': 'Password must be at least 6 characters'}), 400
-
-        result = database.reset_password(token, new_password)
-
-        if 'error' in result:
-            return jsonify({'success': False, 'error': result['error']}), 400
-
-        return jsonify(result)
-
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/me', methods=['GET'])
-def api_get_current_user():
-    """Get current logged-in user"""
-    try:
-        session_id = request.cookies.get('session_id')
-        if not session_id:
-            return jsonify({'success': False, 'error': 'Not logged in'}), 401
-
-        result = database.get_session(session_id)
-
-        if result['success']:
-            user = result['user']
-            return jsonify({
-                'success': True,
-                'user': {
-                    'id': user['id'],
-                    'email': user['email'],
-                    'username': user['username'],
-                    'subscription_tier': user['subscription_tier'],
-                    'videos_this_month': user['videos_this_month'],
-                    'total_videos': user['total_videos']
-                }
-            })
-        else:
-            return jsonify(result), 401
-
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/stats', methods=['GET'])
-def api_get_user_stats():
-    """Get user statistics and limits"""
-    try:
-        session_id = request.cookies.get('session_id')
-        if not session_id:
-            return jsonify({'success': False, 'error': 'Not logged in'}), 401
-
-        result = database.get_session(session_id)
-        if not result['success']:
-            return jsonify(result), 401
-
-        user_id = result['user']['id']
-        stats = database.get_user_stats(user_id)
-        can_create = database.can_create_video(user_id)
-
-        return jsonify({
-            'success': True,
-            'stats': stats,
-            'limits': can_create
-        })
-
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/my-videos', methods=['GET'])
-def api_get_user_videos():
-    """Get user's video history"""
-    try:
-        session_id = request.cookies.get('session_id')
-        if not session_id:
-            return jsonify({'success': False, 'error': 'Not logged in'}), 401
-
-        result = database.get_session(session_id)
-        if not result['success']:
-            return jsonify(result), 401
-
-        user_id = result['user']['id']
-        limit = request.args.get('limit', 20, type=int)
-        videos = database.get_user_videos(user_id, limit)
-
-        return jsonify({
-            'success': True,
-            'videos': videos
-        })
-
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-# ============================================================================
-# STRIPE PAYMENT ENDPOINTS
-# ============================================================================
-
-@app.route('/api/stripe/config', methods=['GET'])
-def stripe_config():
-    """Get Stripe publishable key for frontend"""
-    return jsonify({
-        'publishable_key': STRIPE_PUBLISHABLE_KEY,
-        'success': True
-    })
-
-
-@app.route('/api/stripe/create-checkout-session', methods=['POST'])
-def create_checkout_session():
-    """Create Stripe checkout session for subscription or one-time payment"""
-    try:
-        # Get user session
-        session_id = request.cookies.get('session_id')
-        if not session_id:
-            return jsonify({'success': False, 'error': 'Not logged in'}), 401
-
-        result = database.get_session(session_id)
-        if not result['success']:
-            return jsonify({'success': False, 'error': 'Invalid session'}), 401
-
-        user = result['user']
-        data = request.json
-        plan = data.get('plan')  # starter, pro, agency, lifetime
-
-        if plan not in STRIPE_PRICES:
-            return jsonify({'success': False, 'error': 'Invalid plan'}), 400
-
-        price_id = STRIPE_PRICES[plan]
-        if not price_id:
-            return jsonify({'success': False, 'error': 'Plan not configured'}), 400
-
-        # Determine mode based on plan
-        mode = 'payment' if plan == 'lifetime' else 'subscription'
-
-        # Create Stripe checkout session
-        checkout_session = stripe.checkout.Session.create(
-            customer_email=user['email'],
-            client_reference_id=str(user['id']),
-            payment_method_types=['card'],
-            mode=mode,
-            line_items=[{
-                'price': price_id,
-                'quantity': 1,
-            }],
-            success_url=f"{request.host_url}payment-success?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{request.host_url}pricing?canceled=true",
-            metadata={
-                'user_id': str(user['id']),
-                'plan': plan
-            }
-        )
-
-        return jsonify({
-            'success': True,
-            'session_id': checkout_session.id,
-            'url': checkout_session.url
-        })
-
-    except Exception as e:
-        print(f"[STRIPE] Error creating checkout session: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/stripe/webhook', methods=['POST'])
-def stripe_webhook():
-    """Handle Stripe webhook events"""
-    payload = request.data
-    sig_header = request.headers.get('Stripe-Signature')
-
-    try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, STRIPE_WEBHOOK_SECRET
-        )
-    except ValueError as e:
-        print(f"[STRIPE] Invalid payload: {e}")
-        return jsonify({'error': 'Invalid payload'}), 400
-    except stripe.error.SignatureVerificationError as e:
-        print(f"[STRIPE] Invalid signature: {e}")
-        return jsonify({'error': 'Invalid signature'}), 400
-
-    # Handle the event
-    event_type = event['type']
-    print(f"[STRIPE] Received event: {event_type}")
-
-    if event_type == 'checkout.session.completed':
-        session = event['data']['object']
-        user_id = int(session['metadata']['user_id'])
-        plan = session['metadata']['plan']
-
-        # Update user subscription tier
-        conn = database.get_db()
-        cursor = conn.cursor()
-        cursor.execute(
-            'UPDATE users SET subscription_tier = ?, stripe_customer_id = ? WHERE id = ?',
-            (plan, session.get('customer'), user_id)
-        )
-        conn.commit()
-        conn.close()
-
-        print(f"[STRIPE] User {user_id} upgraded to {plan}")
-
-    elif event_type == 'customer.subscription.deleted':
-        # Handle subscription cancellation
-        subscription = event['data']['object']
-        customer_id = subscription['customer']
-
-        # Downgrade user to free
-        conn = database.get_db()
-        cursor = conn.cursor()
-        cursor.execute(
-            'UPDATE users SET subscription_tier = ? WHERE stripe_customer_id = ?',
-            ('free', customer_id)
-        )
-        conn.commit()
-        conn.close()
-
-        print(f"[STRIPE] Subscription canceled for customer {customer_id}")
-
-    return jsonify({'success': True})
-
-
-# ============================================================================
-# ADMIN API ENDPOINTS
-# ============================================================================
-
-# List of admin emails (add your email here)
-ADMIN_EMAILS = ['davequillman@gmail.com']
-
-def is_admin(user_email):
-    """Check if user is admin"""
-    return user_email in ADMIN_EMAILS
-
-@app.route('/api/admin/check', methods=['GET'])
-def admin_check():
-    """Check if current user is admin"""
-    try:
-        session_id = request.cookies.get('session_id')
-        if not session_id:
-            return jsonify({'success': False, 'is_admin': False}), 401
-
-        result = database.get_session(session_id)
-        if not result['success']:
-            return jsonify({'success': False, 'is_admin': False}), 401
-
-        user = result['user']
-        return jsonify({
-            'success': True,
-            'is_admin': is_admin(user['email'])
-        })
-
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/admin/users', methods=['GET'])
-def admin_get_users():
-    """Get all users (admin only)"""
-    try:
-        session_id = request.cookies.get('session_id')
-        if not session_id:
-            return jsonify({'success': False, 'error': 'Not logged in'}), 401
-
-        result = database.get_session(session_id)
-        if not result['success']:
-            return jsonify({'success': False, 'error': 'Invalid session'}), 401
-
-        user = result['user']
-        if not is_admin(user['email']):
-            return jsonify({'success': False, 'error': 'Admin access required'}), 403
-
-        # Get search parameter
-        search = request.args.get('search', '').strip()
-
-        conn = database.get_db()
-        cursor = conn.cursor()
-
-        if search:
-            cursor.execute('''
-                SELECT id, email, username, subscription_tier, videos_this_month, total_videos, created_at
-                FROM users
-                WHERE email LIKE ? OR username LIKE ?
-                ORDER BY created_at DESC
-            ''', (f'%{search}%', f'%{search}%'))
-        else:
-            cursor.execute('''
-                SELECT id, email, username, subscription_tier, videos_this_month, total_videos, created_at
-                FROM users
-                ORDER BY created_at DESC
-            ''')
-
-        users = [dict(row) for row in cursor.fetchall()]
-        conn.close()
-
-        return jsonify({
-            'success': True,
-            'users': users
-        })
-
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/admin/stats', methods=['GET'])
-def admin_get_stats():
-    """Get system stats (admin only)"""
-    try:
-        session_id = request.cookies.get('session_id')
-        if not session_id:
-            return jsonify({'success': False, 'error': 'Not logged in'}), 401
-
-        result = database.get_session(session_id)
-        if not result['success']:
-            return jsonify({'success': False, 'error': 'Invalid session'}), 401
-
-        user = result['user']
-        if not is_admin(user['email']):
-            return jsonify({'success': False, 'error': 'Admin access required'}), 403
-
-        conn = database.get_db()
-        cursor = conn.cursor()
-
-        # Total users
-        cursor.execute('SELECT COUNT(*) FROM users')
-        total_users = cursor.fetchone()[0]
-
-        # Free users
-        cursor.execute('SELECT COUNT(*) FROM users WHERE subscription_tier = ?', ('free',))
-        free_users = cursor.fetchone()[0]
-
-        # Paid users
-        paid_users = total_users - free_users
-
-        # Total videos
-        cursor.execute('SELECT SUM(total_videos) FROM users')
-        total_videos = cursor.fetchone()[0] or 0
-
-        conn.close()
-
-        return jsonify({
-            'success': True,
-            'stats': {
-                'total_users': total_users,
-                'free_users': free_users,
-                'paid_users': paid_users,
-                'total_videos': total_videos
-            }
-        })
-
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/admin/update-tier', methods=['POST'])
-def admin_update_tier():
-    """Update user tier (admin only)"""
-    try:
-        session_id = request.cookies.get('session_id')
-        if not session_id:
-            return jsonify({'success': False, 'error': 'Not logged in'}), 401
-
-        result = database.get_session(session_id)
-        if not result['success']:
-            return jsonify({'success': False, 'error': 'Invalid session'}), 401
-
-        user = result['user']
-        if not is_admin(user['email']):
-            return jsonify({'success': False, 'error': 'Admin access required'}), 403
-
-        data = request.json
-        user_id = data.get('user_id')
-        tier = data.get('tier')
-
-        if not user_id or not tier:
-            return jsonify({'success': False, 'error': 'Missing user_id or tier'}), 400
-
-        conn = database.get_db()
-        cursor = conn.cursor()
-        cursor.execute('UPDATE users SET subscription_tier = ? WHERE id = ?', (tier, user_id))
-        conn.commit()
-        conn.close()
-
-        return jsonify({'success': True, 'message': 'Tier updated'})
-
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/admin/reset-count', methods=['POST'])
-def admin_reset_count():
-    """Reset user monthly video count (admin only)"""
-    try:
-        session_id = request.cookies.get('session_id')
-        if not session_id:
-            return jsonify({'success': False, 'error': 'Not logged in'}), 401
-
-        result = database.get_session(session_id)
-        if not result['success']:
-            return jsonify({'success': False, 'error': 'Invalid session'}), 401
-
-        user = result['user']
-        if not is_admin(user['email']):
-            return jsonify({'success': False, 'error': 'Admin access required'}), 403
-
-        data = request.json
-        user_id = data.get('user_id')
-
-        if not user_id:
-            return jsonify({'success': False, 'error': 'Missing user_id'}), 400
-
-        conn = database.get_db()
-        cursor = conn.cursor()
-        cursor.execute('UPDATE users SET videos_this_month = 0 WHERE id = ?', (user_id,))
-        conn.commit()
-        conn.close()
-
-        return jsonify({'success': True, 'message': 'Count reset'})
-
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-if __name__ == '__main__':
-    print("=" * 60)
-    print("MSS API Server Starting...")
-    print("=" * 60)
-    print("\nServer will run at: http://localhost:5000")
-    print("Open web UI at: http://localhost:8003")
-    print("\nTo start web UI in another terminal:")
-    print("   cd web/topic-picker-standalone")
-    print("   python -m http.server 8003")
-    print("\n" + "=" * 60 + "\n")
-
-    # Disable reloader so it runs cleanly under background jobs or supervisors
-    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)

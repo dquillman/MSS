@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -18,15 +18,15 @@
       <button class="btn" onclick="window.location.href='meme-library.html'">Memes</button>
       <button class="btn" onclick="window.location.href='intro-outro.html'">Intro/Outro</button>
       <button class="btn" onclick="window.location.href='viewer.html'">Viewer</button>
-      <button class="btn" onclick="window.location.href='/dashboard'">ðŸ“Š Dashboard</button>
-      <button class="btn" onclick="window.location.href='settings.html'" style="background:#7c3aed; border-color:#7c3aed;">âš™ï¸ Settings</button>
-      <button class="btn" onclick="logout()" style="background:#ef4444; border-color:#ef4444;">ðŸšª Logout</button>
-      <div class="dropdown" id="oldMenusContainer" style="position:relative;display:none;">
-        <button class="btn" id="oldMenusBtn">Old Menus</button>
-        <div class="dropdown-content" id="oldMenus" style="display:none; position:absolute; top:110%; left:0; background:#0B0F19; border:1px solid #334; border-radius:8px; min-width:180px; z-index:20; box-shadow:0 6px 18px rgba(0,0,0,0.4);">
-          <a href="script-generator.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Script Generator</a>
-          <a href="thumbnail-manager.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Thumbnails</a>
-          <a href="video-composer.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Composer</a>
+      <button class="btn" onclick="window.location.href='index.html'">Topics</button>
+      <button class="btn" onclick="window.location.href='avatar-manager.html'">Avatars</button>
+      <button class="btn" onclick="window.location.href='logo-manager.html'">Logos</button>
+      <button class="btn" onclick="window.location.href='meme-library.html'">Memes</button>
+      <button class="btn" onclick="window.location.href='intro-outro.html'">Intro/Outro</button>
+      <button class="btn" onclick="window.location.href='viewer.html'">Viewer</button>
+      <button class="btn" onclick="window.location.href='/dashboard'">Dashboard</button>
+      <button class="btn" onclick="window.location.href='settings.html'" style="background:#7c3aed; border-color:#7c3aed;">Settings</button>
+      <button class="btn" onclick="logout()" style="background:#ef4444; border-color:#ef4444;">Logout</button>
           <a href="post-process.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Post-Process</a>
           <a href="preview.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Preview</a>
         </div>
@@ -163,7 +163,7 @@ Angle / Hook:
 
 Topic Description (balanced perspective):
 Analyze the topic {{Title}}, exploring both the positive and negative dimensions of the issue. Discuss how {{Angle}} relates to larger trends in society, technology, or policy.
-Examine key themes such as {{Keywords}} â€” highlighting both progress and problems. Consider successes like innovation, reform, or cooperation, and challenges such as inequality, misinformation, or ethical dilemmas. Conclude by reflecting on what lessons humanity can carry forward to build a more resilient and informed future.
+Examine key themes such as {{Keywords}} — highlighting both progress and problems. Consider successes like innovation, reform, or cooperation, and challenges such as inequality, misinformation, or ethical dilemmas. Conclude by reflecting on what lessons humanity can carry forward to build a more resilient and informed future.
 
 Keywords:
 {{Keywords}}
@@ -355,7 +355,7 @@ YouTube Description:
       </div>
     </div>
     <div class="row">
-      <button class="btn" id="uploadToYouTubeBtn" style="background:#FF0000; border-color:#FF0000;">ðŸ“¤ Upload to YouTube</button>
+      <button class="btn" id="uploadToYouTubeBtn" style="background:#FF0000; border-color:#FF0000;">Upload to YouTube</button>
     </div>
     <div id="ytStatus" class="status"></div>
     <div id="ytProgress" style="display:none; margin-top:12px; padding:12px; background:rgba(59,130,246,0.1); border:1px solid var(--accent-blue); border-radius:6px;">
@@ -367,8 +367,20 @@ YouTube Description:
   </div>
 
   <script>
-    // Use same-origin API base to avoid cookie domain mismatch (localhost vs 127.0.0.1)
-    const API_BASE = window.location.origin;
+    // API base resolution with overrides:
+    // - URL param: ?api=http://127.0.0.1:5000
+    // - localStorage: apiBase
+    // - fallback: same-origin
+    const urlApi = new URLSearchParams(window.location.search).get('api');
+    const lsApi = (function(){ try { return localStorage.getItem('apiBase'); } catch(_) { return null; }})();
+    let defaultBase = window.location.origin;
+    try {
+      if (window.location.port && window.location.port !== '5000') {
+        defaultBase = 'http://127.0.0.1:5000';
+      }
+    } catch {}
+    const API_BASE = (urlApi && urlApi.trim()) || (lsApi && lsApi.trim()) || defaultBase;
+    if (urlApi) { try { localStorage.setItem('apiBase', urlApi); } catch(_) {} }
     const DEFAULT_PROMPT = `Create a vibrant, eye-catching YouTube thumbnail for a video titled: {{title}}
 
 Style: Bold, high-contrast, professional
@@ -527,7 +539,7 @@ Make it stand out in search results and suggested videos.`;
       toast.className = `toast ${type}`;
       toast.innerHTML = `
         <span>${message}</span>
-        <span class="toast-close">âœ•</span>
+        <span class="toast-close">x</span>
       `;
 
       document.body.appendChild(toast);
@@ -671,70 +683,75 @@ Make it stand out in search results and suggested videos.`;
     const logoSelect = document.getElementById('logoSelect');
     async function loadLogos() {
       const activeLogoImg = document.getElementById('activeLogoImg');
-      const listFlag =  !!(window && window.ENABLE_LOGO_LIST); 
-      if ( !listFlag) { 
-        if (activeLogoImg) activeLogoImg.style.display = 'none';
-        return;
-      }
+      // Always enable logo list; prefer library (has friendly names), then files API
       logoSelect.innerHTML = '<option value="">Loading...</option>';
-      // Try new files API first
+
+      // 1) Prefer library with real names
+      try {
+        const res = await fetch(`${API_BASE}/get-logo-library`);
+        if (res.ok) {
+          const data = await res.json();
+          const list = (data && Array.isArray(data.logos)) ? data.logos : [];
+          const byFile = new Map();
+          for (const logo of list) {
+            const url = (logo && logo.url) || '';
+            const fname = logo.filename || (url.split('/').pop()) || '';
+            if (!fname) continue;
+            if (!byFile.has(fname)) byFile.set(fname, logo);
+          }
+          if (byFile.size > 0) {
+            logoSelect.innerHTML = '';
+            for (const [fname, logo] of byFile.entries()) {
+              const opt = document.createElement('option');
+              opt.value = fname;
+              const nice = (logo.name && String(logo.name).trim()) || fname || (logo.id || 'logo');
+              opt.textContent = nice;
+              if (logo.url) opt.dataset.url = logo.url;
+              logoSelect.appendChild(opt);
+            }
+            if (activeLogoImg) activeLogoImg.style.display = 'none';
+            return; // library had usable entries; done
+          }
+          // Else: library exists but empty/stale — fall through to files API
+        }
+      } catch {}
+
+      // 2) Fallback to files API
       try {
         const res = await fetch(`${API_BASE}/api/logo-files`);
         if (res.ok) {
           const data = await res.json();
           const list = (data && Array.isArray(data.logos)) ? data.logos : [];
           logoSelect.innerHTML = '';
-          if (list.length === 0) {
-            logoSelect.innerHTML = '<option value="">No logos found</option>';
-          } else {
+          if (list.length > 0) {
             list.forEach(logo => {
               const opt = document.createElement('option');
               opt.value = logo.filename;
+              // No names in this API; show filename
               opt.textContent = logo.filename;
               if (logo.url) opt.dataset.url = logo.url;
               logoSelect.appendChild(opt);
             });
+            if (activeLogoImg) activeLogoImg.style.display = 'none';
+            return;
           }
-          if (activeLogoImg) activeLogoImg.style.display = 'none';
-          return;
-        }
-      } catch {}
-      // Fallback to legacy library
-      try {
-        const res = await fetch(`${API_BASE}/get-logo-library`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const list = (data && Array.isArray(data.logos)) ? data.logos : [];
-        logoSelect.innerHTML = '';
-        if (list.length === 0) {
-          logoSelect.innerHTML = '<option value="">No logos found</option>';
-        } else {
-          list.forEach(logo => {
-            const opt = document.createElement('option');
-            const fname = logo.filename || ((logo.url||'').split('/').pop());
-            opt.value = fname || '';
-            opt.textContent = fname || (logo.name || logo.id || 'logo');
-            if (logo.url) opt.dataset.url = logo.url;
-            logoSelect.appendChild(opt);
-          });
-        }
-        if (activeLogoImg) activeLogoImg.style.display = 'none';
-      } catch (e) {
-        console.error('Error loading logos:', e);
-        // Final fallback: populate with known filenames from repo_root/logos
-        const fallbackNames = [
-          'logo_1759621216.png',
-          'logo_1759621223.png'
-        ];
-        logoSelect.innerHTML = '';
-        fallbackNames.forEach(fn => {
-          const opt = document.createElement('option');
-          opt.value = fn;
-          opt.textContent = fn;
-          logoSelect.appendChild(opt);
-        });
-        if (activeLogoImg) activeLogoImg.style.display = 'none';
       }
+      } catch {}
+
+      // 3) Final hardcoded fallback (rare)
+      console.error('Error loading logos: falling back to defaults');
+      const fallbackNames = [
+        'logo_1759621216.png',
+        'logo_1759621223.png'
+      ];
+      logoSelect.innerHTML = '';
+      fallbackNames.forEach(fn => {
+        const opt = document.createElement('option');
+        opt.value = fn;
+        opt.textContent = fn;
+        logoSelect.appendChild(opt);
+      });
+      if (activeLogoImg) activeLogoImg.style.display = 'none';
     }
     loadLogos();
 
@@ -792,7 +809,7 @@ Make it stand out in search results and suggested videos.`;
 
     // Feature flags (read from localStorage)
     const ENABLE_YT_UPLOAD_UI = (localStorage.getItem('enableYtUploadUI') || 'false').toLowerCase() === 'true';
-    const ENABLE_LOGO_LIST = false;
+    const ENABLE_LOGO_LIST = true;
 
     // Load topic keywords/tags from localStorage or API fallback
     async function primeFromLocalOrAPI() {
@@ -861,7 +878,7 @@ Make it stand out in search results and suggested videos.`;
       approveBtn.disabled = true;
       const loadingBar = document.getElementById('loadingBar');
       if (loadingBar) loadingBar.style.display = 'block';
-      setStatus('Processingâ€¦', 'info');
+      setStatus('Processing...', 'info');
       isProcessing = true;  // Set processing flag
       showToast('Video processing started. You can navigate away - processing continues in background!', 'info', 5000);
       try {
@@ -969,7 +986,7 @@ Make it stand out in search results and suggested videos.`;
     setTimeout(() => {
       const stats = JSON.parse(localStorage.getItem('mss_stats') || '{}');
       if (stats.counters) {
-        console.log('ðŸ“Š MSS Analytics:', stats.counters);
+        console.log('MSS Analytics:', stats.counters);
         console.log(`Total actions: ${stats.counters.total || 0}`);
       }
     }, 2000);
@@ -1093,9 +1110,9 @@ Make it stand out in search results and suggested videos.`;
         }
 
         statusEl.className = 'status ok';
-        statusEl.innerHTML = `âœ… Video uploaded successfully!<br><a href="${data.url}" target="_blank" style="color:#22c55e; text-decoration:underline;">${data.url}</a>`;
-        showToast(`Video uploaded to YouTube! ðŸŽ‰`, 'success', 8000);
-        trackEvent('youtube_upload_success', { video_id: data.video_id });
+        statusEl.className = 'status ok';
+        statusEl.innerHTML = `✓ Video uploaded successfully!<br><a href="${data.url}" target="_blank" style="color:#22c55e; text-decoration:underline;">${data.url}</a>`;
+        showToast('Video uploaded to YouTube!', 'success', 8000);
 
       } catch (e) {
         console.error('YouTube upload error:', e);
@@ -1130,25 +1147,25 @@ Make it stand out in search results and suggested videos.`;
               // At limit - show error
               warning.innerHTML = `
                 <div style="padding:12px; background:rgba(239,68,68,0.1); border:1px solid #ef4444; border-radius:8px; color:#ef4444;">
-                  âš ï¸ Monthly limit reached (${usage.monthly_limit} videos). <a href="/pricing" style="color:#ef4444; text-decoration:underline;">Upgrade your plan</a> to create more videos.
+                <div style="padding:12px; background:rgba(239,68,68,0.1); border:1px solid #ef4444; border-radius:8px; color:#ef4444;">
+                  Warning: Monthly limit reached (${usage.monthly_limit} videos). <a href="/pricing" style="color:#ef4444; text-decoration:underline;">Upgrade your plan</a> to create more videos.
                 </div>
-              `;
               warning.style.display = 'block';
             } else if (percentage >= 80) {
               // Near limit - show warning
               warning.innerHTML = `
                 <div style="padding:12px; background:rgba(251,191,36,0.1); border:1px solid #f59e0b; border-radius:8px; color:#f59e0b;">
-                  âš ï¸ You have ${usage.videos_remaining} video${usage.videos_remaining !== 1 ? 's' : ''} remaining this month (${usage.videos_this_month}/${usage.monthly_limit} used)
+                <div style="padding:12px; background:rgba(251,191,36,0.1); border:1px solid #f59e0b; border-radius:8px; color:#f59e0b;">
+                  Warning: You have ${usage.videos_remaining} video${usage.videos_remaining !== 1 ? 's' : ''} remaining this month (${usage.videos_this_month}/${usage.monthly_limit} used)
                 </div>
-              `;
               warning.style.display = 'block';
             } else {
               // Plenty remaining - show info
               warning.innerHTML = `
                 <div style="padding:12px; background:rgba(59,130,246,0.1); border:1px solid #3b82f6; border-radius:8px; color:#3b82f6;">
-                  ${usage.videos_this_month}/${usage.monthly_limit} videos used this month â€¢ ${usage.videos_remaining} remaining
+                <div style="padding:12px; background:rgba(59,130,246,0.1); border:1px solid #3b82f6; border-radius:8px; color:#3b82f6;">
+                  ${usage.videos_this_month}/${usage.monthly_limit} videos used this month - ${usage.videos_remaining} remaining
                 </div>
-              `;
               warning.style.display = 'block';
             }
           }
@@ -1184,9 +1201,9 @@ Make it stand out in search results and suggested videos.`;
         } else {
           warning.innerHTML = `
             <div style="padding:12px; background:rgba(59,130,246,0.1); border:1px solid #3b82f6; border-radius:8px; color:#3b82f6;">
-              ${usage.videos_this_month}/${usage.monthly_limit} videos used this month â€¢ ${usage.videos_remaining} remaining
-            </div>`;
-          warning.style.display = 'block';
+            <div style="padding:12px; background:rgba(59,130,246,0.1); border:1px solid #3b82f6; border-radius:8px; color:#3b82f6;">
+              ${usage.videos_this_month}/${usage.monthly_limit} videos used this month - ${usage.videos_remaining} remaining
+            </div>
         }
       } catch (e) {
         if (warning) warning.style.display = 'none';
@@ -1198,7 +1215,7 @@ Make it stand out in search results and suggested videos.`;
 
     // Welcome message with keyboard shortcuts
     setTimeout(() => {
-      showToast('ðŸ’¡ Shortcuts: Ctrl+S (Generate Video), Esc (Cancel)', 'info', 6000);
+      showToast('Shortcuts: Ctrl+S (Generate Video), Esc (Cancel)', 'info', 6000);
     }, 1000);
 
     // Logout function
