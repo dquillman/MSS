@@ -671,6 +671,11 @@ Make it stand out in search results and suggested videos.`;
     const logoSelect = document.getElementById('logoSelect');
     async function loadLogos() {
       const activeLogoImg = document.getElementById('activeLogoImg');
+      if (!ENABLE_LOGO_LIST) {
+        logoSelect.innerHTML = '<option value="">Use "Choose Logo File"</option>';
+        if (activeLogoImg) activeLogoImg.style.display = 'none';
+        return;
+      }
       logoSelect.innerHTML = '<option value="">Loading...</option>';
       // Try new files API first
       try {
@@ -787,6 +792,7 @@ Make it stand out in search results and suggested videos.`;
 
     // Feature flags (read from localStorage)
     const ENABLE_YT_UPLOAD_UI = (localStorage.getItem('enableYtUploadUI') || 'false').toLowerCase() === 'true';
+    const ENABLE_LOGO_LIST = false;
 
     // Load topic keywords/tags from localStorage or API fallback
     async function primeFromLocalOrAPI() {
