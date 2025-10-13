@@ -392,7 +392,7 @@ CRITICAL: BACKGROUND ONLY — absolutely no text, letters, words, numbers, typog
     }
 
     // Override toast to stack without overlap
-    if (!window.__toastStackPatched) {
+    if (typeof showToast === \"function\" && !window.__toastStackPatched) {
       const __origShowToast = showToast;
       window.showToast = function(message, type = 'info', duration = 4000) {
         let container = document.getElementById('toastContainer');
