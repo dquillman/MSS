@@ -9,6 +9,8 @@ venv/
 token.pickle
 token.drive.pickle
 token.sheets.pickle
+youtube_token.pickle
+Setup Stripe.txt
 client_secrets.json
 gcp-service-account.json
 drive-service-account.json
