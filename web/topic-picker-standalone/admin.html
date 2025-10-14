@@ -145,6 +145,18 @@
     </div>
   </div>
 
+  <!-- System Health -->
+  <div class="card" style="margin-top:20px;">
+    <h2 style="margin:0 0 12px 0;">System Health</h2>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+      <button class="btn" onclick="checkHealth(false)">Quick Check</button>
+      <button class="btn" onclick="checkHealth(true)" style="background:#3b82f6; border-color:#3b82f6;">Deep Check (Chromium)</button>
+      <a class="btn" href="/api/health" target="_blank" rel="noopener">Open JSON</a>
+    </div>
+    <pre id="healthOutput" style="margin:0; padding:12px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:8px; white-space:pre-wrap; word-break:break-word; min-height:48px;">
+    </pre>
+  </div>
+
   <!-- User Management -->
   <div class="card" style="margin-top:20px;">
     <h2 style="margin:0 0 20px 0;">User Management</h2>
@@ -318,6 +330,29 @@
       }
     }
 
+    async function checkHealth(deep=false) {
+      const el = document.getElementById('healthOutput');
+      el.textContent = 'Checking...';
+      try {
+        const url = deep ? `${API_BASE}/api/health?deep=1` : `${API_BASE}/api/health`;
+        const res = await fetch(url, { credentials: 'include' });
+        const data = await res.json();
+        const lines = [];
+        lines.push(`ffmpeg: ${data.ffmpeg?.available ? 'OK' : 'MISSING'} ${data.ffmpeg?.path ? '('+data.ffmpeg.path+')' : ''}`);
+        lines.push(`ffprobe: ${data.ffprobe?.available ? 'OK' : 'MISSING'} ${data.ffprobe?.path ? '('+data.ffprobe.path+')' : ''}`);
+        if (data.playwright) {
+          lines.push(`playwright: ${data.playwright.importable ? 'importable' : 'not installed'}`);
+          if (data.playwright.check === 'deep') {
+            lines.push(`chromium: ${data.playwright.chromium_ready === true ? 'ready' : data.playwright.chromium_ready === false ? 'FAILED' : 'skipped'}`);
+          }
+        }
+        el.textContent = lines.join('\n');
+      } catch (e) {
+        console.error('health error', e);
+        el.textContent = 'Health check failed';
+      }
+    }
+
     async function logout() {
       if (!confirm('Are you sure you want to logout?')) return;
 
@@ -342,6 +377,8 @@
     checkAdminAccess().then(() => {
       loadUsers();
       refreshStats();
+      // Preload quick health on open
+      checkHealth(false);
     });
 
     // Auto-refresh every 30 seconds

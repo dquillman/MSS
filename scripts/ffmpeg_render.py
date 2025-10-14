@@ -122,10 +122,14 @@ def render_video_with_ffmpeg(
 
 
 def _extract_lines_from_html(html: str, max_lines: int = 2) -> List[str]:
-    text = re.sub(r"<[^>]+>", "\n", html or "")
-    text = re.sub(r"\s+", " ", text)
-    # Recover line breaks between blocks
-    raw_lines = [s.strip() for s in re.split(r"\n+", text) if s and s.strip()]
+    # Preserve likely line breaks between blocks (div/p/h*/br)
+    text = html or ""
+    text = re.sub(r"<\s*br\s*/?\s*>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"</\s*(div|p|h[1-6])\s*>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", "", text)
+    # Now split on newlines and collapse intra-line whitespace
+    raw_lines = [re.sub(r"\s+", " ", s).strip() for s in text.split("\n")]
+    raw_lines = [s for s in raw_lines if s]
 
     # Wrap a long single line into two balanced lines (simple word-based wrap)
     def wrap_two_lines(s: str) -> List[str]:
@@ -151,16 +155,16 @@ def _extract_lines_from_html(html: str, max_lines: int = 2) -> List[str]:
         return [line1, line2] if line1 and line2 else [s]
 
     out: List[str] = []
-    for s in raw_lines:
-        if 1 <= len(s) <= 200:
-            wrapped = wrap_two_lines(s)
-            for part in wrapped:
-                if part:
-                    out.append(part)
-                if len(out) >= max_lines:
-                    break
-        if len(out) >= max_lines:
-            break
+    if raw_lines:
+        for s in raw_lines:
+            if 1 <= len(s) <= 200:
+                out.append(s)
+            if len(out) >= max_lines:
+                break
+    # If we still have fewer lines than requested and only one long line, wrap it
+    if len(out) == 1 and max_lines > 1:
+        wrapped = wrap_two_lines(out[0])
+        out = wrapped[:max_lines]
     if not out:
         out = ["MANY SOURCES SAY"]
     return out
@@ -173,13 +177,23 @@ def _build_drawtext_filters(lines: List[str], width: int, height: int) -> str:
 
     if not lines:
         lines = ["MANY SOURCES SAY"]
+    # Dynamic font sizes with safe bounds
+    title_fs = max(48, int(width * 0.055))
+    sub_fs = max(32, int(width * 0.035))
+
     # Position lines vertically around center
     filters = []
     if len(lines) == 1:
-        filters.append(f"drawtext=text='{esc(lines[0])}':fontsize=96:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2")
+        filters.append(
+            f"drawtext=text='{esc(lines[0])}':fontsize={title_fs}:fontcolor=#FFD700:shadowcolor=black@0.6:shadowx=4:shadowy=6:fix_bounds=1:x=(w-text_w)/2:y=(h-text_h)/2"
+        )
     else:
-        filters.append(f"drawtext=text='{esc(lines[0])}':fontsize=84:fontcolor=white:x=(w-text_w)/2:y=(h/2-60)")
-        filters.append(f"drawtext=text='{esc(lines[1])}':fontsize=48:fontcolor=#94a3b8:x=(w-text_w)/2:y=(h/2+10)")
+        filters.append(
+            f"drawtext=text='{esc(lines[0])}':fontsize={title_fs}:fontcolor=#FFD700:shadowcolor=black@0.6:shadowx=4:shadowy=6:fix_bounds=1:x=(w-text_w)/2:y=(h/2-{int(height*0.08)})"
+        )
+        filters.append(
+            f"drawtext=text='{esc(lines[1])}':fontsize={sub_fs}:fontcolor=#94a3b8:fix_bounds=1:x=(w-text_w)/2:y=(h/2+{int(height*0.02)})"
+        )
     return ",".join(filters)
 
 

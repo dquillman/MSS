@@ -34,11 +34,15 @@ remember.txt
 
 # Large generated files
 thumbnails/*.png
+thumbnails/*.jpg
 logos/*.png
 avatars/*.png
 public_audio/*.mp3
 out/*.mp4
 out/*.mov
+
+# Local databases
+web/*.db
 
 # OS
 .DS_Store

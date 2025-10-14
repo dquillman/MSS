@@ -1,7 +1,3 @@
-﻿"""
-Standalone API server for MSS web UI
-No n8n required - directly calls Python functions
-"""
 import os
 import json
 import time
@@ -241,7 +237,152 @@ def api_login():
         resp.set_cookie('session_id', session_id, httponly=True, samesite='Lax', secure=False, path='/')
         return resp
     except Exception as e:
-    return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ---------------- Intro/Outro Conversion ----------------
+
+def _ensure_intro_outro_lib() -> dict:
+    try:
+        LIB_DIR.mkdir(exist_ok=True)
+        if LIB_PATH.exists():
+            data = json.loads(LIB_PATH.read_text(encoding='utf-8') or '{}')
+            if isinstance(data, dict):
+                data.setdefault('intros', [])
+                data.setdefault('outros', [])
+                data.setdefault('active', {'intro': None, 'outro': None})
+                return data
+    except Exception:
+        pass
+    return {'intros': [], 'outros': [], 'active': {'intro': None, 'outro': None}}
+
+def _save_intro_outro_lib(data: dict):
+    try:
+        LIB_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+    except Exception:
+        pass
+
+def _local_path_from_url(url: str) -> Path | None:
+    try:
+        if not url:
+            return None
+        if url.startswith('http://localhost:5000/intro_outro/') or url.startswith('http://127.0.0.1:5000/intro_outro/'):
+            fname = url.split('/')[-1]
+            return Path('intro_outro') / fname
+        p = Path(url)
+        return p if p.exists() else None
+    except Exception:
+        return None
+
+def _convert_item_to_standard(item: dict, which: str) -> dict:
+    """Convert an intro/outro item to 1080x1920@30fps H.264/AAC and update videoUrl.
+    which: 'intro' or 'outro'
+    """
+    from scripts.ffmpeg_render import create_intro_video, create_outro_video
+    import imageio_ffmpeg, subprocess
+
+    width, height = 1080, 1920
+    duration = float(item.get('duration') or 3.0)
+
+    src_path = None
+    url = (item.get('videoUrl') or '').strip()
+    if url:
+        src_path = _local_path_from_url(url)
+
+    # If no video source, render HTML to a temp MP4 first
+    if not src_path:
+        tmp = Path('intro_outro') / f"tmp_{which}_{int(time.time())}.mp4"
+        if which == 'intro':
+            create_intro_video(tmp, {'html': item.get('html', '')}, duration, width, height, imageio_ffmpeg.get_ffmpeg_exe())
+        else:
+            create_outro_video(tmp, {'html': item.get('html', '')}, duration, width, height, imageio_ffmpeg.get_ffmpeg_exe())
+        src_path = tmp
+
+    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    out_name = f"std_{which}_{item.get('id') or 'item'}_{int(time.time())}.mp4"
+    out_path = Path('intro_outro') / out_name
+
+    cmd = [
+        ffmpeg, '-hide_banner', '-loglevel', 'error',
+        '-i', str(src_path),
+        '-r', '30',
+        '-vf', f'scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2',
+        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
+        '-c:a', 'aac', '-b:a', '192k', '-ar', '44100', '-ac', '2',
+        '-movflags', '+faststart',
+        '-y', str(out_path)
+    ]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if res.returncode != 0:
+        raise RuntimeError(f"Convert failed: {res.stderr[:300]}")
+
+    # Update item
+    from urllib.parse import urljoin
+    base = 'http://127.0.0.1:5000/'
+    item['videoUrl'] = urljoin(base, f"intro_outro/{out_name}")
+    item['itemType'] = 'video'
+    return item
+
+@app.route('/convert-intro-outro', methods=['POST'])
+def convert_intro_outro():
+    try:
+        data = request.get_json(force=True) or {}
+        which = (data.get('type') or '').strip().lower()  # 'intro' or 'outro'
+        item_id = (data.get('id') or '').strip()
+        set_active = bool(data.get('set_active', True))
+        if which not in ('intro', 'outro') or not item_id:
+            return jsonify({'success': False, 'error': 'type and id required'}), 400
+        lib = _ensure_intro_outro_lib()
+        items = lib['intros'] if which == 'intro' else lib['outros']
+        item = next((x for x in items if str(x.get('id')) == item_id), None)
+        if not item:
+            return jsonify({'success': False, 'error': 'Item not found'}), 404
+        item = _convert_item_to_standard(item, which)
+        # write back
+        for i, x in enumerate(items):
+            if str(x.get('id')) == item_id:
+                items[i] = item
+                break
+        if set_active:
+            lib.setdefault('active', {'intro': None, 'outro': None})
+            lib['active'][which] = item.get('id')
+        _save_intro_outro_lib(lib)
+        return jsonify({'success': True, 'item': item, 'active': lib.get('active')})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/convert-active-intro-outro', methods=['POST'])
+def convert_active_intro_outro():
+    try:
+        data = request.get_json(silent=True) or {}
+        set_active = bool(data.get('set_active', True))
+        lib = _ensure_intro_outro_lib()
+        act = lib.get('active') or {}
+        changed = []
+        for which in ('intro', 'outro'):
+            act_id = (act.get(which) or '').strip()
+            items = lib['intros'] if which == 'intro' else lib['outros']
+            if not items:
+                continue
+            item = None
+            if act_id:
+                item = next((x for x in items if str(x.get('id')) == act_id), None)
+            if item is None:
+                item = next((x for x in items if x.get('active')), None)
+            if item is None:
+                continue
+            item = _convert_item_to_standard(item, which)
+            for i, x in enumerate(items):
+                if str(x.get('id')) == item.get('id'):
+                    items[i] = item
+                    break
+            if set_active:
+                lib.setdefault('active', {'intro': None, 'outro': None})
+                lib['active'][which] = item.get('id')
+            changed.append({'type': which, 'id': item.get('id'), 'videoUrl': item.get('videoUrl')})
+        _save_intro_outro_lib(lib)
+        return jsonify({'success': True, 'changed': changed, 'active': lib.get('active')})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ---------------- Intro/Outro Library Endpoints ----------------
 
@@ -250,15 +391,58 @@ LIB_DIR.mkdir(exist_ok=True)
 LIB_PATH = LIB_DIR / 'library.json'
 
 def _load_intro_outro_library():
+    """Load intro/outro library, supporting both new and legacy formats.
+
+    New format: intro_outro/library.json with keys { intros: [], outros: [], active: { intro, outro } }
+    Legacy format: intro_outro_library.json at repo root with items marking active via item['active'].
+    """
+    # 1) Try new format first
     try:
         if LIB_PATH.exists():
             data = json.loads(LIB_PATH.read_text(encoding='utf-8') or '{}')
+            if not isinstance(data, dict):
+                data = {}
             data.setdefault('intros', [])
             data.setdefault('outros', [])
             data.setdefault('active', {'intro': None, 'outro': None})
-            return data
+            # If new lib has any items, use it
+            if data['intros'] or data['outros']:
+                return data
     except Exception:
         pass
+
+    # 2) Fallback to legacy file(s)
+    legacy_candidates = [
+        Path(__file__).parent.parent / 'intro_outro_library.json',
+        Path(__file__).parent / 'intro_outro_library.json',
+    ]
+    for cand in legacy_candidates:
+        try:
+            if cand.exists():
+                raw = cand.read_text(encoding='utf-8')
+                legacy = json.loads(raw or '{}') if raw is not None else {}
+                if isinstance(legacy, dict):
+                    intros = legacy.get('intros', []) or []
+                    outros = legacy.get('outros', []) or []
+                    active_map = {'intro': None, 'outro': None}
+                    act_intro = next((x for x in intros if x.get('active')), None)
+                    act_outro = next((x for x in outros if x.get('active')), None)
+                    if act_intro:
+                        active_map['intro'] = act_intro.get('id') or act_intro.get('name')
+                    if act_outro:
+                        active_map['outro'] = act_outro.get('id') or act_outro.get('name')
+                    data = {'intros': intros, 'outros': outros, 'active': active_map}
+                    # Persist to new format so UI sees it next time
+                    try:
+                        LIB_DIR.mkdir(exist_ok=True)
+                        LIB_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+                    except Exception:
+                        pass
+                    return data
+        except Exception:
+            continue
+
+    # 3) Nothing found
     return {'intros': [], 'outros': [], 'active': {'intro': None, 'outro': None}}
 
 def _save_intro_outro_library(data: dict):
@@ -452,7 +636,7 @@ def _health():
     return jsonify({
         'ok': True,
         'service': 'MSS API',
-        'version': '5.5.1',
+        'version': '5.5.2',
         'endpoints': [
             '/studio', '/topics', '/post-process-video',
             '/get-avatar-library', '/get-logo-library', '/api/logo-files',
@@ -1251,6 +1435,42 @@ else:
     print(f"[WARN] .env file not found at: {env_file}")
 
 
+@app.route('/generate-ai-thumbnail', methods=['POST'])
+def generate_ai_thumbnail():
+    """Generate multiple thumbnail variants with PIL text overlay.
+
+    Body JSON: { title: str, prompt?: str }
+    Returns: { success: bool, thumbnails: [{ variation, url }] }
+    """
+    try:
+        data = request.get_json(force=True) or {}
+        title = (data.get('title') or '').strip()
+        if not title:
+            return jsonify({'success': False, 'error': 'Missing title'}), 400
+
+        # Where to write variants so they can be served via /thumbnails/<file>
+        outdir = Path(__file__).parent.parent / 'thumbnails'
+        outdir.mkdir(exist_ok=True)
+
+        # Generate 3 variants using existing utility
+        variants = generate_thumbnail_variants(title, outdir, count=3)
+
+        # Build absolute URLs for client consumption
+        from urllib.parse import urljoin
+        base = request.host_url if hasattr(request, 'host_url') else 'http://127.0.0.1:5000/'
+        thumbs = []
+        for idx, path in enumerate(variants, start=1):
+            thumbs.append({
+                'variation': f'variant_{idx}',
+                'url': urljoin(base, f'thumbnails/{path.name}')
+            })
+
+        return jsonify({'success': True, 'thumbnails': thumbs})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/generate-topics', methods=['GET', 'POST'])
 def generate_topics():
     """Generate AI-powered video topics.
@@ -1398,7 +1618,7 @@ def _generate_mock_topics(brand: str, seed: str):
             'title': f"{brand}: {title}",
             'angle': 'Timely overview with key takeaways',
             'keywords': [base, 'news', 'analysis', 'tips', '2025'],
-            'yt_title': f"{title} — What You Need to Know",
+            'yt_title': f"{title} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â What You Need to Know",
             'yt_description': f"Quick breakdown of {title} for {brand}.",
             'yt_tags': [base, 'trends', 'explained', brand],
             'outline': [
@@ -1815,8 +2035,7 @@ def create_video_enhanced():
                             f"fade=t=in:st=0:d=0.5:alpha=1[logo];[0:v][logo]overlay={pos}"
                         )
                         cmd = [
-                            ffmpeg,
-                            '-i', str(input_path),
+                            ffmpeg, '-hide_banner', '-loglevel', 'error', '-i', str(input_path),
                             '-i', str(logo_path),
                             '-filter_complex', filter_complex,
                             '-c:v', 'libx264',
@@ -1979,7 +2198,6 @@ def post_process_video():
         intro_text = request.form.get('intro_text', '')
         outro_text = request.form.get('outro_text', '')
         add_intro_outro = request.form.get('add_intro_outro', 'true').lower() == 'true'
-
         # Save uploaded video
         outdir = Path("out")
         ensure_dir(outdir)
@@ -2090,8 +2308,7 @@ def post_process_video():
                 return jsonify({'success': False, 'error': f'FFmpeg not available: {oe}'}), 500
 
             cmd = [
-                ffmpeg,
-                '-i', str(video_path),
+                ffmpeg, '-hide_banner', '-loglevel', 'error', '-i', str(video_path),
                 '-vn',  # No video
                 '-acodec', 'mp3',
                 '-y',
@@ -2201,8 +2418,7 @@ def post_process_video():
                             print(f"[LOGO-FIRST] Filter: {filter_complex}")
                             video_with_logo = outdir / f"video_with_logo_{int(time.time())}.mp4"
                             cmd = [
-                                ffmpeg,
-                                '-i', str(current_video),
+                                ffmpeg, '-hide_banner', '-loglevel', 'error', '-i', str(current_video),
                                 '-i', str(logo_path),
                                 '-filter_complex', filter_complex,
                                 '-c:v', 'libx264',
@@ -2415,8 +2631,7 @@ def post_process_video():
                 filter_complex = f"[1:v]scale=iw*{scale}:ih*{scale}[avatar];[0:v][avatar]overlay={pos}:eof_action=pass"
 
                 cmd = [
-                    ffmpeg,
-                    '-i', str(current_video),
+                    ffmpeg, '-hide_banner', '-loglevel', 'error', '-i', str(current_video),
                     '-i', str(avatar_video_path),
                     '-filter_complex', filter_complex,
                     '-c:v', 'libx264',
@@ -2493,20 +2708,27 @@ def post_process_video():
                 cand_mss = Path(__file__).parent.parent / 'logos' / ui_logo_filename
                 print(f"[LOGO-LATE] UI override => MSS: {cand_mss.exists()} {cand_mss}")
                 logo_path = cand_mss if cand_mss.exists() else None
-            # Active logo
-            library_file = Path(__file__).parent / 'logo_library.json'
-            if library_file.exists() and (not logo_path):
-                try:
-                    lib = json.loads(library_file.read_text(encoding='utf-8'))
-                    active = next((l for l in lib.get('logos', []) if l.get('active')), None)
-                    if active:
-                        fname = active.get('filename') or (active.get('url','').split('/')[-1])
-                        if fname:
-                            cand_mss = Path(__file__).parent.parent / 'logos' / fname
-                            print(f"[LOGO-LATE] Candidates => MSS: {cand_mss.exists()} {cand_mss}")
-                            logo_path = cand_mss if cand_mss.exists() else None
-                except Exception:
-                    pass
+            # Active logo (check repo root and web/)
+            if not logo_path:
+                for library_file in [Path('logo_library.json'), Path(__file__).parent / 'logo_library.json']:
+                    if not library_file.exists():
+                        continue
+                    try:
+                        lib = json.loads(library_file.read_text(encoding='utf-8'))
+                        active = next((l for l in lib.get('logos', []) if l.get('active')), None)
+                        if active:
+                            fname = active.get('filename') or (active.get('url','').split('/')[-1])
+                            if fname:
+                                for d in [Path(__file__).parent.parent / 'logos', Path(__file__).parent / 'logos', Path(__file__).parent / 'logos_migrated']:
+                                    cand = d / fname
+                                    print(f"[LOGO-LATE] Candidates => {cand.exists()} {cand}")
+                                    if cand.exists():
+                                        logo_path = cand
+                                        break
+                        if logo_path:
+                            break
+                    except Exception:
+                        continue
             # Position / fallback URL
             ts_path = Path(__file__).parent.parent / 'thumbnail_settings.json'
             if ts_path.exists():
@@ -2515,9 +2737,12 @@ def post_process_video():
                     logo_position = ts.get('logoPosition', logo_position)
                     if not logo_path and ts.get('logoUrl'):
                         fname = ts.get('logoUrl').split('/')[-1]
-                        cand_mss = Path(__file__).parent.parent / 'logos' / fname
-                        print(f"[LOGO-LATE] Candidates => MSS: {cand_mss.exists()} {cand_mss}")
-                        logo_path = cand_mss if cand_mss.exists() else None
+                        for d in [Path(__file__).parent.parent / 'logos', Path(__file__).parent / 'logos', Path(__file__).parent / 'logos_migrated']:
+                            cand = d / fname
+                            print(f"[LOGO-LATE] Candidates => {cand.exists()} {cand}")
+                            if cand.exists():
+                                logo_path = cand
+                                break
                 except Exception:
                     pass
             if logo_path and logo_path.exists():
@@ -2545,8 +2770,7 @@ def post_process_video():
                     f"fade=t=in:st=0:d=0.5:alpha=1[logo];[0:v][logo]overlay={pos}"
                 )
                 cmd = [
-                    ffmpeg,
-                    '-i', str(current_video),
+                    ffmpeg, '-hide_banner', '-loglevel', 'error', '-i', str(current_video),
                     '-i', str(logo_path),
                     '-filter_complex', filter_complex,
                     '-c:v', 'libx264',
@@ -2591,21 +2815,64 @@ def post_process_video():
                 }
             })
 
-        # Get video dimensions from the main video
-        probe_cmd = [
-            ffmpeg,
-            '-i', str(video_with_avatar),
-            '-hide_banner'
-        ]
-        probe_result = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-
-        # Parse dimensions (look for "Stream #0:0" line with resolution)
+        # Robustly get video dimensions from the main video (ffprobe with fallback)
         import re
-        match = re.search(r'(\d{3,})x(\d{3,})', probe_result.stdout)
-        if match:
-            width, height = int(match.group(1)), int(match.group(2))
+        import json as _json
+        from pathlib import Path as _Path2
+
+        def _find_ffprobe(_ffmpeg_path: str) -> str | None:
+            try:
+                import shutil as _shutil
+                cand = _shutil.which('ffprobe')
+                if cand:
+                    return cand
+                try:
+                    p = _Path2(_ffmpeg_path).parent / ('ffprobe.exe' if os.name == 'nt' else 'ffprobe')
+                    if p.exists():
+                        return str(p)
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            return None
+
+        def _get_video_dims(_path: _Path2) -> tuple[int, int] | None:
+            ffprobe = _find_ffprobe(ffmpeg)
+            if ffprobe:
+                cmd = [
+                    ffprobe,
+                    '-v', 'error',
+                    '-select_streams', 'v:0',
+                    '-show_entries', 'stream=width,height',
+                    '-of', 'json',
+                    str(_path)
+                ]
+                r = subprocess.run(cmd, capture_output=True, text=True)
+                if r.returncode == 0 and r.stdout:
+                    try:
+                        d = _json.loads(r.stdout)
+                        s = (d.get('streams') or [{}])[0]
+                        w = int(s.get('width') or 0)
+                        h = int(s.get('height') or 0)
+                        if w and h:
+                            return w, h
+                    except Exception:
+                        pass
+            # Fallback: parse ffmpeg probe output
+            probe_cmd = [ffmpeg, '-hide_banner', '-loglevel', 'error', '-i', str(_path), '-hide_banner']
+            probe_result = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            m = re.search(r'Video:.*?(\d{3,})x(\d{3,})', probe_result.stdout)
+            if not m:
+                m = re.search(r'(\d{3,})x(\d{3,})', probe_result.stdout)
+            if m:
+                return int(m.group(1)), int(m.group(2))
+            return None
+
+        dims = _get_video_dims(video_with_avatar)
+        if dims:
+            width, height = dims
         else:
-            # Default to common portrait size
+            # Default to common portrait size if all probes fail
             width, height = 1080, 1920
 
         print(f"[INFO] Video dimensions: {width}x{height}")
@@ -2621,21 +2888,41 @@ def post_process_video():
 
         print(f"[DEBUG] Looking for intro/outro libraries: new={new_lib}, legacy={legacy_lib}")
         try:
+            def _resolve_active(lib: dict, which: str, desired_id: str | None):
+                items = lib.get(which, []) or []
+                # 1) match by id from active map
+                if desired_id:
+                    hit = next((x for x in items if x.get('id') == desired_id), None)
+                    if hit:
+                        return hit
+                # 2) any item marked active: true
+                hit = next((x for x in items if x.get('active')), None)
+                if hit:
+                    return hit
+                # 3) match by name if active map stored name
+                if desired_id:
+                    hit = next((x for x in items if (x.get('name') or '').strip() == str(desired_id).strip()), None)
+                    if hit:
+                        return hit
+                return None
+
             if new_lib.exists():
                 lib = json.loads(new_lib.read_text(encoding='utf-8') or '{}')
                 act = (lib.get('active') or {}) if isinstance(lib, dict) else {}
                 intro_id = act.get('intro')
                 outro_id = act.get('outro')
-                if intro_id:
-                    active_intro = next((x for x in (lib.get('intros') or []) if x.get('id') == intro_id), None)
-                if outro_id:
-                    active_outro = next((x for x in (lib.get('outros') or []) if x.get('id') == outro_id), None)
+                ai = _resolve_active(lib, 'intros', intro_id)
+                ao = _resolve_active(lib, 'outros', outro_id)
+                if ai:
+                    active_intro = ai
+                if ao:
+                    active_outro = ao
             if (not active_intro or not active_outro) and legacy_lib.exists():
                 legacy = json.loads(legacy_lib.read_text(encoding='utf-8') or '{}')
                 if not active_intro:
-                    active_intro = next((x for x in legacy.get('intros', []) if x.get('active')), None)
+                    active_intro = _resolve_active(legacy, 'intros', None)
                 if not active_outro:
-                    active_outro = next((x for x in legacy.get('outros', []) if x.get('active')), None)
+                    active_outro = _resolve_active(legacy, 'outros', None)
         except Exception as e:
             print(f"[WARN] Could not load intro/outro libraries: {e}")
 
@@ -2647,6 +2934,25 @@ def post_process_video():
             print(f"[OUTRO] Active outro: {active_outro.get('name')}")
         else:
             print(f"[OUTRO] No active outro selected; will use defaults")
+
+        # UI override: simple intro/outro text if provided
+        try:
+            if intro_text and intro_text.strip():
+                t = intro_text.strip()
+                active_intro = (active_intro or {})
+                active_intro.setdefault('name', 'UI Intro')
+                active_intro['html'] = f"<div style='display:flex;align-items:center;justify-content:center;height:100%;'><div style='text-align:center;color:#E8EBFF;'><h1 style='color:#FFD700;margin:0;'>{t}</h1></div></div>"
+                active_intro.setdefault('duration', 3.0)
+                print(f"[INTRO] Overriding with UI intro text")
+            if outro_text and outro_text.strip():
+                t2 = outro_text.strip()
+                active_outro = (active_outro or {})
+                active_outro.setdefault('name', 'UI Outro')
+                active_outro['html'] = f"<div style='display:flex;align-items:center;justify-content:center;height:100%;'><div style='text-align:center;color:#E8EBFF;'><h1 style='color:#FFD700;margin:0;'>{t2}</h1><div style='margin-top:8px;opacity:0.8;'>MANY SOURCES SAY</div></div></div>"
+                active_outro.setdefault('duration', 3.0)
+                print(f"[OUTRO] Overriding with UI outro text")
+        except Exception:
+            pass
 
         # Create intro video
         intro_path = outdir / f"intro_{int(time.time())}.mp4"
@@ -2838,23 +3144,15 @@ def post_process_video():
 
         def resize_video_if_needed(input_path, output_path, target_width, target_height):
             """Resize video to target dimensions if they don't match"""
-            # Get current dimensions
-            probe_cmd = [
-                ffmpeg,
-                '-i', str(input_path),
-                '-hide_banner'
-            ]
-            probe_result = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-            match = re.search(r'(\d{3,})x(\d{3,})', probe_result.stdout)
-
-            if match:
-                current_width, current_height = int(match.group(1)), int(match.group(2))
+            # Get current dimensions via robust probe
+            dims_local = _get_video_dims(input_path)
+            if dims_local:
+                current_width, current_height = dims_local
 
                 if current_width != target_width or current_height != target_height:
                     print(f"[RESIZE] Resizing {input_path.name} from {current_width}x{current_height} to {target_width}x{target_height}")
                     resize_cmd = [
-                        ffmpeg,
-                        '-i', str(input_path),
+                        ffmpeg, '-hide_banner', '-loglevel', 'error', '-i', str(input_path),
                         '-vf', f'scale={target_width}:{target_height}:force_original_aspect_ratio=decrease,pad={target_width}:{target_height}:(ow-iw)/2:(oh-ih)/2',
                         '-c:v', 'libx264',
                         '-c:a', 'aac',
@@ -2872,8 +3170,25 @@ def post_process_video():
                     print(f"[OK] {input_path.name} already correct size")
                     return input_path
             else:
-                print(f"[WARN] Could not determine dimensions for {input_path.name}, using as-is")
-                return input_path
+                # If probe fails, still scale/pad to target to ensure concat compatibility
+                print(f"[WARN] Probe failed for {input_path.name}; forcing {target_width}x{target_height}")
+                force_out = output_path
+                resize_cmd = [
+                    ffmpeg,
+                    '-i', str(input_path),
+                    '-vf', f'scale={target_width}:{target_height}:force_original_aspect_ratio=decrease,pad={target_width}:{target_height}:(ow-iw)/2:(oh-ih)/2',
+                    '-c:v', 'libx264',
+                    '-c:a', 'copy',
+                    '-y',
+                    str(force_out)
+                ]
+                resize_result = subprocess.run(resize_cmd, capture_output=True, text=True)
+                if resize_result.returncode == 0:
+                    print(f"[OK] Resized: {force_out}")
+                    return force_out
+                else:
+                    print(f"[WARN] Resize failed, using original: {resize_result.stderr[:200]}")
+                    return input_path
 
         intro_path_resized = resize_video_if_needed(intro_path, outdir / f"intro_resized_{int(time.time())}.mp4", width, height)
         outro_path_resized = resize_video_if_needed(outro_path, outdir / f"outro_resized_{int(time.time())}.mp4", width, height)
@@ -2895,132 +3210,165 @@ def post_process_video():
             raise Exception(f"Outro video not found: {outro_path_resized}")
         concat_list_path = None
 
-        # Concatenate using filter_complex concat with aresample and setpts to avoid NaN audio and ts issues
-        print("[CONCAT] Concatenating intro + video + outro (filter_complex)...")
+        # Demuxer concat path (default on Windows): normalize -> TS remux -> concat
+        ts_now = int(time.time())
+        final_video = outdir / f"final_with_intro_outro_{ts_now}.mp4"
+        print("[CONCAT] Using demuxer concat path (normalize -> TS).")
+        # Normalize each clip, then concat using demuxer
+        print("[FALLBACK] Normalizing clips and concatenating via demuxer...")
+        def normalize_clip(src_path: Path, out_path: Path):
+            print(f"[NORM] Normalizing clip: {src_path} -> {out_path}")
+            # Fast path: try pure remux/copy (works when codecs are already compatible)
+            quick_cmd = [
+                ffmpeg, '-hide_banner', '-loglevel', 'error',
+                '-i', str(src_path),
+                '-c', 'copy',
+                '-movflags', '+faststart',
+                '-y', str(out_path)
+            ]
+            res_quick = subprocess.run(quick_cmd, capture_output=True, text=True)
+            if res_quick.returncode == 0:
+                return
 
-        final_video = outdir / f"final_with_intro_outro_{int(time.time())}.mp4"
-
-        filter_complex = (
-            "[0:v]setpts=PTS-STARTPTS[v0];"
-            "[0:a]aresample=async=1:min_hard_compensation=0.010:first_pts=0,asetpts=N/SR/TB[a0];"
-            "[1:v]setpts=PTS-STARTPTS[v1];"
-            "[1:a]aresample=async=1:min_hard_compensation=0.010:first_pts=0,asetpts=N/SR/TB[a1];"
-            "[2:v]setpts=PTS-STARTPTS[v2];"
-            "[2:a]aresample=async=1:min_hard_compensation=0.010:first_pts=0,asetpts=N/SR/TB[a2];"
-            "[v0][a0][v1][a1][v2][a2]concat=n=3:v=1:a=1[v][a]"
-        )
-
-        concat_cmd = [
-            ffmpeg,
-            '-i', str(intro_path_resized),
-            '-i', str(current_video),
-            '-i', str(outro_path_resized),
-            '-filter_complex', filter_complex,
-            '-map', '[v]',
-            '-map', '[a]',
-            '-c:v', 'libx264',
-            '-preset', 'fast',
-            '-crf', '23',
-            '-c:a', 'aac',
-            '-b:a', '192k',
-            '-y', str(final_video)
-        ]
-
-        print(f"[DEBUG] Concat command: {' '.join(concat_cmd)}")
-        concat_result = subprocess.run(concat_cmd, capture_output=True, text=True)
-
-        if concat_result.returncode != 0:
-            print(f"[!] CONCAT FAILED with filter_complex")
-            print(f"[!] Error: {concat_result.stderr[:500]}")
-
-            # Fallback: normalize each clip, then concat using demuxer
-            print("[FALLBACK] Normalizing clips and concatenating via demuxerâ€¦")
-            def normalize_clip(src_path: Path, out_path: Path):
-                print(f"[NORM] Normalizing clip: {src_path} -> {out_path}")
-                norm_cmd = [
-                    ffmpeg,
-                    '-i', str(src_path),
+            # Encode path: re-encode with ultrafast preset, align fps/pixel format/audio
+            norm_cmd = [
+                ffmpeg, '-hide_banner', '-loglevel', 'error', '-i', str(src_path),
+                '-vf', 'fps=30,format=yuv420p,setsar=1/1',
+                '-af', 'aformat=sample_fmts=s16:channel_layouts=stereo,aresample=async=1:first_pts=0,asetpts=N/SR/TB,apad',
+                '-ar', '44100',
+                '-ac', '2',
+                '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+                '-c:a', 'aac',
+                '-movflags', '+faststart',
+                '-y', str(out_path)
+            ]
+            res = subprocess.run(norm_cmd, capture_output=True, text=True)
+            if res.returncode != 0:
+                print(f"[WARN] Normalize pass1 failed: {res.stderr[:300]}")
+                norm2_cmd = [
+                    ffmpeg, '-hide_banner', '-loglevel', 'error', '-i', str(src_path),
+                    '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
                     '-vf', 'fps=30,format=yuv420p,setsar=1/1',
-                    '-af', 'aformat=sample_fmts=s16:channel_layouts=stereo,aresample=async=1:min_hard_compensation=0.100:first_pts=0,asetpts=N/SR/TB,apad',
-                    '-ar', '44100',
-                    '-ac', '2',
-                    '-c:v', 'libx264',
+                    '-map', '0:v:0',
+                    '-map', '1:a:0',
+                    '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
                     '-c:a', 'aac',
+                    '-shortest',
                     '-movflags', '+faststart',
                     '-y', str(out_path)
                 ]
-                res = subprocess.run(norm_cmd, capture_output=True, text=True)
-                if res.returncode != 0:
-                    print(f"[WARN] Normalize pass1 failed: {res.stderr[:300]}")
-                    norm2_cmd = [
-                        ffmpeg,
-                        '-i', str(src_path),
-                        '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
-                        '-vf', 'fps=30,format=yuv420p,setsar=1/1',
-                        '-map', '0:v:0',
-                        '-map', '1:a:0',
-                        '-c:v', 'libx264',
-                        '-c:a', 'aac',
-                        '-shortest',
-                        '-movflags', '+faststart',
-                        '-y', str(out_path)
-                    ]
-                    res2 = subprocess.run(norm2_cmd, capture_output=True, text=True)
-                    if res2.returncode != 0:
-                        print(f"[!] Normalize pass2 failed: {res2.stderr[:300]}")
-                        raise Exception(f"Normalize failed: {src_path}")
+                res2 = subprocess.run(norm2_cmd, capture_output=True, text=True)
+                if res2.returncode != 0:
+                    print(f"[!] Normalize pass2 failed: {res2.stderr[:300]}")
+                    raise Exception(f"Normalize failed: {src_path}")
 
-            # Normalize each source to stable MP4 (H.264/AAC)
-            n_intro = outdir / f"n_intro_{int(time.time())}.mp4"
-            n_main = outdir / f"n_main_{int(time.time())}.mp4"
-            n_outro = outdir / f"n_outro_{int(time.time())}.mp4"
+        # Normalize each source to stable MP4 (H.264/AAC) with simple caching for intro/outro
+        def _norm_cache_path(src: Path) -> Path:
+            try:
+                cache_dir = Path('out') / 'cache_norm'
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                st = src.stat()
+                key = f"{src.stem}_{st.st_size}_{int(st.st_mtime)}.mp4"
+                return cache_dir / key
+            except Exception:
+                # Fallback to non-cached path if something goes wrong
+                return Path('out') / f"n_{src.stem}_{int(time.time())}.mp4"
 
+        # Cache intro/outro (often reused); main video is per-upload so keep temp
+        n_intro = _norm_cache_path(intro_path_resized)
+        if not n_intro.exists():
             normalize_clip(intro_path_resized, n_intro)
-            normalize_clip(current_video, n_main)
+
+        n_main = outdir / f"n_main_{int(time.time())}.mp4"
+        normalize_clip(current_video, n_main)
+
+        n_outro = _norm_cache_path(outro_path_resized)
+        if not n_outro.exists():
             normalize_clip(outro_path_resized, n_outro)
 
-            # Remux normalized MP4s to TS and concat via concat: protocol
-            print("[FALLBACK] Remuxing to TS and concatenating via concat protocol…")
+        # Remux normalized MP4s to TS and concat via concat: protocol
+        print("[FALLBACK] Remuxing to TS and concatenating via concat protocol...")
 
-            ts_intro = outdir / f"ts_intro_{int(time.time())}.ts"
-            ts_main = outdir / f"ts_main_{int(time.time())}.ts"
-            ts_outro = outdir / f"ts_outro_{int(time.time())}.ts"
+        ts_intro = outdir / f"ts_intro_{int(time.time())}.ts"
+        ts_main = outdir / f"ts_main_{int(time.time())}.ts"
+        ts_outro = outdir / f"ts_outro_{int(time.time())}.ts"
 
-            def remux_to_ts(src: Path, dst: Path):
-                cmd = [
-                    ffmpeg,
-                    '-i', str(src),
-                    '-c', 'copy',
-                    '-bsf:v', 'h264_mp4toannexb',
-                    '-f', 'mpegts',
-                    str(dst)
-                ]
-                r = subprocess.run(cmd, capture_output=True, text=True)
-                if r.returncode != 0:
-                    print(f"[!] TS remux failed for {src}: {r.stderr[:300]}")
-                    raise Exception('TS remux failed')
-
-            remux_to_ts(n_intro, ts_intro)
-            remux_to_ts(n_main, ts_main)
-            remux_to_ts(n_outro, ts_outro)
-
-            concat_input = f"concat:{ts_intro.absolute()}|{ts_main.absolute()}|{ts_outro.absolute()}"
-            ts_concat_cmd = [
-                ffmpeg,
-                '-i', concat_input,
+        def remux_to_ts(src: Path, dst: Path):
+            cmd = [
+                ffmpeg, '-hide_banner', '-loglevel', 'error', '-i', str(src),
                 '-c', 'copy',
-                '-bsf:a', 'aac_adtstoasc',
-                '-movflags', '+faststart',
-                '-y', str(final_video)
+                '-bsf:v', 'h264_mp4toannexb',
+                '-f', 'mpegts',
+                str(dst)
             ]
-            print(f"[FALLBACK] TS concat: {' '.join(ts_concat_cmd)}")
-            ts_res = subprocess.run(ts_concat_cmd, capture_output=True, text=True)
-            if ts_res.returncode != 0:
-                print(f"[!] TS concat failed: {ts_res.stderr[:500]}")
-                raise Exception(f"Concatenation failed: {ts_res.stderr}")
+            r = subprocess.run(cmd, capture_output=True, text=True)
+            if r.returncode != 0:
+                print(f"[!] TS remux failed for {src}: {r.stderr[:300]}")
+                raise Exception('TS remux failed')
+
+        remux_to_ts(n_intro, ts_intro)
+        remux_to_ts(n_main, ts_main)
+        remux_to_ts(n_outro, ts_outro)
+
+        concat_input = f"concat:{ts_intro.absolute()}|{ts_main.absolute()}|{ts_outro.absolute()}"
+        ts_concat_cmd = [
+            ffmpeg, '-hide_banner', '-loglevel', 'error', '-i', concat_input,
+            '-c', 'copy',
+            '-bsf:a', 'aac_adtstoasc',
+            '-movflags', '+faststart',
+            '-y', str(final_video)
+        ]
+        print(f"[FALLBACK] TS concat: {' '.join(ts_concat_cmd)}")
+        ts_res = subprocess.run(ts_concat_cmd, capture_output=True, text=True)
+        if ts_res.returncode != 0:
+            print(f"[!] TS concat failed: {ts_res.stderr[:500]}")
+            raise Exception(f"Concatenation failed: {ts_res.stderr}")
 
         print(f"[OK] Final video with intro/outro created: {final_video}")
         print(f"[OK] File size: {final_video.stat().st_size} bytes")
+
+        # Optional wide (16:9) render
+        make_wide = (request.form.get('make_wide', 'true') or 'true').lower() in {'true', '1', 'yes'}
+        wide_blur = (request.form.get('wide_blur', 'false') or 'false').lower() in {'true', '1', 'yes'}
+        final_wide = None
+        if make_wide:
+            try:
+                target_w, target_h = 1920, 1080
+                out_wide = outdir / f"final_with_intro_outro_wide_{ts_now}.mp4"
+                print(f"[WIDE] Creating 16:9 variant (blur={wide_blur}) -> {out_wide}")
+                if wide_blur:
+                    vf = (
+                        f"[0:v]scale={target_w}:{target_h},boxblur=luma_radius=20:luma_power=1:chroma_radius=20:chroma_power=1[bg];"
+                        f"[0:v]scale=-2:{target_h}[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,format=yuv420p"
+                    )
+                    cmd = [
+                        ffmpeg, '-hide_banner', '-loglevel', 'error', '-i', str(final_video),
+                        '-vf', vf,
+                        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22',
+                        '-c:a', 'copy',
+                        '-movflags', '+faststart', '-y', str(out_wide)
+                    ]
+                else:
+                    # Plain pad to 1920x1080 with black side fill
+                    vf = (
+                        f"scale=-2:{target_h}:flags=lanczos,"
+                        f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:black,format=yuv420p"
+                    )
+                    cmd = [
+                        ffmpeg, '-hide_banner', '-loglevel', 'error', '-i', str(final_video),
+                        '-vf', vf,
+                        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22',
+                        '-c:a', 'copy',
+                        '-movflags', '+faststart', '-y', str(out_wide)
+                    ]
+                r = subprocess.run(cmd, capture_output=True, text=True)
+                if r.returncode == 0 and out_wide.exists():
+                    final_wide = out_wide
+                    print(f"[OK] Wide variant created: {final_wide}")
+                else:
+                    print(f"[WARN] Wide variant failed: {r.stderr[:300]}")
+            except Exception as _werr:
+                print(f"[WARN] Wide variant error: {_werr}")
 
         # Clean up temporary files
         # No temp concat list to clean up with filter_complex
@@ -3037,6 +3385,7 @@ def post_process_video():
             'message': 'Video post-processed successfully',
             'files': {
                 'final_video': final_video.name,
+                'final_wide': final_wide.name if final_wide else None,
                 'avatar_video': avatar_video_path.name if avatar_video_path else None
             }
         })
@@ -3252,17 +3601,6 @@ def serve_avatar_file(filename):
     except Exception as e:
         return jsonify({'error': str(e)}), 404
 
-
-@app.route('/intro_outro/<path:filename>', methods=['GET'])
-def serve_intro_outro_file(filename):
-    """Serve files from the intro_outro directory"""
-    try:
-        intro_outro_dir = Path("intro_outro").absolute()
-        return send_from_directory(intro_outro_dir, filename)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 404
-
-
 @app.route('/thumbnails/<path:filename>', methods=['GET'])
 def serve_thumbnail_file(filename):
     """Serve generated thumbnail/background images"""
@@ -3325,6 +3663,70 @@ def browse_thumbnails():
             '<h1>Thumbnails</h1>' + (''.join(rows) if rows else '<p>No thumbnails found.</p>') + '</body></html>'
         )
         return html
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/health', methods=['GET'])
+def api_health():
+    """Health check for rendering stack.
+
+    Query params:
+    - deep=1 to attempt a quick Chromium launch test.
+    """
+    try:
+        import shutil
+        import imageio_ffmpeg
+        from pathlib import Path as _PathH
+
+        # ffmpeg
+        try:
+            ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+            ffmpeg_ok = bool(ffmpeg_path)
+        except Exception:
+            ffmpeg_path = None
+            ffmpeg_ok = False
+
+        # ffprobe (PATH or alongside ffmpeg)
+        ffprobe_path = shutil.which('ffprobe')
+        if not ffprobe_path and ffmpeg_path:
+            try:
+                cand = _PathH(ffmpeg_path).parent / ('ffprobe.exe' if os.name == 'nt' else 'ffprobe')
+                if cand.exists():
+                    ffprobe_path = str(cand)
+            except Exception:
+                pass
+        ffprobe_ok = bool(ffprobe_path)
+
+        # Playwright status
+        playwright_importable = False
+        chromium_ready = None
+        check_mode = 'shallow'
+        try:
+            from playwright.sync_api import sync_playwright  # type: ignore
+            playwright_importable = True
+            if (request.args.get('deep') or '').lower() in {'1', 'true', 'yes'}:
+                check_mode = 'deep'
+                try:
+                    with sync_playwright() as p:
+                        b = p.chromium.launch(headless=True)
+                        b.close()
+                    chromium_ready = True
+                except Exception:
+                    chromium_ready = False
+        except Exception:
+            playwright_importable = False
+
+        return jsonify({
+            'success': True,
+            'ffmpeg': {'available': ffmpeg_ok, 'path': ffmpeg_path},
+            'ffprobe': {'available': ffprobe_ok, 'path': ffprobe_path},
+            'playwright': {
+                'importable': playwright_importable,
+                'chromium_ready': chromium_ready,
+                'check': check_mode
+            }
+        })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -3573,4 +3975,8 @@ def upload_logo_to_library():
         return jsonify({'success': True, 'url': url, 'logo': entry})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+
+
 

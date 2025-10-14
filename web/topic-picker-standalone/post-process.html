@@ -314,6 +314,18 @@
                     <label>Outro Text (optional)</label>
                     <input type="text" id="outroText" name="outro_text" placeholder="e.g., Thanks for watching!" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #94a3b8; background: rgba(255,255,255,0.05); color: #E8EBFF;">
                 </div>
+                <div class="option-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="makeWide" name="make_wide" checked>
+                        <span>Also export 16:9 wide version (1920x1080)</span>
+                    </label>
+                </div>
+                <div class="option-group" id="wideBlurGroup" style="margin-left:28px;">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="wideBlur" name="wide_blur">
+                        <span>Use blurred side fill for the wide version</span>
+                    </label>
+                </div>
             </div>
 
             <!-- Submit Button -->
@@ -337,6 +349,11 @@
             <div style="text-align: center;">
                 <a href="#" class="download-btn" id="downloadBtn" download>📥 Download Final Video</a>
             </div>
+        </div>
+
+        <!-- Optional wide output link -->
+        <div id="wideLinks" style="display:none; text-align:center; margin: 10px 0 0 0;">
+            <a href="#" class="download-btn" id="downloadWideBtn" download>Download Wide 16:9</a>
         </div>
 
         <div class="back-link">
@@ -448,11 +465,15 @@
                 const useDID = document.getElementById('useDID').checked;
                 const introText = document.getElementById('introText').value;
                 const outroText = document.getElementById('outroText').value;
+                const makeWide = document.getElementById('makeWide').checked;
+                const wideBlur = document.getElementById('wideBlur').checked;
 
                 formData.append('video', videoFile);
                 formData.append('use_did', useDID ? 'true' : 'false');
                 if (introText) formData.append('intro_text', introText);
                 if (outroText) formData.append('outro_text', outroText);
+                formData.append('make_wide', makeWide ? 'true' : 'false');
+                formData.append('wide_blur', wideBlur ? 'true' : 'false');
 
                 // Update status
                 statusMessage.textContent = useDID
@@ -479,6 +500,16 @@
                     document.getElementById('videoPreview').src = videoUrl;
                     document.getElementById('downloadBtn').href = videoUrl;
 
+                    // Optional wide output link
+                    const wideLinks = document.getElementById('wideLinks');
+                    const wideBtn = document.getElementById('downloadWideBtn');
+                    if (result.files.final_wide) {
+                        wideLinks.style.display = 'block';
+                        wideBtn.href = `${API_BASE}/out/${result.files.final_wide}`;
+                    } else {
+                        wideLinks.style.display = 'none';
+                    }
+
                     // Re-enable button
                     submitBtn.disabled = false;
                     submitBtn.textContent = '🚀 Process Another Video';
@@ -496,7 +527,13 @@
                 submitBtn.textContent = '🚀 Process Video';
             }
         });
+
+        // Toggle blur option availability based on makeWide
+        document.getElementById('makeWide').addEventListener('change', function() {
+            const grp = document.getElementById('wideBlurGroup');
+            grp.style.opacity = this.checked ? '1' : '0.5';
+            grp.style.pointerEvents = this.checked ? 'auto' : 'none';
+        });
     </script>
 </body>
 </html>
-

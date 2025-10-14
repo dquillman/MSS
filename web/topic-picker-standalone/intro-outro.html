@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Intro/Outro Manager - MSS</title>
   <style>
+    /* Neon activity bar */
+    #ioActivityBar { position: fixed; top: 0; left: 0; width: 100%; height: 4px; z-index: 3000; display: none; }
+    #ioActivityBar .track { width: 100%; height: 100%; background: linear-gradient(90deg,#22c55e,#3b82f6,#22c55e); background-size: 300% 100%; animation: ioSlide 1.2s linear infinite, ioGlow 1.6s ease-in-out infinite alternate; box-shadow: 0 0 12px rgba(59,130,246,.6); }
+    @keyframes ioSlide { 0% { background-position: 0 0; } 100% { background-position: 300% 0; } }
+    @keyframes ioGlow { from { box-shadow: 0 0 8px rgba(34,197,94,.7); } to { box-shadow: 0 0 16px rgba(59,130,246,.8); } }
+    #ioActivityMsg { position: fixed; top: 6px; right: 12px; color: #94a3b8; font-size: 12px; z-index: 3001; display: none; }
+  </style>
+  <style>
     body {
       font-family: Inter, Arial, sans-serif;
       background: #0B0F19;
@@ -318,6 +326,8 @@
   <script src="version.js" defer></script>
 </head>
 <body>
+<div id="ioActivityBar"><div class="track"></div></div>
+<div id="ioActivityMsg"></div>
   <script>
     (function(){
       const group = document.querySelector("div[style*='gap: 10px']");
@@ -335,9 +345,38 @@
         group.prepend(viewer);
       }
     })();
-  </script>
+</script>
+
+<!-- Quick action: convert active intro/outro to standard video -->
+<div id="convertActiveBar" style="position:fixed; right:20px; bottom:20px; z-index:2000;">
+  <button type=\"button\" id=\"convertActiveBtn\" style="padding:10px 14px; background:#22c55e; border:1px solid #22c55e; border-radius:8px; color:#0B0F19; font-weight:700; cursor:pointer;">Convert Active to Standard</button>
+  <span id="convertActiveStatus" style="margin-left:10px; color:#94a3b8;"></span>
+</div>
+<script>
+  (function(){
+    const btn = document.getElementById('convertActiveBtn');
+    const status = document.getElementById('convertActiveStatus');
+    btn?.addEventListener('click', async () => {
+      status.textContent = ' Converting...';
+      try {
+        const r = await fetch(`${location.origin}/convert-active-intro-outro`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ set_active: true })
+        });
+        const j = await r.json();
+        if (j.success) {
+          status.textContent = ' âœ… Converted';
+          setTimeout(()=>location.reload(), 800);
+        } else {
+          status.textContent = ' âŒ ' + (j.error || 'Failed');
+        }
+      } catch (e) {
+        status.textContent = ' âŒ ' + e.message;
+      }
+    });
+  })();
+</script>
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-    <h2 style="margin: 0;">🎬 Intro/Outro Manager <span style="font-size:14px; color:#64748b; font-weight:400;">v3.0.0</span></h2>
+    <h2 style="margin: 0;">ðŸŽ¬ Intro/Outro Manager <span style="font-size:14px; color:#64748b; font-weight:400;">v3.0.0</span></h2>
     <button onclick="window.location.href='studio.html'" style="background:#3b82f6; border-color:#3b82f6; padding: 8px 16px; margin: 0;" data-nav-studio="1">Studio</button>
   </div>
   <p class="subtitle">Manage your video intros and outros. Click on a card to select it as active (the active intro/outro will be used in your videos).</p>
@@ -345,10 +384,10 @@
   <!-- Intros Section -->
   <div class="panel">
     <div style="display: flex; justify-content: space-between; align-items: center;">
-      <h3 style="margin: 0;">📥 Intros</h3>
+      <h3 style="margin: 0;">ðŸ“¥ Intros</h3>
       <div style="display: flex; gap: 8px;">
-        <button onclick="document.getElementById('introFilePickerInput').click()" style="padding: 8px 16px; margin: 0;">📁 Upload Intro</button>
-        <button onclick="openAddModal('intro')" class="button-secondary" style="padding: 8px 16px; margin: 0;">✏️ Create Custom</button>
+        <button onclick="document.getElementById('introFilePickerInput').click()" style="padding: 8px 16px; margin: 0;">ðŸ“ Upload Intro</button>
+        <button onclick="openAddModal('intro')" class="button-secondary" style="padding: 8px 16px; margin: 0;">âœï¸ Create Custom</button>
       </div>
     </div>
 
@@ -362,10 +401,10 @@
   <!-- Outros Section -->
   <div class="panel">
     <div style="display: flex; justify-content: space-between; align-items: center;">
-      <h3 style="margin: 0;">📤 Outros</h3>
+      <h3 style="margin: 0;">ðŸ“¤ Outros</h3>
       <div style="display: flex; gap: 8px;">
-        <button onclick="document.getElementById('outroFilePickerInput').click()" style="padding: 8px 16px; margin: 0;">📁 Upload Outro</button>
-        <button onclick="openAddModal('outro')" class="button-secondary" style="padding: 8px 16px; margin: 0;">✏️ Create Custom</button>
+        <button onclick="document.getElementById('outroFilePickerInput').click()" style="padding: 8px 16px; margin: 0;">ðŸ“ Upload Outro</button>
+        <button onclick="openAddModal('outro')" class="button-secondary" style="padding: 8px 16px; margin: 0;">âœï¸ Create Custom</button>
       </div>
     </div>
 
@@ -388,8 +427,8 @@
       </div>
 
       <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 20px;">
-        <button onclick="playPreview()" class="button-success" style="flex: 1;">▶ Play</button>
-        <button onclick="stopPreview()" class="button-danger" style="flex: 1;">⏹ Stop</button>
+        <button onclick="playPreview()" class="button-success" style="flex: 1;">â–¶ Play</button>
+        <button onclick="stopPreview()" class="button-danger" style="flex: 1;">â¹ Stop</button>
         <div id="previewTimer" style="color: #94a3b8; font-size: 14px; min-width: 60px; text-align: center;">0.0s</div>
       </div>
 
@@ -451,7 +490,7 @@
           <label>Video File</label>
           <div style="display: flex; gap: 10px; margin-bottom: 8px;">
             <input type="text" id="videoUrl" placeholder="Video will appear here after upload" readonly style="flex: 1;">
-            <button type="button" onclick="document.getElementById('videoFileInput').click()" style="padding: 10px 16px; margin: 0;">📁 Upload Video</button>
+            <button type="button" onclick="document.getElementById('videoFileInput').click()" style="padding: 10px 16px; margin: 0;">ðŸ“ Upload Video</button>
           </div>
           <input type="file" id="videoFileInput" accept="video/mp4,video/quicktime" style="display: none;" onchange="uploadVideoFile(this)">
           <div class="help-text">Upload MP4 or MOV video file (max 50MB, recommended 3-5 seconds)</div>
@@ -514,7 +553,7 @@
               intro.html ? 'HTML Animation' : 'No content'}
           </div>
           <div class="card-actions">
-            <button onclick="event.stopPropagation(); previewItem('intro', '${intro.id}')" style="background: #7c3aed;">▶ Preview</button>
+            <button onclick="event.stopPropagation(); previewItem('intro', '${intro.id}')" style="background: #7c3aed;">â–¶ Preview</button>
             <button onclick="event.stopPropagation(); editItem('intro', '${intro.id}')" class="button-secondary">Edit</button>
             <button onclick="event.stopPropagation(); deleteItem('intro', '${intro.id}')" class="button-danger">Delete</button>
           </div>
@@ -543,7 +582,7 @@
               outro.html ? 'HTML Animation' : 'No content'}
           </div>
           <div class="card-actions">
-            <button onclick="event.stopPropagation(); previewItem('outro', '${outro.id}')" style="background: #7c3aed;">▶ Preview</button>
+            <button onclick="event.stopPropagation(); previewItem('outro', '${outro.id}')" style="background: #7c3aed;">â–¶ Preview</button>
             <button onclick="event.stopPropagation(); editItem('outro', '${outro.id}')" class="button-secondary">Edit</button>
             <button onclick="event.stopPropagation(); deleteItem('outro', '${outro.id}')" class="button-danger">Delete</button>
           </div>
@@ -577,7 +616,7 @@
       }
 
       try {
-        showStatus(`⏳ Uploading ${type}... This may take a moment...`, 'info');
+        showStatus(`â³ Uploading ${type}... This may take a moment...`, 'info');
 
         const formData = new FormData();
         formData.append('file', file);
@@ -617,7 +656,7 @@
             const saveResult = await saveResponse.json();
 
             if (saveResult.success) {
-              showStatus(`✓ ${type.charAt(0).toUpperCase() + type.slice(1)} uploaded and saved successfully!`, 'success');
+              showStatus(`âœ“ ${type.charAt(0).toUpperCase() + type.slice(1)} uploaded and saved successfully!`, 'success');
               loadItems();
             } else {
               showStatus(saveResult.error || 'Failed to save', 'error');
@@ -644,18 +683,18 @@
 
       // Validate file type
       if (!file.type.startsWith('video/')) {
-        statusDiv.innerHTML = '<span style="color: #dc2626;">❌ Please select a video file</span>';
+        statusDiv.innerHTML = '<span style="color: #dc2626;">âŒ Please select a video file</span>';
         return;
       }
 
       // Validate file size (max 50MB)
       if (file.size > 50 * 1024 * 1024) {
-        statusDiv.innerHTML = '<span style="color: #dc2626;">❌ File too large (max 50MB)</span>';
+        statusDiv.innerHTML = '<span style="color: #dc2626;">âŒ File too large (max 50MB)</span>';
         return;
       }
 
       try {
-        statusDiv.innerHTML = '<span style="color: #3b82f6;">⏳ Uploading to Google Drive...</span>';
+        statusDiv.innerHTML = '<span style="color: #3b82f6;">â³ Uploading to Google Drive...</span>';
 
         const formData = new FormData();
         formData.append('file', file);
@@ -669,7 +708,7 @@
 
         if (result.success) {
           document.getElementById('videoUrl').value = result.url;
-          statusDiv.innerHTML = '<span style="color: #22c55e;">✓ Upload successful!</span>';
+          statusDiv.innerHTML = '<span style="color: #22c55e;">âœ“ Upload successful!</span>';
 
           // Show video preview
           const previewContainer = document.getElementById('videoPreviewContainer');
@@ -679,10 +718,10 @@
 
           setTimeout(() => { statusDiv.innerHTML = ''; }, 3000);
         } else {
-          statusDiv.innerHTML = `<span style="color: #dc2626;">❌ Upload failed: ${result.error}</span>`;
+          statusDiv.innerHTML = `<span style="color: #dc2626;">âŒ Upload failed: ${result.error}</span>`;
         }
       } catch (error) {
-        statusDiv.innerHTML = `<span style="color: #dc2626;">❌ Upload error: ${error.message}</span>`;
+        statusDiv.innerHTML = `<span style="color: #dc2626;">âŒ Upload error: ${error.message}</span>`;
       }
     }
 
@@ -892,7 +931,7 @@
         document.getElementById('previewTitle').textContent = `Preview: ${item.name}`;
         document.getElementById('previewFrame').innerHTML = item.html;
         document.getElementById('previewTimer').textContent = '0.0s';
-        document.getElementById('audioStatus').textContent = item.audio ? `🔊 Audio: "${item.audio.substring(0, 50)}..."` : '🔇 No audio';
+        document.getElementById('audioStatus').textContent = item.audio ? `ðŸ”Š Audio: "${item.audio.substring(0, 50)}..."` : 'ðŸ”‡ No audio';
         document.getElementById('previewModal').classList.add('show');
 
       } catch (error) {
@@ -929,7 +968,7 @@
       if (previewData.audio) {
         try {
           // Generate TTS audio preview
-          document.getElementById('audioStatus').textContent = '🔊 Generating audio preview...';
+          document.getElementById('audioStatus').textContent = 'ðŸ”Š Generating audio preview...';
 
           const response = await fetch(`${API_BASE}/preview-tts`, {
             method: 'POST',
@@ -942,13 +981,13 @@
           if (result.success && result.audio_url) {
             previewAudio = new Audio(result.audio_url);
             previewAudio.play();
-            document.getElementById('audioStatus').textContent = `🔊 Playing audio...`;
+            document.getElementById('audioStatus').textContent = `ðŸ”Š Playing audio...`;
           } else {
-            document.getElementById('audioStatus').textContent = '⚠️ Audio generation failed';
+            document.getElementById('audioStatus').textContent = 'âš ï¸ Audio generation failed';
           }
         } catch (error) {
           console.error('Audio preview error:', error);
-          document.getElementById('audioStatus').textContent = '⚠️ Audio preview error';
+          document.getElementById('audioStatus').textContent = 'âš ï¸ Audio preview error';
         }
       }
     }
@@ -967,7 +1006,7 @@
       document.getElementById('previewTimer').textContent = '0.0s';
 
       if (previewData && previewData.audio) {
-        document.getElementById('audioStatus').textContent = `🔊 Audio: "${previewData.audio.substring(0, 50)}..."`;
+        document.getElementById('audioStatus').textContent = `ðŸ”Š Audio: "${previewData.audio.substring(0, 50)}..."`;
       }
     }
 
@@ -976,4 +1015,5 @@
   </script>
 </body>
 </html>
+
 

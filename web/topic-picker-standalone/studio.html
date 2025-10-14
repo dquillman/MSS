@@ -462,7 +462,7 @@ Make it stand out in search results and suggested videos.`;
         if (el && j && j.Version) el.textContent = 'v-' + j.Version;
       }).catch(()=>{
         const el = document.getElementById('appVersion');
-        if (el) el.textContent = 'v-5.5.1';
+        if (el) el.textContent = 'v-5.5.2';
       });
     })();
 
@@ -744,18 +744,30 @@ Make it stand out in search results and suggested videos.`;
           }
           if (byFile.size > 0) {
             logoSelect.innerHTML = '';
+            let activeFilename = '';
             for (const [fname, logo] of byFile.entries()) {
               const opt = document.createElement('option');
               opt.value = fname;
               const nice = (logo.name && String(logo.name).trim()) || fname || (logo.id || 'logo');
               opt.textContent = nice;
               if (logo.url) opt.dataset.url = logo.url;
+              if (logo.active) activeFilename = fname;
               logoSelect.appendChild(opt);
             }
-            if (activeLogoImg) activeLogoImg.style.display = 'none';
+            // If an active logo exists, select it and show preview
+            if (activeFilename) {
+              logoSelect.value = activeFilename;
+              try {
+                const sel = logoSelect.selectedOptions && logoSelect.selectedOptions[0];
+                const url = sel?.dataset?.url || `${API_BASE}/logos/${activeFilename}`;
+                if (activeLogoImg && url) { activeLogoImg.src = url; activeLogoImg.style.display = 'inline-block'; }
+              } catch { if (activeLogoImg) activeLogoImg.style.display = 'none'; }
+            } else {
+              if (activeLogoImg) activeLogoImg.style.display = 'none';
+            }
             return; // library had usable entries; done
           }
-          // Else: library exists but empty/stale — fall through to files API
+          // Else: library exists but empty/stale - fall through to files API
         }
       } catch {}
 
