@@ -636,7 +636,7 @@ def _health():
     return jsonify({
         'ok': True,
         'service': 'MSS API',
-        'version': '5.5.2',
+        'version': '5.5.3',
         'endpoints': [
             '/studio', '/topics', '/post-process-video',
             '/get-avatar-library', '/get-logo-library', '/api/logo-files',
@@ -734,6 +734,7 @@ def generate_meme_bg():
         def _openai_background(prompt: str, outdir: Path) -> Path:
             from openai import OpenAI
             import requests as _req
+            import base64 as _b64
             client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
             model = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-1")
             resp = client.images.generate(
@@ -741,14 +742,23 @@ def generate_meme_bg():
                 prompt=prompt,
                 size=os.getenv("OPENAI_IMAGE_SIZE", "1536x1024"),
                 quality=os.getenv("OPENAI_IMAGE_QUALITY", "high"),
+                response_format="b64_json",
                 n=1,
             )
-            image_url = resp.data[0].url
-            r = _req.get(image_url, timeout=30)
-            r.raise_for_status()
+            data0 = resp.data[0]
+            content = None
+            if hasattr(data0, 'b64_json') and data0.b64_json:
+                content = _b64.b64decode(data0.b64_json)
+            elif hasattr(data0, 'url') and data0.url:
+                image_url = data0.url
+                r = _req.get(image_url, timeout=30)
+                r.raise_for_status()
+                content = r.content
+            else:
+                raise RuntimeError('Image API returned no url or b64_json')
             fname = f"meme_bg_{int(time.time())}.png"
             path = outdir / fname
-            path.write_bytes(r.content)
+            path.write_bytes(content)
             return path
 
         def _gradient_background(outdir: Path) -> Path:
@@ -828,8 +838,134 @@ def generate_meme_bg():
 
         img_path = None
         source = None
+
+        # Resolve whether OpenAI Images are disabled
+        dalle_disabled = (
+            os.getenv('DISABLE_DALLE', '').lower() in {'1', 'true', 'yes'} or
+            os.getenv('OPENAI_IMAGE_MODEL', '').lower() in {'disabled', 'none'}
+        )
+
+        # ChatGPT-guided procedural background when DALL·E is disabled
+        def _chatgpt_background(outdir: Path) -> Path:
+            try:
+                from openai import OpenAI
+                client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+                sys_msg = (
+                    "You are a thumbnail design assistant. Output compact JSON describing a background: "
+                    "{palette:{bg1:'#0b0f19',bg2:'#101827',accent:'#3b82f6'},gradient:'linear',"
+                    "shapes:[{type:'circle',x:0.7,y:0.3,size:220,color:'#2563eb',alpha:0.25}],"
+                    "vignette:0.35,noise:0.02}. Do not include any text elements."
+                )
+                user_ctx = f"Topic: {title}\nHook: {hook}\nDescription: {description}\nKeywords: {key_str}"
+                resp = client.chat.completions.create(
+                    model=os.getenv('OPENAI_MODEL_SEO','gpt-4o-mini'),
+                    messages=[
+                        {"role":"system","content":sys_msg},
+                        {"role":"user","content":user_ctx}
+                    ],
+                    temperature=0.7,
+                    response_format={"type":"json_object"}
+                )
+                import json as _json, random as _random
+                spec = {}
+                try:
+                    spec = _json.loads(resp.choices[0].message.content or '{}')
+                except Exception:
+                    spec = {}
+
+                # Render spec via PIL
+                from PIL import Image as _Image, ImageDraw as _ImageDraw
+                width, height = 1280, 720
+                bg1 = spec.get('palette',{}).get('bg1','#0b0f19')
+                bg2 = spec.get('palette',{}).get('bg2','#101827')
+                def _hex_to_rgb(h):
+                    h = h.lstrip('#')
+                    return tuple(int(h[i:i+2],16) for i in (0,2,4)) if len(h)>=6 else (16,24,39)
+                img = _Image.new('RGB',(width,height),_hex_to_rgb(bg2))
+                draw = _ImageDraw.Draw(img, 'RGBA')
+                # gradient
+                grad_type = str(spec.get('gradient','linear')).lower()
+                c1 = _hex_to_rgb(bg1); c2 = _hex_to_rgb(bg2)
+                if grad_type=='radial':
+                    cx, cy = width//2, height//2
+                    import math
+                    max_r = int((width**2+height**2)**0.5/2)
+                    for r in range(max_r,0,-1):
+                        t = r/max_r
+                        col = tuple(int(c1[i]*t + c2[i]*(1-t)) for i in range(3))
+                        draw.ellipse((cx-r,cy-r,cx+r,cy+r), fill=col+(255,))
+                else:
+                    for y in range(height):
+                        t = y/height
+                        col = tuple(int(c1[i]*(1-t)+c2[i]*t) for i in range(3))
+                        draw.line([(0,y),(width,y)], fill=col+(255,))
+                # shapes
+                for shp in spec.get('shapes',[])[:12]:
+                    try:
+                        t = (shp.get('type') or 'circle').lower()
+                        x = float(shp.get('x',0.5))*width
+                        y = float(shp.get('y',0.5))*height
+                        size = int(shp.get('size',180))
+                        col = _hex_to_rgb(str(shp.get('color','#3b82f6')))
+                        alpha = int(255*max(0.0,min(1.0,float(shp.get('alpha',0.2)))))
+                        if t=='circle':
+                            draw.ellipse((x-size,y-size,x+size,y+size), fill=col+(alpha,))
+                        elif t=='stripe':
+                            w=size; h2=int(size*0.15)
+                            draw.rectangle((x-w,y-h2,x+w,y+h2), fill=col+(alpha,))
+                        elif t=='rect':
+                            w=size; h2=int(size*0.6)
+                            draw.rectangle((x-w,y-h2,x+w,y+h2), fill=col+(alpha,))
+                    except Exception:
+                        continue
+                # vignette
+                try:
+                    vig = float(spec.get('vignette',0.3))
+                    if vig>0:
+                        import math
+                        for y in range(height):
+                            for x in range(width):
+                                dx=(x-width/2)/(width/2); dy=(y-height/2)/(height/2)
+                                d=min(1.0, (dx*dx+dy*dy)**0.5)
+                                a=int(255*vig*d*d)
+                                draw.point((x,y), fill=(0,0,0,a))
+                except Exception:
+                    pass
+                # noise (very light)
+                try:
+                    noise = float(spec.get('noise',0.01))
+                    if noise>0:
+                        import random as rn
+                        for _ in range(int(width*height*0.02)):
+                            x = rn.randrange(0,width); y = rn.randrange(0,height)
+                            n = rn.randint(0,int(50*noise))
+                            draw.point((x,y), fill=(n,n,n,120))
+                except Exception:
+                    pass
+
+                out = outdir / f"meme_bg_{int(time.time())}.png"
+                img.save(out, 'PNG')
+                return out
+            except Exception as _e:
+                print(f"[CHATGPT BG] Fallback due to: {_e}")
+                return _gradient_background(outdir)
+
         try:
-            if os.getenv("OPENAI_API_KEY"):
+            # Debug: log env flags for image generation
+            api_key_status = 'set' if os.getenv('OPENAI_API_KEY') else 'NOT SET'
+            disable_dalle_raw = os.getenv('DISABLE_DALLE', '')
+            image_model = os.getenv('OPENAI_IMAGE_MODEL', '')
+            print(f"[generate-meme-bg FLAGS] OPENAI_API_KEY={api_key_status}, OPENAI_IMAGE_MODEL={image_model}, DISABLE_DALLE={disable_dalle_raw}, dalle_disabled={dalle_disabled}")
+            try:
+                Path('out').mkdir(exist_ok=True)
+                with open('out/api_errors.log','a',encoding='utf-8') as _lf:
+                    _lf.write(f"\n[generate-meme-bg FLAGS] OPENAI_API_KEY={api_key_status}, OPENAI_IMAGE_MODEL={image_model}, DISABLE_DALLE={disable_dalle_raw}, dalle_disabled={dalle_disabled}\n")
+            except Exception:
+                pass
+
+            # Use DALL-E if enabled and API key is available
+            if os.getenv("OPENAI_API_KEY") and not dalle_disabled:
+                print("[BG] Using DALL-E for background generation...")
                 bg_prompt = (
                     f"Design a cinematic, high-contrast abstract background for a video thumbnail. "
                     f"Topic: {title}. Hook: {hook}. Description: {description}. Keywords: {key_str}. "
@@ -839,8 +975,21 @@ def generate_meme_bg():
                 )
                 img_path = _openai_background(bg_prompt, outdir)
                 source = 'openai'
+            elif os.getenv("OPENAI_API_KEY") and dalle_disabled:
+                # Use ChatGPT-guided procedural background when DALL-E is disabled
+                print("[BG] DALL-E disabled, using ChatGPT-guided procedural background...")
+                img_path = _chatgpt_background(outdir)
+                source = 'chatgpt'
         except Exception as _e:
             print(f"[BG AI] Falling back to gradient: {_e}")
+            try:
+                import traceback as _tb
+                Path('out').mkdir(exist_ok=True)
+                with open('out/api_errors.log','a',encoding='utf-8') as _lf:
+                    _lf.write("\n[generate-meme-bg ERROR]\n")
+                    _lf.write(_tb.format_exc())
+            except Exception:
+                pass
 
         if img_path is None:
             img_path = _gradient_background(outdir)
@@ -897,6 +1046,7 @@ def generate_clean_bg():
         def _openai_background(prompt: str, outdir: Path) -> Path:
             from openai import OpenAI
             import requests as _req
+            import base64 as _b64
             client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
             model = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-1")
             resp = client.images.generate(
@@ -904,14 +1054,23 @@ def generate_clean_bg():
                 prompt=prompt,
                 size=os.getenv("OPENAI_IMAGE_SIZE", "1536x1024"),
                 quality=os.getenv("OPENAI_IMAGE_QUALITY", "high"),
+                response_format="b64_json",
                 n=1,
             )
-            image_url = resp.data[0].url
-            r = _req.get(image_url, timeout=30)
-            r.raise_for_status()
+            data0 = resp.data[0]
+            content = None
+            if hasattr(data0, 'b64_json') and data0.b64_json:
+                content = _b64.b64decode(data0.b64_json)
+            elif hasattr(data0, 'url') and data0.url:
+                image_url = data0.url
+                r = _req.get(image_url, timeout=30)
+                r.raise_for_status()
+                content = r.content
+            else:
+                raise RuntimeError('Image API returned no url or b64_json')
             fname = f"meme_bg_{int(time.time())}.png"
             path = outdir / fname
-            path.write_bytes(r.content)
+            path.write_bytes(content)
             return path
 
         def _gradient_background(outdir: Path) -> Path:
@@ -984,8 +1143,22 @@ def generate_clean_bg():
 
         img_path = None
         source = None
+
+        # Resolve whether OpenAI Images are disabled
+        dalle_disabled = (
+            os.getenv('DISABLE_DALLE', '').lower() in {'1', 'true', 'yes'} or
+            os.getenv('OPENAI_IMAGE_MODEL', '').lower() in {'disabled', 'none'}
+        )
+
+        # Debug: Print environment flags
+        api_key_status = 'set' if os.getenv('OPENAI_API_KEY') else 'NOT SET'
+        disable_dalle_raw = os.getenv('DISABLE_DALLE', '')
+        image_model = os.getenv('OPENAI_IMAGE_MODEL', '')
+        print(f"[generate-clean-bg FLAGS] OPENAI_API_KEY={api_key_status}, OPENAI_IMAGE_MODEL={image_model}, DISABLE_DALLE={disable_dalle_raw}, dalle_disabled={dalle_disabled}")
+
         try:
-            if os.getenv("OPENAI_API_KEY"):
+            if os.getenv("OPENAI_API_KEY") and not dalle_disabled:
+                print("[BG] Using DALL-E for clean background generation...")
                 if prompt_override:
                     bg_prompt = prompt_override
                     # Substitute common placeholders so the prompt reflects the current topic
@@ -1018,8 +1191,112 @@ def generate_clean_bg():
                     )
                 img_path = _openai_background(bg_prompt, outdir)
                 source = 'openai'
+            elif os.getenv("OPENAI_API_KEY") and dalle_disabled:
+                # ChatGPT-guided procedural background when DALL-E is disabled
+                print("[BG] DALL-E disabled, using ChatGPT-guided procedural background...")
+                from openai import OpenAI
+                client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+                sys_msg = (
+                    "You are a thumbnail design assistant. Output compact JSON describing a background: "
+                    "{palette:{bg1:'#0b0f19',bg2:'#101827',accent:'#3b82f6'},gradient:'linear',"
+                    "shapes:[{type:'circle',x:0.7,y:0.3,size:220,color:'#2563eb',alpha:0.25}],"
+                    "vignette:0.35,noise:0.02}. Do not include any text elements."
+                )
+                user_ctx = f"Title: {title}\nHook: {hook}\nDescription: {description}\nKeywords: {key_str}"
+                resp = client.chat.completions.create(
+                    model=os.getenv('OPENAI_MODEL_SEO','gpt-4o-mini'),
+                    messages=[
+                        {"role":"system","content":sys_msg},
+                        {"role":"user","content":user_ctx}
+                    ],
+                    temperature=0.7,
+                    response_format={"type":"json_object"}
+                )
+                import json as _json
+                try:
+                    spec = _json.loads(resp.choices[0].message.content or '{}')
+                except Exception:
+                    spec = {}
+                from PIL import Image as _Image, ImageDraw as _ImageDraw
+                width, height = 1280, 720
+                def _hex_to_rgb(h):
+                    h = str(h or '').lstrip('#')
+                    return tuple(int(h[i:i+2],16) for i in (0,2,4)) if len(h)>=6 else (16,24,39)
+                bg1 = spec.get('palette',{}).get('bg1','#0b0f19')
+                bg2 = spec.get('palette',{}).get('bg2','#101827')
+                c1 = _hex_to_rgb(bg1); c2 = _hex_to_rgb(bg2)
+                img = _Image.new('RGB',(width,height),c2)
+                draw = _ImageDraw.Draw(img, 'RGBA')
+                # gradient
+                grad_type = str(spec.get('gradient','linear')).lower()
+                if grad_type == 'radial':
+                    cx, cy = width//2, height//2
+                    max_r = int((width**2+height**2)**0.5/2)
+                    for r in range(max_r,0,-1):
+                        t = r/max_r
+                        col = tuple(int(c1[i]*t + c2[i]*(1-t)) for i in range(3))
+                        draw.ellipse((cx-r,cy-r,cx+r,cy+r), fill=col+(255,))
+                else:
+                    for y in range(height):
+                        t = y/height
+                        col = tuple(int(c1[i]*(1-t)+c2[i]*t) for i in range(3))
+                        draw.line([(0,y),(width,y)], fill=col+(255,))
+                # shapes
+                for shp in spec.get('shapes',[])[:12]:
+                    try:
+                        t = (shp.get('type') or 'circle').lower()
+                        x = float(shp.get('x',0.5))*width
+                        y = float(shp.get('y',0.5))*height
+                        size = int(shp.get('size',180))
+                        col = _hex_to_rgb(str(shp.get('color','#3b82f6')))
+                        alpha = int(255*max(0.0,min(1.0,float(shp.get('alpha',0.2)))))
+                        if t=='circle':
+                            draw.ellipse((x-size,y-size,x+size,y+size), fill=col+(alpha,))
+                        elif t=='stripe':
+                            w=size; h2=int(size*0.15)
+                            draw.rectangle((x-w,y-h2,x+w,y+h2), fill=col+(alpha,))
+                        elif t=='rect':
+                            w=size; h2=int(size*0.6)
+                            draw.rectangle((x-w,y-h2,x+w,y+h2), fill=col+(alpha,))
+                    except Exception:
+                        continue
+                # vignette
+                try:
+                    vig = float(spec.get('vignette',0.3))
+                    if vig>0:
+                        for yy in range(height):
+                            for xx in range(width):
+                                dx=(xx-width/2)/(width/2); dy=(yy-height/2)/(height/2)
+                                d=min(1.0, (dx*dx+dy*dy)**0.5)
+                                a=int(255*vig*d*d)
+                                draw.point((xx,yy), fill=(0,0,0,a))
+                except Exception:
+                    pass
+                # noise
+                try:
+                    import random as rn
+                    nz = float(spec.get('noise',0.01))
+                    if nz>0:
+                        for _ in range(int(width*height*0.02)):
+                            xx = rn.randrange(0,width); yy = rn.randrange(0,height)
+                            n = rn.randint(0,int(50*nz))
+                            draw.point((xx,yy), fill=(n,n,n,120))
+                except Exception:
+                    pass
+                out = outdir / f"meme_bg_{int(time.time())}.png"
+                img.save(out,'PNG')
+                img_path = out
+                source = 'chatgpt'
         except Exception as _e:
             print(f"[BG AI] Falling back to gradient (clean route): {_e}")
+            try:
+                import traceback as _tb
+                Path('out').mkdir(exist_ok=True)
+                with open('out/api_errors.log','a',encoding='utf-8') as _lf:
+                    _lf.write("\n[generate-clean-bg ERROR]\n")
+                    _lf.write(_tb.format_exc())
+            except Exception:
+                pass
 
         if img_path is None:
             img_path = _gradient_background(outdir)
@@ -1451,6 +1728,12 @@ def generate_ai_thumbnail():
         # Where to write variants so they can be served via /thumbnails/<file>
         outdir = Path(__file__).parent.parent / 'thumbnails'
         outdir.mkdir(exist_ok=True)
+
+        # Env flag: disable DALL·E image generation (note: generate_thumbnail_variants doesn't use DALL-E)
+        dalle_disabled = (
+            os.getenv('DISABLE_DALLE', '').lower() in {'1', 'true', 'yes'} or
+            os.getenv('OPENAI_IMAGE_MODEL', '').lower() in {'disabled', 'none'}
+        )
 
         # Generate 3 variants using existing utility
         variants = generate_thumbnail_variants(title, outdir, count=3)
@@ -2040,6 +2323,7 @@ def create_video_enhanced():
                             '-filter_complex', filter_complex,
                             '-c:v', 'libx264',
                             '-c:a', 'copy',
+                            '-map', '0:a?',
                             '-y', str(output_path)
                         ]
                         res = subprocess.run(cmd, capture_output=True, text=True)
@@ -2087,7 +2371,10 @@ def create_video_enhanced():
             }), 500
 
         # Generate AI thumbnail if requested
-        if topic.get('generate_ai_thumbnail'):
+        if topic.get('generate_ai_thumbnail') and not (
+            os.getenv('DISABLE_DALLE', '').lower() in {'1', 'true', 'yes'} or
+            os.getenv('OPENAI_IMAGE_MODEL', '').lower() in {'disabled', 'none'}
+        ):
             print("Generating AI thumbnail with DALL-E...")
             try:
                 ai_thumb_path = generate_dalle_thumbnail(title, outdir)
@@ -2423,6 +2710,7 @@ def post_process_video():
                                 '-filter_complex', filter_complex,
                                 '-c:v', 'libx264',
                                 '-c:a', 'copy',
+                                '-map', '0:a?',
                                 '-y', str(video_with_logo)
                             ]
                             print(f"[LOGO-FIRST] Running ffmpeg command...")
@@ -2442,12 +2730,16 @@ def post_process_video():
         except Exception as e:
             print(f"[LOGO-FIRST] Exception while applying early logo: {e}")
 
-        # Upload audio to Drive (needed for D-ID). If static avatar requested, skip D-ID upload entirely.
+        # Prepare audio for D-ID (will upload directly to D-ID, no Drive needed)
         if include_avatar and (not avatar_static) and (not skip_did):
-            print("[UPLOAD] Uploading audio to Google Drive for D-ID...")
-            audio_drive = drive_upload_public(audio_path, "MSS_Audio")
-            audio_url = audio_drive['download_url']
-            print(f"[OK] Audio uploaded: {audio_url}")
+            if not os.getenv('DID_API_KEY'):
+                print("[AVATAR] Skipping D-ID: DID_API_KEY not set")
+                skip_did = True
+                audio_url = None
+            else:
+                # Pass local file path - generate_did_talking_avatar will upload to D-ID
+                audio_url = str(audio_path)
+                print(f"[AVATAR] Using local audio file for D-ID: {audio_url}")
         else:
             audio_url = None
 
@@ -2775,6 +3067,7 @@ def post_process_video():
                     '-filter_complex', filter_complex,
                     '-c:v', 'libx264',
                     '-c:a', 'copy',  # Copy audio without re-encoding
+                    '-map', '0:a?',
                     '-y',
                     str(video_with_logo)
                 ]
@@ -3977,6 +4270,10 @@ def upload_logo_to_library():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-
-
+if __name__ == '__main__':
+    port = int(os.getenv('PORT', 5000))
+    debug = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+    print(f"\n[SERVER] Starting Flask server on http://127.0.0.1:{port}")
+    print(f"[SERVER] Debug mode: {debug}")
+    app.run(host='127.0.0.1', port=port, debug=debug, threaded=True)
 
