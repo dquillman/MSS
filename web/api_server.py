@@ -586,6 +586,35 @@ def api_logout():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/me', methods=['GET'])
+def api_me():
+    """Get current user info from session"""
+    try:
+        session_id = request.cookies.get('session_id')
+        if not session_id:
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+        result = database.get_session(session_id)
+        if not result.get('success'):
+            return jsonify({'success': False, 'error': 'Invalid or expired session'}), 401
+
+        user = result['user']
+        return jsonify({
+            'success': True,
+            'user': {
+                'id': user['id'],
+                'email': user['email'],
+                'username': user['username'],
+                'subscription_tier': user['subscription_tier'],
+                'videos_this_month': user['videos_this_month'],
+                'total_videos': user['total_videos'],
+                'created_at': user['created_at']
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/signup', methods=['POST'])
 def api_signup():
     try:
@@ -636,7 +665,7 @@ def _health():
     return jsonify({
         'ok': True,
         'service': 'MSS API',
-        'version': '5.5.3',
+        'version': '5.5.4',
         'endpoints': [
             '/studio', '/topics', '/post-process-video',
             '/get-avatar-library', '/get-logo-library', '/api/logo-files',
@@ -693,6 +722,128 @@ def get_avatar_library():
     except Exception as e:
         # Still return 200 so UI can proceed
         return jsonify({'success': False, 'error': str(e), 'avatars': []}), 200
+
+
+@app.route('/set-active-avatar', methods=['POST'])
+def set_active_avatar():
+    """Set an avatar as active"""
+    try:
+        data = request.get_json(force=True) or {}
+        avatar_id = data.get('id')
+
+        if not avatar_id:
+            return jsonify({'success': False, 'error': 'No avatar ID provided'}), 400
+
+        library_path = Path(__file__).parent.parent / 'avatar_library.json'
+
+        # Load library
+        avatars = []
+        if library_path.exists():
+            try:
+                raw = library_path.read_text(encoding='utf-8')
+                library_data = json.loads(raw or '{}')
+                avatars = library_data.get('avatars', [])
+            except Exception:
+                avatars = []
+
+        # Set all to inactive, then activate the selected one
+        for avatar in avatars:
+            avatar['active'] = (avatar.get('id') == avatar_id)
+
+        # Save library
+        library_path.write_text(json.dumps({'avatars': avatars}, indent=2, ensure_ascii=False), encoding='utf-8')
+
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/save-avatar', methods=['POST'])
+def save_avatar():
+    """Save or update an avatar"""
+    try:
+        data = request.get_json(force=True) or {}
+        avatar_id = data.get('id')
+
+        library_path = Path(__file__).parent.parent / 'avatar_library.json'
+
+        # Load library
+        avatars = []
+        if library_path.exists():
+            try:
+                raw = library_path.read_text(encoding='utf-8')
+                library_data = json.loads(raw or '{}')
+                avatars = library_data.get('avatars', [])
+            except Exception:
+                avatars = []
+
+        # Generate ID if new avatar
+        if not avatar_id:
+            avatar_id = f"avatar_{int(time.time())}"
+
+        # Create avatar object
+        avatar = {
+            'id': avatar_id,
+            'name': data.get('name', 'Unnamed Avatar'),
+            'type': data.get('type', 'image'),
+            'image_url': data.get('image_url', ''),
+            'video_url': data.get('video_url', ''),
+            'position': data.get('position', 'bottom-right'),
+            'scale': int(data.get('scale', 25)),
+            'opacity': int(data.get('opacity', 100)),
+            'gender': data.get('gender', 'female'),
+            'voice': data.get('voice', 'en-US-Neural2-F'),
+            'active': False
+        }
+
+        # Update or add avatar
+        existing_index = next((i for i, a in enumerate(avatars) if a.get('id') == avatar_id), None)
+        if existing_index is not None:
+            # Keep active status when updating
+            avatar['active'] = avatars[existing_index].get('active', False)
+            avatars[existing_index] = avatar
+        else:
+            avatars.append(avatar)
+
+        # Save library
+        library_path.write_text(json.dumps({'avatars': avatars}, indent=2, ensure_ascii=False), encoding='utf-8')
+
+        return jsonify({'success': True, 'id': avatar_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/delete-avatar', methods=['POST'])
+def delete_avatar():
+    """Delete an avatar"""
+    try:
+        data = request.get_json(force=True) or {}
+        avatar_id = data.get('id')
+
+        if not avatar_id:
+            return jsonify({'success': False, 'error': 'No avatar ID provided'}), 400
+
+        library_path = Path(__file__).parent.parent / 'avatar_library.json'
+
+        # Load library
+        avatars = []
+        if library_path.exists():
+            try:
+                raw = library_path.read_text(encoding='utf-8')
+                library_data = json.loads(raw or '{}')
+                avatars = library_data.get('avatars', [])
+            except Exception:
+                avatars = []
+
+        # Remove avatar
+        avatars = [a for a in avatars if a.get('id') != avatar_id]
+
+        # Save library
+        library_path.write_text(json.dumps({'avatars': avatars}, indent=2, ensure_ascii=False), encoding='utf-8')
+
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/set-selected-topic', methods=['POST'])

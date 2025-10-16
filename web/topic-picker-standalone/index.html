@@ -89,7 +89,7 @@
         const brand = (document.getElementById('brand').value || 'Many Sources Say').trim();
         const seed = (document.getElementById('seed').value || '').trim();
         const limit = document.getElementById('limit').value || '5';
-        setStatus('GET /generate-topics ...');
+        setStatus('Generating Topics...');
         $wrap.innerHTML='';
         const qs = new URLSearchParams({ brand, seed, limit: String(parseInt(limit)||5) }).toString();
         const url = API + '/generate-topics?' + qs;
@@ -101,31 +101,64 @@
         console.log('[Picker] Received:', j);
         const topics = j.topics || [];
         if (!topics.length) throw new Error('No topics');
-        const meta = `Source: ${j.source||'?'}${j.model? ' ('+j.model+')':''} • Seed: ${(j.seed||seed||'(none)')}`;
+        const meta = `Seed: ${(j.seed||seed||'(none)')}`;
         setStatus('OK ' + topics.length + ' topics — ' + meta, true);
         console.log('[Picker] Seed used:', (j.seed||seed||''));
+        // Get currently active topic
+        let activeTopic = null;
+        try {
+          const saved = localStorage.getItem('editingTopic');
+          if (saved) activeTopic = JSON.parse(saved);
+        } catch {}
+
         topics.forEach((t,i)=>{
           const card = document.createElement('div'); card.className='card';
           const title = document.createElement('div'); title.className='title'; title.textContent = `${i+1}. ${t.yt_title||t.title}`; card.appendChild(title);
           const angle = document.createElement('div'); angle.className='muted'; angle.textContent = t.angle||''; card.appendChild(angle);
           const row = document.createElement('div'); row.style.marginTop='8px'; row.style.display='flex'; row.style.gap='8px';
-          // Use in Notebook
-          const btnUse = document.createElement('button'); btnUse.textContent='Use in Notebook'; btnUse.style.background='#10b981'; btnUse.style.borderColor='#10b981';
+
+          // Check if this is the active topic
+          const isActive = activeTopic && activeTopic.yt_title === t.yt_title && activeTopic.angle === t.angle;
+
+          // Active/Inactive toggle button
+          const btnUse = document.createElement('button');
+          btnUse.textContent = isActive ? '✓ Active' : 'Set Active';
+          btnUse.style.background = isActive ? '#10b981' : '#334';
+          btnUse.style.borderColor = isActive ? '#10b981' : '#334';
           btnUse.onclick = async () => {
-            try { try { localStorage.setItem('editingTopic', JSON.stringify(t)); } catch {}
-              try { await fetch(API + '/set-selected-topic', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(t) }); } catch {}
-              location.href = 'studio.html';
-            } catch(e){ setStatus('Failed to handoff: ' + e.message); }
+            try {
+              if (isActive) {
+                // Deactivate - clear from localStorage
+                localStorage.removeItem('editingTopic');
+                setStatus('Topic deactivated', true);
+                // Update button appearance without regenerating
+                btnUse.textContent = 'Set Active';
+                btnUse.style.background = '#334';
+                btnUse.style.borderColor = '#334';
+              } else {
+                // Activate - save to localStorage and send to API
+                localStorage.setItem('editingTopic', JSON.stringify(t));
+                try { await fetch(API + '/set-selected-topic', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(t) }); } catch {}
+                setStatus('Topic activated: ' + (t.yt_title || t.title), true);
+                // Update all buttons to show only this one is active
+                document.querySelectorAll('#topics .card button').forEach(btn => {
+                  if (btn.textContent.includes('Active')) {
+                    btn.textContent = 'Set Active';
+                    btn.style.background = '#334';
+                    btn.style.borderColor = '#334';
+                  }
+                });
+                btnUse.textContent = '✓ Active';
+                btnUse.style.background = '#10b981';
+                btnUse.style.borderColor = '#10b981';
+              }
+            } catch(e){ setStatus('Toggle failed: ' + e.message); }
           };
-          // Create Video
-          const btnCreate = document.createElement('button'); btnCreate.textContent='Create Video';
-          btnCreate.onclick = async () => {
-            try { setStatus('Starting video creation...'); const r2 = await fetch(API + '/create-video', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ topic: t, include_avatar: true, include_logo: true }) }); const j2 = await r2.json().catch(()=>({success:false,error:'Invalid JSON'})); if (!r2.ok || !j2.success) throw new Error(j2.error || r2.statusText); setStatus('Video creation started.', true); } catch(e){ setStatus('Create failed: ' + e.message); }
-          };
+
           // Copy JSON
           const btnCopy = document.createElement('button'); btnCopy.textContent='Copy JSON'; btnCopy.className='button-secondary';
           btnCopy.onclick = async () => { try { await navigator.clipboard.writeText(JSON.stringify(t, null, 2)); setStatus('Copied topic JSON.', true); } catch(e){ setStatus('Copy failed: ' + e.message); } };
-          row.appendChild(btnUse); row.appendChild(btnCreate); row.appendChild(btnCopy);
+          row.appendChild(btnUse); row.appendChild(btnCopy);
           card.appendChild(row);
           $wrap.appendChild(card);
         });

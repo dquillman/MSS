@@ -5,7 +5,7 @@
       "name": "logo_1759621216.png",
       "url": "http://localhost:5000/logos/logo_1760316813.png",
       "filename": "logo_1760316813.png",
-      "active": false,
+      "active": true,
       "uploadedAt": "2025-10-12 19:53:33"
     },
     {
@@ -13,7 +13,7 @@
       "name": "logo_1759621223.png",
       "url": "http://localhost:5000/logos/logo_1760316827.png",
       "filename": "logo_1760316827.png",
-      "active": true,
+      "active": false,
       "uploadedAt": "2025-10-12 19:53:47"
     }
   ]

@@ -59,35 +59,12 @@
         logos.forEach(logo => {
           const card = document.createElement('div');
           const borderColor = logo.active ? '#34d399' : '#334';
-          card.style.cssText = `background: rgba(255,255,255,0.05); border:2px solid ${borderColor}; border-radius:8px; padding:10px; text-align:center;`;
+          card.style.cssText = `background: rgba(255,255,255,0.05); border:2px solid ${borderColor}; border-radius:8px; padding:10px; text-align:center; cursor:pointer; transition:all 0.2s;`;
 
-          const img = document.createElement('img');
-          img.src = logo.url;
-          img.style.maxWidth = '120px';
-          img.style.maxHeight = '80px';
-          img.style.objectFit = 'contain';
-          img.alt = logo.name || 'logo';
-
-          const name = document.createElement('div');
-          name.textContent = logo.name || logo.filename || 'Logo';
-          name.style.cssText = 'margin-top:6px; color:#E8EBFF; font-size:13px;';
-
-          const btn = document.createElement('button');
-          btn.className = 'btn';
-          btn.textContent = logo.active ? 'Active' : 'Use';
-          btn.disabled = !!logo.active;
-          btn.style.marginTop = '8px';
-          btn.style.width = '100%';
-          btn.style.padding = '6px 10px';
-          btn.style.fontSize = '12px';
-
-          if (logo.active) {
-            btn.style.background = '#34d399';
-            btn.style.borderColor = '#34d399';
-            btn.style.color = '#0B0F19';
-          }
-
-          btn.onclick = async () => {
+          // Make whole card clickable
+          card.onclick = async (e) => {
+            // Don't trigger if clicking delete button
+            if (e.target.closest('.delete-btn')) return;
             try {
               const r = await fetch(`${API_BASE}/set-active-logo`, {
                 method: 'POST',
@@ -112,17 +89,42 @@
             }
           };
 
+          const img = document.createElement('img');
+          img.src = logo.url;
+          img.style.maxWidth = '120px';
+          img.style.maxHeight = '80px';
+          img.style.objectFit = 'contain';
+          img.alt = logo.name || 'logo';
+
+          const name = document.createElement('div');
+          name.textContent = logo.name || logo.filename || 'Logo';
+          name.style.cssText = 'margin-top:6px; color:#E8EBFF; font-size:13px;';
+
+          // Active badge
+          if (logo.active) {
+            const badge = document.createElement('div');
+            badge.textContent = '✓ ACTIVE';
+            badge.style.cssText = 'margin-top:4px; padding:4px 8px; background:#34d399; color:#0B0F19; font-size:11px; font-weight:700; border-radius:4px; display:inline-block;';
+            card.appendChild(img);
+            card.appendChild(name);
+            card.appendChild(badge);
+          } else {
+            card.appendChild(img);
+            card.appendChild(name);
+          }
+
           const deleteBtn = document.createElement('button');
-          deleteBtn.className = 'btn';
+          deleteBtn.className = 'btn delete-btn';
           deleteBtn.textContent = 'Delete';
-          deleteBtn.style.marginTop = '4px';
+          deleteBtn.style.marginTop = '8px';
           deleteBtn.style.width = '100%';
           deleteBtn.style.padding = '6px 10px';
           deleteBtn.style.fontSize = '12px';
           deleteBtn.style.background = '#dc2626';
           deleteBtn.style.borderColor = '#dc2626';
 
-          deleteBtn.onclick = async () => {
+          deleteBtn.onclick = async (e) => {
+            e.stopPropagation(); // Prevent card click
             if (!confirm(`Delete logo "${logo.name || logo.filename}"? This cannot be undone.`)) {
               return;
             }
@@ -150,9 +152,6 @@
             }
           };
 
-          card.appendChild(img);
-          card.appendChild(name);
-          card.appendChild(btn);
           card.appendChild(deleteBtn);
           grid.appendChild(card);
         });

@@ -60,7 +60,7 @@
     <h1>Topic Picker</h1>
     <div class="row" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
       <button class="btn" id="liteLoadLast">Load Last Topic</button>
-      <a class="btn" href="index.html?return=studio.html" id="openFullPicker">Topic Picker</a>
+      <a class="btn" href="index.html?return=studio.html" id="openFullPicker" style="text-decoration:none; text-align:center;">Topic Picker</a>
       <button class="btn" id="liteClear" style="background:#ef4444; border-color:#ef4444;">Clear Picker</button>
       <span id="liteStatus" class="status info" style="display:none; padding:8px 12px; background:rgba(34,197,94,0.2); border:1px solid #22c55e; border-radius:6px; color:#22c55e; font-size:14px; font-weight:600;"></span>
     </div>
@@ -157,7 +157,7 @@
   </script>
 
   <div class="card">
-    <h1>NotebookLM Prompt</h1>
+    <h1>Video Prompt</h1>
     <div class="row">
       <button class="btn" id="generatePrompts">Generate Prompts</button>
       <button class="btn" id="copyFullPrompt" style="background:#22c55e; border-color:#22c55e;">Copy Full Prompt</button>
@@ -281,7 +281,7 @@ YouTube Description:
   <div class="card">
     <h1>Video w/Audio Loader</h1>
     <div class="row">
-      <label for="mainFile">NotebookLM video (required):</label>
+      <label for="mainFile">Video (required):</label>
       <input type="file" id="mainFile" accept="video/*">
     </div>
     <div class="controls">
@@ -296,11 +296,7 @@ YouTube Description:
       </div>
       <label style="display:flex; align-items:center; gap:8px;">
         <input type="checkbox" id="avatarAnimated" checked>
-        Animated avatar (D-ID/FFmpeg)
-      </label>
-      <label style="display:flex; align-items:center; gap:8px;">
-        <input type="checkbox" id="skipDID" checked>
-        Skip D-ID (use local animation)
+        Animated avatar
       </label>
       <label style="display:flex; align-items:center; gap:8px;">
         <input type="checkbox" id="toggleLogo" checked>
@@ -401,6 +397,35 @@ YouTube Description:
     } catch {}
     const API_BASE = (urlApi && urlApi.trim()) || (lsApi && lsApi.trim()) || defaultBase;
     if (urlApi) { try { localStorage.setItem('apiBase', urlApi); } catch(_) {} }
+
+    // Authentication check - must be logged in to access studio
+    (async function checkAuth() {
+      try {
+        const res = await fetch(`${API_BASE}/api/me`, {
+          credentials: 'include'
+        });
+
+        if (!res.ok || res.status === 401) {
+          // Not authenticated, redirect to auth page
+          window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
+          return;
+        }
+
+        const data = await res.json();
+        if (!data.success) {
+          // Session invalid, redirect to auth
+          window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
+          return;
+        }
+
+        // User is authenticated, continue loading page
+        console.log('[AUTH] User authenticated:', data.user.email);
+      } catch (e) {
+        console.error('[AUTH] Error checking authentication:', e);
+        // Network error or API issue - redirect to auth to be safe
+        window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
+      }
+    })();
     const DEFAULT_PROMPT = `Create a vibrant, eye-catching YouTube thumbnail for a video titled: {{title}}
 
 Style: Bold, high-contrast, professional
@@ -477,7 +502,6 @@ Make it stand out in search results and suggested videos.`;
       const persist = (id)=>{ const el = document.getElementById(id); const k = 'persist_'+id; const sv = localStorage.getItem(k); if(sv!==null) el.checked = (sv==='true'); el.addEventListener('change', ()=> localStorage.setItem(k, el.checked)); };
       persist('toggleAvatar');
       persist('avatarAnimated');
-      persist('skipDID');
       persist('toggleLogo');
       persist('toggleIntroOutro');
     })();
@@ -942,9 +966,8 @@ Make it stand out in search results and suggested videos.`;
         // 'use_did' indicates Include avatar; 'avatar_static' is inverse of the Animated checkbox
         fd.append('use_did', toggleAvatar.checked ? 'true' : 'false');
         const animated = document.getElementById('avatarAnimated').checked;
-        const skipDID = document.getElementById('skipDID').checked;
         fd.append('avatar_static', animated ? 'false' : 'true');
-        fd.append('skip_did', skipDID ? 'true' : 'false');
+        fd.append('skip_did', 'true');
         fd.append('add_intro_outro', toggleIntroOutro.checked ? 'true' : 'false');
         if (toggleAvatar.checked && avatarSelect.value) {
           fd.append('avatar_id', avatarSelect.value);

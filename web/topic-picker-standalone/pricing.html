@@ -35,6 +35,11 @@
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
+      transition: opacity 0.3s;
+    }
+
+    .logo:hover {
+      opacity: 0.8;
     }
 
     .nav {
@@ -332,11 +337,11 @@
 <body>
   <!-- Header -->
   <div class="header">
-    <div class="logo">MSS</div>
+    <div class="logo" style="cursor: pointer;" onclick="window.location.href='/dashboard'">MSS</div>
     <div class="nav">
-      <a href="landing.html">Home</a>
-      <a href="pricing.html">Pricing</a>
-      <a href="studio.html">Studio</a>
+      <a href="/dashboard">📊 Dashboard</a>
+      <a href="/studio">🎬 Studio</a>
+      <a href="/">🏠 Home</a>
     </div>
   </div>
 
