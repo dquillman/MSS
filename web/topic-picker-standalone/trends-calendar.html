@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trends & Calendar - MSS Studio</title>
+  <link rel="stylesheet" href="studio.css">
+  <script src="version.js" defer></script>
+  <style>
+    .trend-card {
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(17, 24, 39, 0.5));
+      border: 1px solid #22c55e;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 15px;
+      transition: all 0.3s;
+    }
+
+    .trend-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+    }
+
+    .trend-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 12px;
+    }
+
+    .trend-topic {
+      font-size: 18px;
+      font-weight: 700;
+      color: #E8EBFF;
+      margin-bottom: 8px;
+    }
+
+    .trend-stats {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .trend-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .trend-stat-label {
+      font-size: 11px;
+      color: #A8B3CF;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .trend-stat-value {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .growth-positive {
+      color: #22c55e;
+    }
+
+    .difficulty-badge {
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .difficulty-low {
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+    }
+
+    .difficulty-medium {
+      background: rgba(251, 191, 36, 0.2);
+      color: #fbbf24;
+    }
+
+    .difficulty-high {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .calendar-entry {
+      background: #1a202c;
+      border: 1px solid #2a3550;
+      border-radius: 8px;
+      padding: 16px;
+      transition: all 0.2s;
+    }
+
+    .calendar-entry:hover {
+      border-color: #3b82f6;
+      transform: translateY(-2px);
+    }
+
+    .calendar-entry.ai-suggested {
+      border-color: #8b5cf6;
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(17, 24, 39, 0.5));
+    }
+
+    .calendar-date {
+      font-size: 14px;
+      font-weight: 700;
+      color: #3b82f6;
+      margin-bottom: 8px;
+    }
+
+    .calendar-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #E8EBFF;
+      margin-bottom: 8px;
+    }
+
+    .calendar-reason {
+      font-size: 12px;
+      color: #A8B3CF;
+      margin-bottom: 12px;
+    }
+
+    .ai-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      background: rgba(139, 92, 246, 0.2);
+      border-radius: 4px;
+      font-size: 10px;
+      color: #a78bfa;
+      font-weight: 600;
+    }
+
+    .niche-tag {
+      display: inline-block;
+      padding: 4px 10px;
+      background: rgba(59, 130, 246, 0.2);
+      border-radius: 12px;
+      font-size: 11px;
+      color: #60a5fa;
+      margin-right: 6px;
+    }
+
+    .tab-nav {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #2a3550;
+    }
+
+    .tab-button {
+      padding: 12px 24px;
+      background: transparent;
+      border: none;
+      color: #A8B3CF;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
+    }
+
+    .tab-button:hover {
+      color: #E8EBFF;
+    }
+
+    .tab-button.active {
+      color: #3b82f6;
+      border-bottom-color: #3b82f6;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #A8B3CF;
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body>
+  <div id="loadingBar" class="loading-bar"></div>
+
+  <!-- Header -->
+  <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+    <h1 style="margin:0;">Trends & Content Calendar</h1>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn" onclick="window.location.href='/dashboard'" style="background:#3b82f6; border-color:#3b82f6;">Dashboard</button>
+      <button class="btn" onclick="window.location.href='/studio'" style="background:#22c55e; border-color:#22c55e;">Studio</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-nav">
+    <button class="tab-button active" onclick="switchTab('trends')">Trending Topics</button>
+    <button class="tab-button" onclick="switchTab('calendar')">Content Calendar</button>
+    <button class="tab-button" onclick="switchTab('preferences')">Preferences</button>
+  </div>
+
+  <!-- Trends Tab -->
+  <div id="trendsTab" class="tab-content active">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h2 style="margin:0;">Trending Topics</h2>
+        <button class="btn" onclick="refreshTrends()" style="background:#22c55e; border-color:#22c55e;">Refresh</button>
+      </div>
+
+      <div id="trendsContainer">
+        <div style="text-align:center; padding:40px; color:#A8B3CF;">Loading trends...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Calendar Tab -->
+  <div id="calendarTab" class="tab-content">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h2 style="margin:0;">AI Content Calendar</h2>
+        <button class="btn" onclick="generateCalendar()" style="background:#8b5cf6; border-color:#8b5cf6;">Generate Suggestions</button>
+      </div>
+
+      <div id="calendarContainer">
+        <div style="text-align:center; padding:40px; color:#A8B3CF;">Click "Generate Suggestions" to create your content calendar</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preferences Tab -->
+  <div id="preferencesTab" class="tab-content">
+    <div class="card">
+      <h2 style="margin-bottom:20px;">Content Preferences</h2>
+
+      <div class="form-group">
+        <label style="display:block; margin-bottom:8px; color:#A8B3CF; font-weight:600;">Preferred Niches (comma-separated)</label>
+        <input type="text" id="preferredNiches" placeholder="e.g., technology, business, gaming" style="width:100%; padding:10px; background:#0f1419; border:1px solid #2a3550; border-radius:6px; color:#E8EBFF;">
+        <div style="font-size:12px; color:#64748b; margin-top:4px;">Enter topics you want to create content about</div>
+      </div>
+
+      <div class="form-group" style="margin-top:20px;">
+        <label style="display:block; margin-bottom:8px; color:#A8B3CF; font-weight:600;">Posts Per Week</label>
+        <input type="number" id="postingFrequency" min="1" max="7" value="3" style="width:100%; padding:10px; background:#0f1419; border:1px solid #2a3550; border-radius:6px; color:#E8EBFF;">
+      </div>
+
+      <div class="form-group" style="margin-top:20px;">
+        <label style="display:block; margin-bottom:8px; color:#A8B3CF; font-weight:600;">Best Posting Days</label>
+        <input type="text" id="bestPostingDays" value="Monday,Wednesday,Friday" placeholder="e.g., Monday,Wednesday,Friday" style="width:100%; padding:10px; background:#0f1419; border:1px solid #2a3550; border-radius:6px; color:#E8EBFF;">
+        <div style="font-size:12px; color:#64748b; margin-top:4px;">Day names separated by commas</div>
+      </div>
+
+      <div class="form-group" style="margin-top:20px;">
+        <label style="display:block; margin-bottom:8px; color:#A8B3CF; font-weight:600;">Best Posting Time</label>
+        <input type="time" id="bestPostingTime" value="10:00" style="width:100%; padding:10px; background:#0f1419; border:1px solid #2a3550; border-radius:6px; color:#E8EBFF;">
+      </div>
+
+      <button class="btn" onclick="savePreferences()" style="margin-top:20px; background:#22c55e; border-color:#22c55e;">Save Preferences</button>
+      <div id="preferencesStatus" style="margin-top:12px;"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+
+    // Tab switching
+    function switchTab(tabName) {
+      // Update buttons
+      document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+
+      // Update content
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      document.getElementById(tabName + 'Tab').classList.add('active');
+
+      // Load data if needed
+      if (tabName === 'trends') {
+        loadTrends();
+      } else if (tabName === 'calendar') {
+        loadCalendar();
+      } else if (tabName === 'preferences') {
+        loadPreferences();
+      }
+    }
+
+    // Load trending topics
+    async function loadTrends() {
+      const container = document.getElementById('trendsContainer');
+      container.innerHTML = '<div style="text-align:center; padding:40px; color:#A8B3CF;">Loading trends...</div>';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/trends`, { credentials: 'include' });
+        const data = await res.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to load trends');
+        }
+
+        const trends = data.trends || [];
+
+        if (trends.length === 0) {
+          container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><div>No trending topics found</div></div>';
+          return;
+        }
+
+        container.innerHTML = trends.map(trend => `
+          <div class="trend-card">
+            <div class="trend-header">
+              <div>
+                <div class="trend-topic">${trend.topic}</div>
+                <div style="margin-bottom:12px;">
+                  <span class="niche-tag">${trend.niche}</span>
+                  <span class="difficulty-badge difficulty-${trend.difficulty}">${trend.difficulty}</span>
+                </div>
+                <div class="trend-stats">
+                  <div class="trend-stat">
+                    <div class="trend-stat-label">Views</div>
+                    <div class="trend-stat-value">${trend.views}</div>
+                  </div>
+                  <div class="trend-stat">
+                    <div class="trend-stat-label">Growth</div>
+                    <div class="trend-stat-value growth-positive">${trend.growth}</div>
+                  </div>
+                </div>
+              </div>
+              <button class="btn" onclick='saveTrendAlert(${JSON.stringify(trend)})' style="background:#3b82f6; border-color:#3b82f6; padding:8px 16px;">Save Alert</button>
+            </div>
+          </div>
+        `).join('');
+
+      } catch (error) {
+        console.error('Error loading trends:', error);
+        container.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444;">Error: ${error.message}</div>`;
+      }
+    }
+
+    function refreshTrends() {
+      loadTrends();
+    }
+
+    async function saveTrendAlert(trend) {
+      try {
+        const res = await fetch(`${API_BASE}/api/trends/save`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(trend)
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          alert(`Trend alert saved! Topic: "${trend.topic}"`);
+        } else {
+          throw new Error(data.error || 'Failed to save alert');
+        }
+      } catch (error) {
+        alert('Error saving alert: ' + error.message);
+      }
+    }
+
+    // Generate content calendar
+    async function generateCalendar() {
+      const container = document.getElementById('calendarContainer');
+      container.innerHTML = '<div style="text-align:center; padding:40px; color:#A8B3CF;">Generating calendar...</div>';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/calendar/generate?days=30`, { credentials: 'include' });
+        const data = await res.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to generate calendar');
+        }
+
+        const suggestions = data.suggestions || [];
+
+        if (suggestions.length === 0) {
+          container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📅</div><div>No suggestions generated. Try setting your preferences first.</div></div>';
+          return;
+        }
+
+        container.innerHTML = `
+          <div style="margin-bottom:20px; padding:12px; background:rgba(139,92,246,0.1); border:1px solid #8b5cf6; border-radius:8px; color:#a78bfa;">
+            AI has generated ${suggestions.length} content suggestions for the next 30 days based on trending topics and your preferences.
+          </div>
+          <div class="calendar-grid">
+            ${suggestions.map(entry => `
+              <div class="calendar-entry ${entry.ai_suggested ? 'ai-suggested' : ''}">
+                ${entry.ai_suggested ? '<div class="ai-badge">AI Suggested</div>' : ''}
+                <div class="calendar-date">${new Date(entry.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at ${entry.time}</div>
+                <div class="calendar-title">${entry.title}</div>
+                <div class="calendar-reason">${entry.reason}</div>
+                <div style="margin-top:12px;">
+                  <span class="niche-tag">${entry.niche}</span>
+                  <span class="difficulty-badge difficulty-${entry.difficulty}">${entry.difficulty}</span>
+                </div>
+                <button class="btn" onclick='saveToCalendar(${JSON.stringify(entry)})' style="width:100%; margin-top:12px; background:#22c55e; border-color:#22c55e;">Add to Calendar</button>
+              </div>
+            `).join('')}
+          </div>
+        `;
+
+      } catch (error) {
+        console.error('Error generating calendar:', error);
+        container.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444;">Error: ${error.message}</div>`;
+      }
+    }
+
+    async function saveToCalendar(entry) {
+      try {
+        // Save to database and Google Calendar
+        const res = await fetch(`${API_BASE}/api/calendar`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(entry)
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          // Check if added to Google Calendar
+          if (data.google_calendar && data.google_calendar.success) {
+            alert(`✓ Event added to Google Calendar!\n\n"${entry.title}"\n\nView in calendar: ${data.google_calendar.html_link || 'Open Google Calendar'}`);
+          } else {
+            // Fallback to .ics download
+            const entryId = data.entry_id;
+            const downloadUrl = `${API_BASE}/api/calendar/${entryId}/export.ics`;
+
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = `mss-event-${entryId}.ics`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            alert(`Calendar event downloaded!\n\nNote: Connect your Google account in Channel Manager to automatically add events to Google Calendar.`);
+          }
+        } else {
+          throw new Error(data.error || 'Failed to save to calendar');
+        }
+      } catch (error) {
+        alert('Error saving to calendar: ' + error.message);
+      }
+    }
+
+    async function loadCalendar() {
+      const container = document.getElementById('calendarContainer');
+
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        const res = await fetch(`${API_BASE}/api/calendar?start=${today}&end=${endDate}`, { credentials: 'include' });
+        const data = await res.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to load calendar');
+        }
+
+        const entries = data.entries || [];
+
+        if (entries.length === 0) {
+          container.innerHTML = '<div style="text-align:center; padding:40px; color:#A8B3CF;">Click "Generate Suggestions" to create your content calendar</div>';
+          return;
+        }
+
+        // Display saved entries (similar to suggestions but with edit/delete options)
+        // Implementation similar to generateCalendar but for saved entries
+      } catch (error) {
+        console.error('Error loading calendar:', error);
+      }
+    }
+
+    // Preferences
+    async function loadPreferences() {
+      try {
+        const res = await fetch(`${API_BASE}/api/preferences`, { credentials: 'include' });
+        const data = await res.json();
+
+        if (data.success && data.preferences) {
+          const prefs = data.preferences;
+          document.getElementById('preferredNiches').value = prefs.preferred_niches || '';
+          document.getElementById('postingFrequency').value = prefs.posting_frequency || 3;
+          document.getElementById('bestPostingDays').value = prefs.best_posting_days || 'Monday,Wednesday,Friday';
+          document.getElementById('bestPostingTime').value = prefs.best_posting_time || '10:00';
+        }
+      } catch (error) {
+        console.error('Error loading preferences:', error);
+      }
+    }
+
+    async function savePreferences() {
+      const status = document.getElementById('preferencesStatus');
+      status.innerHTML = '<span style="color:#3b82f6;">Saving...</span>';
+
+      try {
+        const prefs = {
+          preferred_niches: document.getElementById('preferredNiches').value.trim(),
+          posting_frequency: parseInt(document.getElementById('postingFrequency').value),
+          best_posting_days: document.getElementById('bestPostingDays').value.trim(),
+          best_posting_time: document.getElementById('bestPostingTime').value
+        };
+
+        const res = await fetch(`${API_BASE}/api/preferences`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(prefs)
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          status.innerHTML = '<span style="color:#22c55e;">Preferences saved successfully!</span>';
+          setTimeout(() => { status.innerHTML = ''; }, 3000);
+        } else {
+          throw new Error(data.error || 'Failed to save preferences');
+        }
+      } catch (error) {
+        status.innerHTML = `<span style="color:#ef4444;">Error: ${error.message}</span>`;
+      }
+    }
+
+    // Load trends on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      loadTrends();
+    });
+  </script>
+</body>
+</html>

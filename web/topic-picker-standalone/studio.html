@@ -15,6 +15,8 @@
     <h1 style="margin:0;">MSS Studio <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
     <div style="display:flex; gap:10px; flex-wrap:wrap; position:relative;">
       <button class="btn" onclick="window.location.href='index.html'">Topics</button>
+      <button class="btn" onclick="window.location.href='/analytics-dashboard'" style="background:#22c55e; border-color:#22c55e;">Analytics</button>
+      <button class="btn" onclick="window.location.href='/multi-platform'" style="background:#f59e0b; border-color:#f59e0b;">Multi-Platform</button>
       <button class="btn" onclick="window.location.href='avatar-manager.html'">Avatars</button>
       <button class="btn" onclick="window.location.href='logo-manager.html'">Logos</button>
       <button class="btn" onclick="window.location.href='meme-library.html'">Memes</button>
@@ -1009,6 +1011,36 @@ Make it stand out in search results and suggested videos.`;
         setStatus('Done!', 'ok');
         const url = `${API_BASE}/out/${data.files.final_video}`;
         preview.src = url; preview.style.display = 'block'; preview.load();
+
+        // Track video creation in analytics
+        try {
+          const title = document.getElementById('liteTitle')?.value || 'Untitled Video';
+          const description = document.getElementById('liteHook')?.value || '';
+          const keywords = document.getElementById('liteKeywords')?.value || '';
+
+          // Get topic data from localStorage
+          let topicData = {};
+          try {
+            const savedTopic = localStorage.getItem('editingTopic');
+            if (savedTopic) topicData = JSON.parse(savedTopic);
+          } catch {}
+
+          await fetch(`${API_BASE}/api/analytics/track-video`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              title: title,
+              description: description,
+              filename: data.files.final_video,
+              topic_data: topicData
+            })
+          });
+
+          console.log('[ANALYTICS] Video tracked:', title);
+        } catch (e) {
+          console.warn('[ANALYTICS] Failed to track video:', e);
+        }
 
         // Refresh usage limits after successful video creation
         try { if (typeof checkUsageLimitsSafe === 'function') checkUsageLimitsSafe(); } catch {}

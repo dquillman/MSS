@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multi-Platform Publisher - MSS Studio</title>
+  <link rel="stylesheet" href="studio.css">
+  <script src="version.js" defer></script>
+  <style>
+    .platform-card {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(17, 24, 39, 0.5));
+      border: 1px solid #8b5cf6;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 16px;
+      transition: all 0.3s;
+    }
+
+    .platform-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);
+    }
+
+    .platform-card.disabled {
+      opacity: 0.5;
+      border-color: #64748b;
+    }
+
+    .platform-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 16px;
+    }
+
+    .platform-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+    }
+
+    .platform-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #E8EBFF;
+      margin-bottom: 8px;
+    }
+
+    .platform-specs {
+      font-size: 12px;
+      color: #A8B3CF;
+      margin-bottom: 12px;
+    }
+
+    .platform-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .platform-checkbox input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+
+    .queue-item {
+      background: #1a202c;
+      border: 1px solid #2a3550;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+      transition: all 0.2s;
+    }
+
+    .queue-item:hover {
+      border-color: #3b82f6;
+    }
+
+    .queue-item.pending {
+      border-left: 4px solid #3b82f6;
+    }
+
+    .queue-item.processing {
+      border-left: 4px solid #f59e0b;
+    }
+
+    .queue-item.completed {
+      border-left: 4px solid #22c55e;
+    }
+
+    .queue-item.failed {
+      border-left: 4px solid #ef4444;
+    }
+
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .status-pending {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3b82f6;
+    }
+
+    .status-processing {
+      background: rgba(251, 191, 36, 0.2);
+      color: #f59e0b;
+    }
+
+    .status-completed {
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+    }
+
+    .status-failed {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .tab-nav {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #2a3550;
+    }
+
+    .tab-button {
+      padding: 12px 24px;
+      background: transparent;
+      border: none;
+      color: #A8B3CF;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
+    }
+
+    .tab-button:hover {
+      color: #E8EBFF;
+    }
+
+    .tab-button.active {
+      color: #8b5cf6;
+      border-bottom-color: #8b5cf6;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #A8B3CF;
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .form-section {
+      background: #1a202c;
+      border: 1px solid #2a3550;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      color: #A8B3CF;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 10px;
+      background: #0f1419;
+      border: 1px solid #2a3550;
+      border-radius: 6px;
+      color: #E8EBFF;
+      font-family: inherit;
+    }
+
+    .form-group textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+
+    .video-select {
+      background: #1a202c;
+      border: 1px solid #2a3550;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .video-select:hover {
+      border-color: #8b5cf6;
+      background: rgba(139, 92, 246, 0.05);
+    }
+
+    .video-select.selected {
+      border-color: #8b5cf6;
+      background: rgba(139, 92, 246, 0.1);
+    }
+  </style>
+</head>
+<body>
+  <div id="loadingBar" class="loading-bar"></div>
+
+  <!-- Header -->
+  <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+    <h1 style="margin:0;">Multi-Platform Publisher</h1>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn" onclick="window.location.href='/dashboard'" style="background:#3b82f6; border-color:#3b82f6;">Dashboard</button>
+      <button class="btn" onclick="window.location.href='/studio'" style="background:#22c55e; border-color:#22c55e;">Studio</button>
+    </div>
+  </div>
+
+  <!-- Info Banner -->
+  <div class="card" style="background:linear-gradient(135deg, rgba(139,92,246,0.1), rgba(17,24,39,0.5)); border-color:#8b5cf6;">
+    <div style="display:flex; align-items:start; gap:16px;">
+      <div style="font-size:32px;">🚀</div>
+      <div>
+        <h3 style="margin:0 0 8px 0;">Publish to Multiple Platforms</h3>
+        <p style="margin:0; color:#A8B3CF; font-size:14px;">Automatically optimize and publish your videos to YouTube, TikTok, Instagram Reels, and more. Save time by managing all your content from one place.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-nav">
+    <button class="tab-button active" onclick="switchTab('publish')">Publish Video</button>
+    <button class="tab-button" onclick="switchTab('queue')">Publishing Queue</button>
+    <button class="tab-button" onclick="switchTab('platforms')">Platforms</button>
+  </div>
+
+  <!-- Publish Tab -->
+  <div id="publishTab" class="tab-content active">
+    <div class="card">
+      <h2 style="margin-top:0;">Publish Video</h2>
+
+      <!-- Step 1: Select Video -->
+      <div class="form-section">
+        <h3 style="margin-top:0;">1. Select Video</h3>
+        <div class="form-group">
+          <label>Video File</label>
+          <input type="file" id="videoFile" accept="video/*">
+          <div class="hint">Or select from recent videos below</div>
+        </div>
+        <div id="recentVideos">
+          <div style="text-align:center; padding:20px; color:#A8B3CF;">Recent videos will appear here</div>
+        </div>
+      </div>
+
+      <!-- Step 2: Select Platforms -->
+      <div class="form-section">
+        <h3 style="margin-top:0;">2. Select Platforms</h3>
+        <div class="platform-grid" id="platformGrid">
+          <div style="text-align:center; padding:40px; color:#A8B3CF; grid-column:1/-1;">Loading platforms...</div>
+        </div>
+      </div>
+
+      <!-- Step 3: Video Details -->
+      <div class="form-section">
+        <h3 style="margin-top:0;">3. Video Details</h3>
+        <div class="form-group">
+          <label>Title</label>
+          <input type="text" id="publishTitle" placeholder="Enter video title" maxlength="100">
+          <div class="hint">Max 100 characters</div>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="publishDescription" placeholder="Enter video description"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Tags (comma-separated)</label>
+          <input type="text" id="publishTags" placeholder="e.g., ai, automation, technology">
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display:flex; gap:12px;">
+        <button class="btn" onclick="publishNow()" style="background:#22c55e; border-color:#22c55e;">Publish Now</button>
+        <button class="btn" onclick="addToQueue()" style="background:#8b5cf6; border-color:#8b5cf6;">Add to Queue</button>
+        <button class="btn" onclick="clearForm()" style="background:#64748b; border-color:#64748b;">Clear</button>
+      </div>
+      <div id="publishStatus" style="margin-top:16px;"></div>
+    </div>
+  </div>
+
+  <!-- Queue Tab -->
+  <div id="queueTab" class="tab-content">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h2 style="margin:0;">Publishing Queue</h2>
+        <button class="btn" onclick="loadQueue()" style="background:#22c55e; border-color:#22c55e;">Refresh</button>
+      </div>
+      <div id="queueContainer">
+        <div style="text-align:center; padding:40px; color:#A8B3CF;">Loading queue...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Platforms Tab -->
+  <div id="platformsTab" class="tab-content">
+    <div class="card">
+      <h2 style="margin-top:0;">Platform Specifications</h2>
+      <div id="platformSpecsContainer">
+        <div style="text-align:center; padding:40px; color:#A8B3CF;">Loading platform specs...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+    let selectedVideo = null;
+    let selectedPlatforms = [];
+
+    // Tab switching
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      document.getElementById(tabName + 'Tab').classList.add('active');
+
+      if (tabName === 'queue') {
+        loadQueue();
+      } else if (tabName === 'platforms') {
+        loadPlatformSpecs();
+      }
+    }
+
+    // Load platform presets
+    async function loadPlatforms() {
+      const grid = document.getElementById('platformGrid');
+      grid.innerHTML = '<div style="text-align:center; padding:40px; color:#A8B3CF; grid-column:1/-1;">Loading platforms...</div>';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/platforms/presets`, { credentials: 'include' });
+        const data = await res.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to load platforms');
+        }
+
+        const presets = data.presets || [];
+        const platformIcons = {
+          'youtube': '📺',
+          'youtube_shorts': '🎬',
+          'tiktok': '🎵',
+          'instagram_reels': '📸',
+          'instagram_feed': '📷',
+          'facebook': '👥'
+        };
+
+        grid.innerHTML = presets.map(preset => `
+          <div class="platform-card" data-platform="${preset.platform}">
+            <div class="platform-icon">${platformIcons[preset.platform] || '🎥'}</div>
+            <div class="platform-name">${formatPlatformName(preset.platform)}</div>
+            <div class="platform-specs">
+              ${preset.aspect_ratio} • Max ${preset.max_duration_seconds}s<br>
+              ${preset.recommended_resolution}
+            </div>
+            <div class="platform-checkbox">
+              <input type="checkbox" id="platform_${preset.platform}" onchange="togglePlatform('${preset.platform}')">
+              <label for="platform_${preset.platform}" style="cursor:pointer; margin:0;">Select</label>
+            </div>
+          </div>
+        `).join('');
+
+      } catch (error) {
+        console.error('Error loading platforms:', error);
+        grid.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444; grid-column:1/-1;">Error: ${error.message}</div>`;
+      }
+    }
+
+    function formatPlatformName(platform) {
+      return platform.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    }
+
+    function togglePlatform(platform) {
+      const checkbox = document.getElementById(`platform_${platform}`);
+      if (checkbox.checked) {
+        if (!selectedPlatforms.includes(platform)) {
+          selectedPlatforms.push(platform);
+        }
+      } else {
+        selectedPlatforms = selectedPlatforms.filter(p => p !== platform);
+      }
+      console.log('Selected platforms:', selectedPlatforms);
+    }
+
+    // Publish now
+    async function publishNow() {
+      const status = document.getElementById('publishStatus');
+
+      if (selectedPlatforms.length === 0) {
+        status.innerHTML = '<span style="color:#ef4444;">Please select at least one platform</span>';
+        return;
+      }
+
+      const title = document.getElementById('publishTitle').value.trim();
+      if (!title) {
+        status.innerHTML = '<span style="color:#ef4444;">Please enter a title</span>';
+        return;
+      }
+
+      status.innerHTML = '<span style="color:#3b82f6;">Publishing...</span>';
+
+      try {
+        // This is a mock implementation - in production, you'd upload the video and trigger actual platform APIs
+        alert('Publishing feature requires platform API integration.\n\nSelected platforms: ' + selectedPlatforms.join(', ') + '\nTitle: ' + title);
+
+        status.innerHTML = '<span style="color:#22c55e;">Video queued for publishing! Check the Queue tab for status.</span>';
+
+        // Add to queue
+        await addToQueue();
+
+      } catch (error) {
+        status.innerHTML = `<span style="color:#ef4444;">Error: ${error.message}</span>`;
+      }
+    }
+
+    // Add to queue
+    async function addToQueue() {
+      const status = document.getElementById('publishStatus');
+
+      if (selectedPlatforms.length === 0) {
+        status.innerHTML = '<span style="color:#ef4444;">Please select at least one platform</span>';
+        return;
+      }
+
+      const title = document.getElementById('publishTitle').value.trim();
+      const description = document.getElementById('publishDescription').value.trim();
+      const tags = document.getElementById('publishTags').value.split(',').map(t => t.trim()).filter(t => t);
+
+      if (!title) {
+        status.innerHTML = '<span style="color:#ef4444;">Please enter a title</span>';
+        return;
+      }
+
+      // Mock video filename - in production, this would be the uploaded/selected video
+      const videoFilename = `video_${Date.now()}.mp4`;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/platforms/queue`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            video_filename: videoFilename,
+            platforms: selectedPlatforms,
+            title: title,
+            description: description,
+            tags: tags
+          })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          status.innerHTML = '<span style="color:#22c55e;">Added to queue successfully!</span>';
+          setTimeout(() => { status.innerHTML = ''; }, 3000);
+        } else {
+          throw new Error(data.error || 'Failed to add to queue');
+        }
+
+      } catch (error) {
+        status.innerHTML = `<span style="color:#ef4444;">Error: ${error.message}</span>`;
+      }
+    }
+
+    function clearForm() {
+      document.getElementById('publishTitle').value = '';
+      document.getElementById('publishDescription').value = '';
+      document.getElementById('publishTags').value = '';
+      selectedPlatforms = [];
+      document.querySelectorAll('.platform-checkbox input').forEach(cb => cb.checked = false);
+      document.getElementById('publishStatus').innerHTML = '';
+    }
+
+    // Load queue
+    async function loadQueue() {
+      const container = document.getElementById('queueContainer');
+      container.innerHTML = '<div style="text-align:center; padding:40px; color:#A8B3CF;">Loading queue...</div>';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/platforms/queue`, { credentials: 'include' });
+        const data = await res.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to load queue');
+        }
+
+        const queue = data.queue || [];
+
+        if (queue.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">📋</div>
+              <div>No videos in queue</div>
+              <div style="font-size:14px; margin-top:8px;">Videos you queue for publishing will appear here</div>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = queue.map(item => {
+          const platforms = JSON.parse(item.platforms || '[]');
+          return `
+            <div class="queue-item ${item.status}">
+              <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:12px;">
+                <div>
+                  <div style="font-size:16px; font-weight:700; color:#E8EBFF; margin-bottom:4px;">${item.title}</div>
+                  <div style="font-size:12px; color:#A8B3CF;">
+                    ${new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+                <span class="status-badge status-${item.status}">${item.status}</span>
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                ${platforms.map(p => `<span style="padding:4px 10px; background:rgba(139,92,246,0.2); border-radius:12px; font-size:11px; color:#a78bfa;">${formatPlatformName(p)}</span>`).join('')}
+              </div>
+              ${item.error_message ? `<div style="margin-top:12px; padding:12px; background:rgba(239,68,68,0.1); border:1px solid #ef4444; border-radius:6px; color:#ef4444; font-size:12px;">${item.error_message}</div>` : ''}
+            </div>
+          `;
+        }).join('');
+
+      } catch (error) {
+        console.error('Error loading queue:', error);
+        container.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444;">Error: ${error.message}</div>`;
+      }
+    }
+
+    // Load platform specs
+    async function loadPlatformSpecs() {
+      const container = document.getElementById('platformSpecsContainer');
+      container.innerHTML = '<div style="text-align:center; padding:40px; color:#A8B3CF;">Loading platform specs...</div>';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/platforms/presets`, { credentials: 'include' });
+        const data = await res.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to load platform specs');
+        }
+
+        const presets = data.presets || [];
+
+        container.innerHTML = `
+          <table style="width:100%; border-collapse:collapse;">
+            <thead>
+              <tr style="background:#1a202c; border-bottom:2px solid #2a3550;">
+                <th style="padding:12px; text-align:left; color:#A8B3CF; font-size:12px; text-transform:uppercase;">Platform</th>
+                <th style="padding:12px; text-align:left; color:#A8B3CF; font-size:12px; text-transform:uppercase;">Aspect Ratio</th>
+                <th style="padding:12px; text-align:left; color:#A8B3CF; font-size:12px; text-transform:uppercase;">Max Duration</th>
+                <th style="padding:12px; text-align:left; color:#A8B3CF; font-size:12px; text-transform:uppercase;">Max File Size</th>
+                <th style="padding:12px; text-align:left; color:#A8B3CF; font-size:12px; text-transform:uppercase;">Recommended Resolution</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${presets.map(preset => `
+                <tr style="border-bottom:1px solid #2a3550;">
+                  <td style="padding:12px; color:#E8EBFF;">${formatPlatformName(preset.platform)}</td>
+                  <td style="padding:12px; color:#E8EBFF;">${preset.aspect_ratio}</td>
+                  <td style="padding:12px; color:#E8EBFF;">${formatDuration(preset.max_duration_seconds)}</td>
+                  <td style="padding:12px; color:#E8EBFF;">${preset.max_file_size_mb} MB</td>
+                  <td style="padding:12px; color:#E8EBFF;">${preset.recommended_resolution}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div style="margin-top:20px; padding:16px; background:rgba(59,130,246,0.1); border:1px solid #3b82f6; border-radius:8px; color:#60a5fa; font-size:14px;">
+            💡 Tip: Videos are automatically optimized for each platform's specifications when you publish.
+          </div>
+        `;
+
+      } catch (error) {
+        console.error('Error loading platform specs:', error);
+        container.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444;">Error: ${error.message}</div>`;
+      }
+    }
+
+    function formatDuration(seconds) {
+      if (seconds >= 3600) {
+        return `${Math.floor(seconds / 3600)}h`;
+      } else if (seconds >= 60) {
+        return `${Math.floor(seconds / 60)}m`;
+      } else {
+        return `${seconds}s`;
+      }
+    }
+
+    // Load platforms on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      loadPlatforms();
+    });
+  </script>
+</body>
+</html>

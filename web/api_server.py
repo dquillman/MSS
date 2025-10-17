@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import sqlite3
 from pathlib import Path
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -641,6 +642,12 @@ def api_signup():
 def serve_dashboard():
     """Serve User Dashboard"""
     return send_from_directory('topic-picker-standalone', 'dashboard.html')
+
+@app.route('/trends-calendar')
+@app.route('/trends-calendar.html')
+def serve_trends_calendar():
+    """Serve Trends & Calendar Page"""
+    return send_from_directory('topic-picker-standalone', 'trends-calendar.html')
 
 @app.route('/<path:filename>')
 def serve_frontend_file(filename):
@@ -4417,6 +4424,1240 @@ def upload_logo_to_library():
         library.setdefault('logos', []).append(entry)
         lib_path.write_text(json.dumps(library, indent=2), encoding='utf-8')
         return jsonify({'success': True, 'url': url, 'logo': entry})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ===========================================
+# TREND ALERTS & AI CONTENT CALENDAR API
+# ===========================================
+
+# Force add current directory to path
+import sys
+if '.' not in sys.path:
+    sys.path.insert(0, '.')
+
+trend_manager = None
+try:
+    print("[TRENDS] Attempting import from web.trend_calendar...")
+    from web.trend_calendar import TrendCalendarManager
+    trend_manager = TrendCalendarManager()
+    print("[TRENDS] ✓ TrendCalendarManager loaded successfully (web.trend_calendar)")
+except Exception as e1:
+    print(f"[TRENDS] ✗ Failed to import from web.trend_calendar: {e1}")
+    import traceback
+    traceback.print_exc()
+    try:
+        print("[TRENDS] Attempting import from trend_calendar...")
+        from trend_calendar import TrendCalendarManager
+        trend_manager = TrendCalendarManager()
+        print("[TRENDS] ✓ TrendCalendarManager loaded successfully (trend_calendar)")
+    except Exception as e2:
+        print(f"[TRENDS] ✗ Failed to import from trend_calendar: {e2}")
+        traceback.print_exc()
+        trend_manager = None
+        print("[TRENDS] WARNING: Trend manager not available - endpoints will return 500")
+
+print(f"[TRENDS] Final status: trend_manager = {trend_manager}")
+
+# ===========================================
+# ANALYTICS MODULE
+# ===========================================
+
+analytics_manager = None
+try:
+    print("[ANALYTICS] Attempting import from web.analytics...")
+    from web.analytics import AnalyticsManager
+    analytics_manager = AnalyticsManager()
+    print("[ANALYTICS] ✓ AnalyticsManager loaded successfully")
+except Exception as e1:
+    print(f"[ANALYTICS] ✗ Failed to import from web.analytics: {e1}")
+    try:
+        print("[ANALYTICS] Attempting import from analytics...")
+        from analytics import AnalyticsManager
+        analytics_manager = AnalyticsManager()
+        print("[ANALYTICS] ✓ AnalyticsManager loaded successfully (analytics)")
+    except Exception as e2:
+        print(f"[ANALYTICS] ✗ Failed to import from analytics: {e2}")
+        analytics_manager = None
+        print("[ANALYTICS] WARNING: Analytics manager not available")
+
+print(f"[ANALYTICS] Final status: analytics_manager = {analytics_manager}")
+
+# ===========================================
+# MULTI-PLATFORM PUBLISHER MODULE
+# ===========================================
+
+multi_platform = None
+try:
+    print("[MULTIPLATFORM] Attempting import from web.multi_platform...")
+    from web.multi_platform import MultiPlatformPublisher
+    multi_platform = MultiPlatformPublisher()
+    print("[MULTIPLATFORM] ✓ MultiPlatformPublisher loaded successfully")
+except Exception as e1:
+    print(f"[MULTIPLATFORM] ✗ Failed to import from web.multi_platform: {e1}")
+    try:
+        print("[MULTIPLATFORM] Attempting import from multi_platform...")
+        from multi_platform import MultiPlatformPublisher
+        multi_platform = MultiPlatformPublisher()
+        print("[MULTIPLATFORM] ✓ MultiPlatformPublisher loaded successfully (multi_platform)")
+    except Exception as e2:
+        print(f"[MULTIPLATFORM] ✗ Failed to import from multi_platform: {e2}")
+        multi_platform = None
+        print("[MULTIPLATFORM] WARNING: Multi-platform publisher not available")
+
+print(f"[MULTIPLATFORM] Final status: multi_platform = {multi_platform}")
+
+# ===========================================
+# PLATFORM API INTEGRATION MODULE
+# ===========================================
+
+platform_api = None
+try:
+    print("[PLATFORM_API] Attempting import from web.platform_apis...")
+    from web.platform_apis import PlatformAPIManager
+    platform_api = PlatformAPIManager()
+    print("[PLATFORM_API] ✓ PlatformAPIManager loaded successfully")
+except Exception as e1:
+    print(f"[PLATFORM_API] ✗ Failed to import from web.platform_apis: {e1}")
+    try:
+        print("[PLATFORM_API] Attempting import from platform_apis...")
+        from platform_apis import PlatformAPIManager
+        platform_api = PlatformAPIManager()
+        print("[PLATFORM_API] ✓ PlatformAPIManager loaded successfully (platform_apis)")
+    except Exception as e2:
+        print(f"[PLATFORM_API] ✗ Failed to import from platform_apis: {e2}")
+        platform_api = None
+        print("[PLATFORM_API] WARNING: Platform API manager not available")
+
+print(f"[PLATFORM_API] Final status: platform_api = {platform_api}")
+
+def _get_user_from_session():
+    """Helper to get user email from session"""
+    session_id = request.cookies.get('session_id')
+    if not session_id:
+        return None, jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+    result = database.get_session(session_id)
+    if not result.get('success'):
+        return None, jsonify({'success': False, 'error': 'Invalid or expired session'}), 401
+
+    return result['user']['email'], None, None
+
+@app.route('/api/trends/status', methods=['GET'])
+def trends_status():
+    """Debug endpoint to check trend manager status"""
+    return jsonify({
+        'trend_manager_loaded': trend_manager is not None,
+        'trend_manager_type': str(type(trend_manager)) if trend_manager else None,
+        'db_path': trend_manager.db_path if trend_manager else None
+    })
+
+@app.route('/api/trends', methods=['GET'])
+def get_trends():
+    """Get trending topics for the user"""
+    if not trend_manager:
+        return jsonify({'success': False, 'error': 'Trend manager not available'}), 500
+
+    # Get user from session
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    niche = request.args.get('niche', None)
+
+    try:
+        trends = trend_manager.get_trending_topics(user_email, niche)
+        return jsonify({'success': True, 'trends': trends})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/trends/save', methods=['POST'])
+def save_trend_alert():
+    """Save a trend alert for the user"""
+    if not trend_manager:
+        return jsonify({'success': False, 'error': 'Trend manager not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+    data = request.get_json()
+
+    try:
+        alert_id = trend_manager.save_trend_alert(user_email, data)
+        return jsonify({'success': True, 'alert_id': alert_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/trends/alerts', methods=['GET'])
+def get_trend_alerts():
+    """Get user's saved trend alerts"""
+    if not trend_manager:
+        return jsonify({'success': False, 'error': 'Trend manager not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+    include_dismissed = request.args.get('include_dismissed', 'false').lower() == 'true'
+
+    try:
+        alerts = trend_manager.get_user_alerts(user_email, include_dismissed)
+        return jsonify({'success': True, 'alerts': alerts})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/trends/dismiss/<int:alert_id>', methods=['POST'])
+def dismiss_trend_alert(alert_id):
+    """Dismiss a trend alert"""
+    if not trend_manager:
+        return jsonify({'success': False, 'error': 'Trend manager not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    try:
+        success = trend_manager.dismiss_alert(alert_id, user_email)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/calendar/generate', methods=['GET'])
+def generate_content_calendar():
+    """Generate AI-powered content calendar"""
+    if not trend_manager:
+        return jsonify({'success': False, 'error': 'Trend manager not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+    days_ahead = int(request.args.get('days', 30))
+
+    try:
+        suggestions = trend_manager.generate_content_calendar(user_email, days_ahead)
+        return jsonify({'success': True, 'suggestions': suggestions})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/calendar', methods=['GET'])
+def get_calendar_entries():
+    """Get user's calendar entries"""
+    if not trend_manager:
+        return jsonify({'success': False, 'error': 'Trend manager not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+    start_date = request.args.get('start')
+    end_date = request.args.get('end')
+
+    try:
+        entries = trend_manager.get_calendar_entries(user_email, start_date, end_date)
+        return jsonify({'success': True, 'entries': entries})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/calendar', methods=['POST'])
+def save_calendar_entry():
+    """Save a calendar entry and optionally add to Google Calendar"""
+    if not trend_manager:
+        return jsonify({'success': False, 'error': 'Trend manager not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+    data = request.get_json()
+
+    try:
+        # Save to MSS database
+        entry_id = trend_manager.save_calendar_entry(user_email, data)
+
+        # Try to add to Google Calendar if connected
+        google_calendar_result = None
+        if platform_api:
+            try:
+                google_calendar_result = platform_api.add_calendar_event(user_email, data)
+                if google_calendar_result.get('success'):
+                    print(f"[CALENDAR] Event added to Google Calendar: {google_calendar_result.get('html_link')}")
+            except Exception as e:
+                print(f"[CALENDAR] Could not add to Google Calendar: {e}")
+                # Don't fail the whole request if Google Calendar fails
+
+        return jsonify({
+            'success': True,
+            'entry_id': entry_id,
+            'google_calendar': google_calendar_result
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/calendar/<int:entry_id>/export.ics', methods=['GET'])
+def export_calendar_entry_ics(entry_id):
+    """Export a calendar entry as .ics file"""
+    if not trend_manager:
+        return "Calendar not available", 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    try:
+        # Get the calendar entry
+        entries = trend_manager.get_calendar_entries(user_email)
+        entry = None
+        for e in entries:
+            if e['id'] == entry_id:
+                entry = e
+                break
+
+        if not entry:
+            return "Calendar entry not found", 404
+
+        # Generate .ics content
+        from datetime import datetime as dt
+
+        # Parse date and time
+        event_date = entry['scheduled_date']  # Format: YYYY-MM-DD
+        event_time = entry.get('scheduled_time', '10:00')  # Format: HH:MM
+
+        # Combine date and time
+        event_datetime = dt.strptime(f"{event_date} {event_time}", "%Y-%m-%d %H:%M")
+
+        # Format for .ics (YYYYMMDDTHHMMSS)
+        dtstart = event_datetime.strftime("%Y%m%dT%H%M%S")
+
+        # Event duration: 1 hour
+        from datetime import timedelta
+        dtend = (event_datetime + timedelta(hours=1)).strftime("%Y%m%dT%H%M%S")
+
+        # Current timestamp for DTSTAMP
+        dtstamp = dt.utcnow().strftime("%Y%m%dT%H%M%SZ")
+
+        # Create unique UID
+        uid = f"mss-calendar-{entry_id}@mss.local"
+
+        # Build .ics content
+        title = entry.get('title', 'Content Creation')
+        description = entry.get('description', entry.get('topic', ''))
+        if entry.get('reason'):
+            description += f"\\n\\n{entry['reason']}"
+
+        ics_content = f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//MSS Studio//Content Calendar//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:{uid}
+DTSTAMP:{dtstamp}
+DTSTART:{dtstart}
+DTEND:{dtend}
+SUMMARY:{title}
+DESCRIPTION:{description.replace(chr(10), '\\n')}
+LOCATION:MSS Studio
+STATUS:CONFIRMED
+SEQUENCE:0
+END:VEVENT
+END:VCALENDAR"""
+
+        # Return as downloadable .ics file
+        from flask import Response
+        response = Response(ics_content, mimetype='text/calendar')
+        response.headers['Content-Disposition'] = f'attachment; filename="mss-event-{entry_id}.ics"'
+        return response
+
+    except Exception as e:
+        print(f"[CALENDAR] Error exporting .ics: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"Error: {str(e)}", 500
+
+@app.route('/api/calendar/<int:entry_id>', methods=['PUT'])
+def update_calendar_entry(entry_id):
+    """Update a calendar entry"""
+    if not trend_manager:
+        return jsonify({'success': False, 'error': 'Trend manager not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+    data = request.get_json()
+
+    try:
+        success = trend_manager.update_calendar_entry(entry_id, user_email, data)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/calendar/<int:entry_id>', methods=['DELETE'])
+def delete_calendar_entry(entry_id):
+    """Delete a calendar entry"""
+    if not trend_manager:
+        return jsonify({'success': False, 'error': 'Trend manager not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    try:
+        success = trend_manager.delete_calendar_entry(entry_id, user_email)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/preferences', methods=['GET'])
+def get_user_preferences():
+    """Get user preferences for trends/calendar"""
+    if not trend_manager:
+        return jsonify({'success': False, 'error': 'Trend manager not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    try:
+        prefs = trend_manager.get_user_preferences(user_email)
+        return jsonify({'success': True, 'preferences': prefs})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/preferences', methods=['POST'])
+def save_user_preferences():
+    """Save user preferences for trends/calendar"""
+    if not trend_manager:
+        return jsonify({'success': False, 'error': 'Trend manager not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+    data = request.get_json()
+
+    try:
+        success = trend_manager.save_user_preferences(user_email, data)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ===========================================
+# ANALYTICS API ENDPOINTS
+# ===========================================
+
+@app.route('/api/analytics/dashboard', methods=['GET'])
+def get_analytics_dashboard():
+    """Get comprehensive analytics dashboard data"""
+    if not analytics_manager:
+        return jsonify({'success': False, 'error': 'Analytics not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    days = request.args.get('days', 30, type=int)
+
+    try:
+        stats = analytics_manager.get_dashboard_stats(user_email, days)
+        return jsonify({'success': True, 'stats': stats})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/analytics/videos', methods=['GET'])
+def get_analytics_videos():
+    """Get all videos with metrics"""
+    if not analytics_manager:
+        return jsonify({'success': False, 'error': 'Analytics not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    limit = request.args.get('limit', 50, type=int)
+
+    try:
+        videos = analytics_manager.get_user_videos(user_email, limit)
+        return jsonify({'success': True, 'videos': videos})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/analytics/track-video', methods=['POST'])
+def track_video_creation():
+    """Track a new video creation"""
+    if not analytics_manager:
+        return jsonify({'success': False, 'error': 'Analytics not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    data = request.get_json()
+
+    try:
+        video_id = analytics_manager.track_video_creation(user_email, data)
+        return jsonify({'success': True, 'video_id': video_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/analytics/update-metrics', methods=['POST'])
+def update_video_metrics():
+    """Update metrics for a video"""
+    if not analytics_manager:
+        return jsonify({'success': False, 'error': 'Analytics not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    data = request.get_json()
+    video_id = data.get('video_id')
+    metrics = data.get('metrics', {})
+    platform = data.get('platform', 'youtube')
+
+    if not video_id:
+        return jsonify({'success': False, 'error': 'video_id required'}), 400
+
+    try:
+        metric_id = analytics_manager.record_video_metrics(video_id, metrics, platform)
+        return jsonify({'success': True, 'metric_id': metric_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/analytics-dashboard')
+def analytics_dashboard_page():
+    """Serve the analytics dashboard page"""
+    return send_from_directory('topic-picker-standalone', 'analytics-dashboard.html')
+
+@app.route('/channel-manager')
+def channel_manager_page():
+    """Serve the channel manager page"""
+    return send_from_directory('topic-picker-standalone', 'channel-manager.html')
+
+
+# ===========================================
+# MULTI-PLATFORM PUBLISHER API ENDPOINTS
+# ===========================================
+
+@app.route('/api/platforms/presets', methods=['GET'])
+def get_platform_presets():
+    """Get all platform optimization presets"""
+    if not multi_platform:
+        return jsonify({'success': False, 'error': 'Multi-platform publisher not available'}), 500
+
+    try:
+        presets = multi_platform.get_platform_presets()
+        return jsonify({'success': True, 'presets': presets})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/platforms/optimize', methods=['POST'])
+def optimize_video():
+    """Optimize video for specific platform"""
+    if not multi_platform:
+        return jsonify({'success': False, 'error': 'Multi-platform publisher not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    data = request.get_json()
+    video_filename = data.get('video_filename')
+    platform = data.get('platform')
+
+    if not video_filename or not platform:
+        return jsonify({'success': False, 'error': 'video_filename and platform required'}), 400
+
+    # Construct input path
+    input_path = os.path.join('out', video_filename)
+
+    try:
+        result = multi_platform.optimize_video_for_platform(input_path, platform)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/platforms/queue', methods=['POST'])
+def queue_publication():
+    """Add video to publishing queue"""
+    if not multi_platform:
+        return jsonify({'success': False, 'error': 'Multi-platform publisher not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    data = request.get_json()
+    video_filename = data.get('video_filename')
+    platforms = data.get('platforms', [])
+    title = data.get('title', '')
+    description = data.get('description', '')
+    tags = data.get('tags', [])
+    scheduled_time = data.get('scheduled_time')
+
+    if not video_filename or not platforms:
+        return jsonify({'success': False, 'error': 'video_filename and platforms required'}), 400
+
+    try:
+        queue_id = multi_platform.queue_publication(
+            user_email, video_filename, platforms, title, description, tags, scheduled_time
+        )
+        return jsonify({'success': True, 'queue_id': queue_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/platforms/queue', methods=['GET'])
+def get_publishing_queue():
+    """Get publishing queue for user"""
+    if not multi_platform:
+        return jsonify({'success': False, 'error': 'Multi-platform publisher not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    status = request.args.get('status')
+
+    try:
+        queue = multi_platform.get_publishing_queue(user_email, status)
+        return jsonify({'success': True, 'queue': queue})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/platforms/published', methods=['GET'])
+def get_published_videos():
+    """Get published videos for user"""
+    if not multi_platform:
+        return jsonify({'success': False, 'error': 'Multi-platform publisher not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    platform = request.args.get('platform')
+
+    try:
+        published = multi_platform.get_published_videos(user_email, platform)
+        return jsonify({'success': True, 'published': published})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/platforms/connected', methods=['GET'])
+def get_connected_platforms():
+    """Get connected platforms for user"""
+    if not multi_platform:
+        return jsonify({'success': False, 'error': 'Multi-platform publisher not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    try:
+        platforms = multi_platform.get_connected_platforms(user_email)
+        return jsonify({'success': True, 'platforms': platforms})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/multi-platform')
+def multi_platform_page():
+    """Serve the multi-platform publisher page"""
+    return send_from_directory('topic-picker-standalone', 'multi-platform.html')
+
+
+# ===========================================
+# PLATFORM API OAUTH & UPLOAD ENDPOINTS
+# ===========================================
+
+@app.route('/api/oauth/youtube/authorize', methods=['GET'])
+def youtube_oauth_authorize():
+    """Start YouTube OAuth flow"""
+    if not platform_api:
+        return jsonify({'success': False, 'error': 'Platform API not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        print("[YOUTUBE] Authorize: Failed to get user from session")
+        return error_response, error_code
+
+    print(f"[YOUTUBE] Authorize: Starting OAuth for user: {user_email}")
+
+    redirect_uri = request.args.get('redirect_uri', request.host_url + 'api/oauth/youtube/callback')
+
+    try:
+        auth_url = platform_api.get_youtube_auth_url(user_email, redirect_uri)
+        if auth_url:
+            # Redirect to Google OAuth instead of returning JSON
+            from flask import redirect
+            return redirect(auth_url)
+        else:
+            return jsonify({'success': False, 'error': 'Failed to generate auth URL. Check YouTube credentials.'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/oauth/youtube/callback', methods=['GET'])
+def youtube_oauth_callback():
+    """Handle YouTube OAuth callback"""
+    if not platform_api:
+        return "Platform API not available", 500
+
+    code = request.args.get('code')
+    state = request.args.get('state')
+
+    if not code or not state:
+        return "Missing code or state", 400
+
+    # Get user from session
+    session_id = request.cookies.get('session_id')
+    print(f"[YOUTUBE] Callback: session_id from cookie: {session_id[:10] if session_id else 'None'}...")
+
+    if not session_id:
+        print("[YOUTUBE] Callback: No session_id cookie found")
+        return "Not authenticated", 401
+
+    result = database.get_session(session_id)
+    if not result.get('success'):
+        print(f"[YOUTUBE] Callback: Invalid session for session_id: {session_id[:10]}...")
+        return "Invalid session", 401
+
+    user_email = result['user']['email']
+    print(f"[YOUTUBE] Callback: Retrieved user email from session: {user_email}")
+
+    redirect_uri = request.host_url + 'api/oauth/youtube/callback'
+
+    try:
+        success = platform_api.handle_youtube_callback(user_email, code, state, redirect_uri)
+        if success:
+            # Fetch and store channel info
+            if analytics_manager:
+                try:
+                    channel_info = platform_api.get_and_store_youtube_channel(user_email, analytics_manager)
+                    if channel_info.get('success'):
+                        print(f"[YOUTUBE] Channel stored: {channel_info.get('title')} (ID: {channel_info.get('channel_id')})")
+                    else:
+                        print(f"[YOUTUBE] Warning: Could not fetch channel info: {channel_info.get('error')}")
+                except Exception as e:
+                    print(f"[YOUTUBE] Warning: Error storing channel info: {e}")
+
+            return """
+                <html>
+                <body>
+                    <h2>YouTube Connected Successfully!</h2>
+                    <p>You can now close this window and return to MSS.</p>
+                    <script>
+                        setTimeout(() => { window.location.href = '/channel-manager'; }, 2000);
+                    </script>
+                </body>
+                </html>
+            """
+        else:
+            print(f"[YOUTUBE] OAuth callback returned False for user: {user_email}")
+            return "OAuth callback failed - Check server logs for details", 500
+    except Exception as e:
+        return f"Error: {str(e)}", 500
+
+@app.route('/api/oauth/tiktok/authorize', methods=['GET'])
+def tiktok_oauth_authorize():
+    """Start TikTok OAuth flow"""
+    if not platform_api:
+        return jsonify({'success': False, 'error': 'Platform API not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    redirect_uri = request.args.get('redirect_uri', request.host_url + 'api/oauth/tiktok/callback')
+
+    try:
+        auth_url = platform_api.get_tiktok_auth_url(user_email, redirect_uri)
+        if auth_url:
+            return jsonify({'success': True, 'auth_url': auth_url})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to generate auth URL. Check TikTok credentials.'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/oauth/tiktok/callback', methods=['GET'])
+def tiktok_oauth_callback():
+    """Handle TikTok OAuth callback"""
+    if not platform_api:
+        return "Platform API not available", 500
+
+    code = request.args.get('code')
+    state = request.args.get('state')
+
+    if not code or not state:
+        return "Missing code or state", 400
+
+    session_id = request.cookies.get('session_id')
+    if not session_id:
+        return "Not authenticated", 401
+
+    result = database.get_session(session_id)
+    if not result.get('success'):
+        return "Invalid session", 401
+
+    user_email = result['user']['email']
+
+    try:
+        success = platform_api.handle_tiktok_callback(user_email, code, state)
+        if success:
+            return """
+                <html>
+                <body>
+                    <h2>TikTok Connected Successfully!</h2>
+                    <p>You can now close this window and return to MSS.</p>
+                    <script>
+                        setTimeout(() => window.close(), 2000);
+                    </script>
+                </body>
+                </html>
+            """
+        else:
+            return "OAuth callback failed", 500
+    except Exception as e:
+        return f"Error: {str(e)}", 500
+
+@app.route('/api/oauth/instagram/authorize', methods=['GET'])
+def instagram_oauth_authorize():
+    """Start Instagram OAuth flow"""
+    if not platform_api:
+        return jsonify({'success': False, 'error': 'Platform API not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    redirect_uri = request.args.get('redirect_uri', request.host_url + 'api/oauth/instagram/callback')
+
+    try:
+        auth_url = platform_api.get_instagram_auth_url(user_email, redirect_uri)
+        if auth_url:
+            return jsonify({'success': True, 'auth_url': auth_url})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to generate auth URL. Check Instagram credentials.'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/oauth/instagram/callback', methods=['GET'])
+def instagram_oauth_callback():
+    """Handle Instagram OAuth callback"""
+    if not platform_api:
+        return "Platform API not available", 500
+
+    code = request.args.get('code')
+    state = request.args.get('state')
+
+    if not code or not state:
+        return "Missing code or state", 400
+
+    session_id = request.cookies.get('session_id')
+    if not session_id:
+        return "Not authenticated", 401
+
+    result = database.get_session(session_id)
+    if not result.get('success'):
+        return "Invalid session", 401
+
+    user_email = result['user']['email']
+    redirect_uri = request.host_url + 'api/oauth/instagram/callback'
+
+    try:
+        success = platform_api.handle_instagram_callback(user_email, code, state, redirect_uri)
+        if success:
+            return """
+                <html>
+                <body>
+                    <h2>Instagram Connected Successfully!</h2>
+                    <p>You can now close this window and return to MSS.</p>
+                    <script>
+                        setTimeout(() => window.close(), 2000);
+                    </script>
+                </body>
+                </html>
+            """
+        else:
+            return "OAuth callback failed", 500
+    except Exception as e:
+        return f"Error: {str(e)}", 500
+
+@app.route('/api/platforms/upload/youtube', methods=['POST'])
+def upload_youtube():
+    """Upload video to YouTube"""
+    if not platform_api:
+        return jsonify({'success': False, 'error': 'Platform API not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    data = request.get_json()
+    video_filename = data.get('video_filename')
+    title = data.get('title')
+    description = data.get('description', '')
+    tags = data.get('tags', [])
+    category_id = data.get('category_id', '22')
+    privacy = data.get('privacy', 'public')
+
+    if not video_filename or not title:
+        return jsonify({'success': False, 'error': 'video_filename and title required'}), 400
+
+    # Construct video path
+    video_path = os.path.join('out', video_filename)
+
+    try:
+        result = platform_api.upload_to_youtube(
+            user_email, video_path, title, description, tags, category_id, privacy
+        )
+
+        # Track in analytics if successful
+        if result.get('success') and analytics_manager:
+            try:
+                # Track video
+                video_id = analytics_manager.track_video_creation(user_email, {
+                    'title': title,
+                    'description': description,
+                    'filename': video_filename,
+                    'topic_data': {}
+                })
+
+                # Mark as published
+                analytics_manager.update_video_published(video_id, 'youtube')
+
+                # Record publication in multi-platform
+                if multi_platform:
+                    multi_platform.record_publication(
+                        user_email, video_id, 'youtube',
+                        result.get('video_id'), result.get('url'),
+                        title, description
+                    )
+            except Exception as e:
+                print(f"[YOUTUBE] Error tracking in analytics: {e}")
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/platforms/upload/tiktok', methods=['POST'])
+def upload_tiktok():
+    """Upload video to TikTok"""
+    if not platform_api:
+        return jsonify({'success': False, 'error': 'Platform API not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    data = request.get_json()
+    video_filename = data.get('video_filename')
+    title = data.get('title')
+    description = data.get('description', '')
+    privacy_level = data.get('privacy_level', 'PUBLIC_TO_EVERYONE')
+
+    if not video_filename or not title:
+        return jsonify({'success': False, 'error': 'video_filename and title required'}), 400
+
+    video_path = os.path.join('out', video_filename)
+
+    try:
+        result = platform_api.upload_to_tiktok(user_email, video_path, title, description, privacy_level)
+
+        # Track in analytics if successful
+        if result.get('success') and analytics_manager:
+            try:
+                video_id = analytics_manager.track_video_creation(user_email, {
+                    'title': title,
+                    'description': description,
+                    'filename': video_filename,
+                    'topic_data': {}
+                })
+                analytics_manager.update_video_published(video_id, 'tiktok')
+
+                if multi_platform:
+                    multi_platform.record_publication(
+                        user_email, video_id, 'tiktok',
+                        result.get('video_id'), '',
+                        title, description
+                    )
+            except Exception as e:
+                print(f"[TIKTOK] Error tracking in analytics: {e}")
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/platforms/connection-status', methods=['GET'])
+def platform_connection_status():
+    """Get connection status for all platforms"""
+    if not platform_api:
+        return jsonify({'success': False, 'error': 'Platform API not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    try:
+        platforms = ['youtube', 'tiktok', 'instagram']
+        status = {}
+
+        for platform in platforms:
+            status[platform] = platform_api.is_platform_connected(user_email, platform)
+
+        connected_list = platform_api.get_connected_platforms_list(user_email)
+
+        return jsonify({
+            'success': True,
+            'status': status,
+            'connected': connected_list
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/platforms/disconnect/<platform>', methods=['POST'])
+def disconnect_platform_endpoint(platform):
+    """Disconnect a platform"""
+    if not platform_api:
+        return jsonify({'success': False, 'error': 'Platform API not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    try:
+        success = platform_api.disconnect_platform(user_email, platform)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/youtube/channel-info', methods=['GET'])
+def youtube_channel_info():
+    """Get YouTube channel information for the authenticated user"""
+    if not platform_api:
+        return jsonify({'success': False, 'error': 'Platform API not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    try:
+        result = platform_api.get_youtube_channel_info(user_email)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/youtube/video-stats/<video_id>', methods=['GET'])
+def youtube_video_stats(video_id):
+    """Get statistics for a specific YouTube video"""
+    if not platform_api:
+        return jsonify({'success': False, 'error': 'Platform API not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    try:
+        result = platform_api.get_youtube_video_stats(user_email, video_id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/youtube/sync-metrics', methods=['POST'])
+def youtube_sync_metrics():
+    """Sync all YouTube video metrics to analytics database"""
+    if not platform_api or not analytics_manager:
+        return jsonify({'success': False, 'error': 'Platform API or Analytics not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    try:
+        # First, get and store the YouTube channel info
+        channel_info = platform_api.get_and_store_youtube_channel(user_email, analytics_manager)
+
+        if not channel_info.get('success'):
+            return jsonify(channel_info), 500
+
+        channel_account_id = channel_info.get('channel_account_id')
+
+        # Get all videos from YouTube channel
+        result = platform_api.get_youtube_channel_videos(user_email, max_results=50)
+
+        if not result.get('success'):
+            return jsonify(result), 500
+
+        videos = result.get('videos', [])
+        synced_count = 0
+        updated_count = 0
+
+        for video in videos:
+            video_id_yt = video['video_id']
+
+            # Check if this video already exists in analytics by platform_video_id
+            conn = sqlite3.connect(analytics_manager.db_path)
+            c = conn.cursor()
+            c.execute('''
+                SELECT v.id FROM videos v
+                JOIN published_videos pv ON v.id = pv.video_id
+                WHERE pv.platform_video_id = ? AND v.user_email = ?
+            ''', (video_id_yt, user_email))
+            existing = c.fetchone()
+            conn.close()
+
+            if existing:
+                # Update existing video metrics
+                analytics_manager.record_video_metrics(existing[0], {
+                    'views': video['views'],
+                    'likes': video['likes'],
+                    'comments': video['comments'],
+                    'shares': 0,
+                    'watch_time_minutes': 0,
+                    'ctr': 0,
+                    'avg_view_duration': 0
+                }, 'youtube')
+                updated_count += 1
+            else:
+                # Create new video entry with channel_account_id
+                video_data = {
+                    'title': video['title'],
+                    'description': video['description'],
+                    'filename': f"youtube_{video_id_yt}.mp4",
+                    'topic_data': {}
+                }
+                video_id = analytics_manager.track_video_creation(user_email, video_data)
+
+                # Link video to channel account
+                if channel_account_id:
+                    conn = sqlite3.connect(analytics_manager.db_path)
+                    c = conn.cursor()
+                    c.execute('UPDATE videos SET channel_account_id = ? WHERE id = ?',
+                             (channel_account_id, video_id))
+                    conn.commit()
+                    conn.close()
+
+                # Mark as published on YouTube
+                analytics_manager.update_video_published(video_id, 'youtube')
+
+                # Record initial metrics
+                analytics_manager.record_video_metrics(video_id, {
+                    'views': video['views'],
+                    'likes': video['likes'],
+                    'comments': video['comments'],
+                    'shares': 0,
+                    'watch_time_minutes': 0,
+                    'ctr': 0,
+                    'avg_view_duration': 0
+                }, 'youtube')
+
+                # Record in multi-platform if available
+                if multi_platform:
+                    multi_platform.record_publication(
+                        user_email, video_id, 'youtube',
+                        video_id_yt, f"https://www.youtube.com/watch?v={video_id_yt}",
+                        video['title'], video['description']
+                    )
+
+                synced_count += 1
+
+        # Update last sync time for channel
+        if channel_account_id:
+            analytics_manager.update_channel_sync_time(channel_account_id)
+
+        return jsonify({
+            'success': True,
+            'synced': synced_count,
+            'updated': updated_count,
+            'total': len(videos),
+            'channel': channel_info.get('title'),
+            'message': f"Synced {synced_count} new videos, updated {updated_count} existing videos from {channel_info.get('title')}"
+        })
+
+    except Exception as e:
+        print(f"[YOUTUBE] Sync error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/channels/list', methods=['GET'])
+def list_channels():
+    """Get all YouTube channels for the user"""
+    if not analytics_manager:
+        return jsonify({'success': False, 'error': 'Analytics not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    try:
+        platform = request.args.get('platform', 'youtube')
+        channels = analytics_manager.get_user_channels(user_email, platform)
+
+        return jsonify({
+            'success': True,
+            'channels': channels,
+            'count': len(channels)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/channels/set-default', methods=['POST'])
+def set_default_channel():
+    """Set a channel as the default"""
+    if not analytics_manager:
+        return jsonify({'success': False, 'error': 'Analytics not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    data = request.get_json()
+    channel_account_id = data.get('channel_account_id')
+
+    if not channel_account_id:
+        return jsonify({'success': False, 'error': 'channel_account_id required'}), 400
+
+    try:
+        success = analytics_manager.set_default_channel(user_email, channel_account_id)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/channels/remove', methods=['POST'])
+def remove_channel():
+    """Remove a channel account"""
+    if not analytics_manager:
+        return jsonify({'success': False, 'error': 'Analytics not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    data = request.get_json()
+    channel_account_id = data.get('channel_account_id')
+
+    if not channel_account_id:
+        return jsonify({'success': False, 'error': 'channel_account_id required'}), 400
+
+    try:
+        success = analytics_manager.remove_channel_account(user_email, channel_account_id)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/channels/add-youtube', methods=['POST'])
+def add_youtube_channel():
+    """
+    Manually add a YouTube channel by connecting via OAuth
+    (Triggers OAuth flow for additional channel)
+    """
+    if not platform_api or not analytics_manager:
+        return jsonify({'success': False, 'error': 'Platform API or Analytics not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    try:
+        # Get and store the connected YouTube channel
+        channel_info = platform_api.get_and_store_youtube_channel(user_email, analytics_manager)
+
+        return jsonify(channel_info)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

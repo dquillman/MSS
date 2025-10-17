@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Channel Manager - MSS Studio</title>
+  <link rel="stylesheet" href="studio.css">
+  <script src="version.js" defer></script>
+  <style>
+    .channel-card {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(17, 24, 39, 0.5));
+      border: 1px solid #3b82f6;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      transition: all 0.3s;
+    }
+
+    .channel-card.default {
+      border-color: #22c55e;
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(17, 24, 39, 0.5));
+    }
+
+    .channel-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+    }
+
+    .channel-thumbnail {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid #3b82f6;
+    }
+
+    .channel-card.default .channel-thumbnail {
+      border-color: #22c55e;
+    }
+
+    .channel-info {
+      flex: 1;
+    }
+
+    .channel-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #E8EBFF;
+      margin-bottom: 4px;
+    }
+
+    .channel-id {
+      font-size: 12px;
+      color: #A8B3CF;
+      font-family: 'Courier New', monospace;
+    }
+
+    .channel-stats {
+      display: flex;
+      gap: 16px;
+      margin-top: 8px;
+      font-size: 13px;
+      color: #A8B3CF;
+    }
+
+    .channel-actions {
+      display: flex;
+      gap: 8px;
+      flex-direction: column;
+    }
+
+    .default-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+      margin-bottom: 8px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #A8B3CF;
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .btn-small {
+      padding: 6px 12px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div id="loadingBar" class="loading-bar"></div>
+
+  <!-- Header -->
+  <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+    <h1 style="margin:0;">YouTube Channel Manager</h1>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn" onclick="window.location.href='/dashboard'" style="background:#3b82f6; border-color:#3b82f6;">Dashboard</button>
+      <button class="btn" onclick="window.location.href='/analytics-dashboard'" style="background:#22c55e; border-color:#22c55e;">Analytics</button>
+      <button class="btn" onclick="window.location.href='/studio'" style="background:#8b5cf6; border-color:#8b5cf6;">Studio</button>
+    </div>
+  </div>
+
+  <!-- Instructions -->
+  <div class="card">
+    <h2 style="margin-top:0;">Manage Your YouTube Channels</h2>
+    <p style="color:#A8B3CF; line-height:1.6;">
+      MSS supports multiple YouTube channels. Connect different channels to track analytics and publish videos separately for each one.
+      Your <strong>default channel</strong> will be used for syncing and publishing by default.
+    </p>
+    <div style="background:rgba(59, 130, 246, 0.1); border:1px solid #3b82f6; border-radius:8px; padding:16px; margin-top:16px;">
+      <strong style="color:#3b82f6;">Note:</strong> To add additional YouTube channels, you need to sign in to different Google accounts.
+      Each OAuth connection stores one channel per account.
+    </div>
+  </div>
+
+  <!-- Channels List -->
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <h2 style="margin:0;">Connected Channels</h2>
+      <button class="btn" onclick="addNewChannel()" style="background:#FF0000; border-color:#FF0000;">
+        + Add YouTube Channel
+      </button>
+    </div>
+
+    <div id="channelsList">
+      <div style="text-align:center; padding:40px; color:#A8B3CF;">Loading channels...</div>
+    </div>
+  </div>
+
+  <!-- Instructions for Multiple Channels -->
+  <div class="card" style="background:rgba(251, 191, 36, 0.05); border-color:#fbbf24;">
+    <h3 style="color:#fbbf24; margin-top:0;">How to Add Multiple YouTube Channels</h3>
+    <ol style="color:#A8B3CF; line-height:1.8;">
+      <li>Click "<strong>+ Add YouTube Channel</strong>" above</li>
+      <li>Sign in with a <strong>different Google account</strong> than previously used</li>
+      <li>Grant permissions to MSS</li>
+      <li>The channel will be automatically detected and added to your list</li>
+      <li>Set a channel as default by clicking "Set as Default" on any channel card</li>
+    </ol>
+    <p style="color:#A8B3CF; margin-top:16px;">
+      <strong>Tip:</strong> You can switch between channels anytime. Analytics sync and video uploads will use the selected/default channel.
+    </p>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+
+    async function loadChannels() {
+      const container = document.getElementById('channelsList');
+      container.innerHTML = '<div style="text-align:center; padding:40px; color:#A8B3CF;">Loading channels...</div>';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/channels/list?platform=youtube`, {
+          credentials: 'include'
+        });
+
+        const data = await res.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to load channels');
+        }
+
+        const channels = data.channels || [];
+
+        if (channels.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">📺</div>
+              <div>No YouTube channels connected yet</div>
+              <div style="font-size:14px; margin-top:8px;">Click "Add YouTube Channel" to connect your first channel</div>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = channels.map(channel => `
+          <div class="channel-card ${channel.is_default ? 'default' : ''}">
+            <img src="${channel.thumbnail_url || 'https://via.placeholder.com/80'}"
+                 alt="${channel.channel_name}"
+                 class="channel-thumbnail"
+                 onerror="this.src='https://via.placeholder.com/80?text=YT'">
+
+            <div class="channel-info">
+              ${channel.is_default ? '<span class="default-badge">⭐ Default Channel</span>' : ''}
+              <div class="channel-name">${channel.channel_name || 'Unknown Channel'}</div>
+              <div class="channel-id">${channel.channel_id || 'No ID'}</div>
+              ${channel.channel_handle ? `<div style="font-size:13px; color:#3b82f6; margin-top:4px;">@${channel.channel_handle}</div>` : ''}
+              <div class="channel-stats">
+                <span>Added: ${formatDate(channel.added_at)}</span>
+                ${channel.last_synced_at ? `<span>Last Synced: ${formatDate(channel.last_synced_at)}</span>` : '<span>Not synced yet</span>'}
+              </div>
+            </div>
+
+            <div class="channel-actions">
+              ${!channel.is_default ? `
+                <button class="btn btn-small" onclick="setDefaultChannel(${channel.id})" style="background:#22c55e; border-color:#22c55e;">
+                  Set as Default
+                </button>
+              ` : ''}
+              <button class="btn btn-small" onclick="removeChannel(${channel.id}, '${channel.channel_name}')" style="background:#ef4444; border-color:#ef4444;">
+                Remove
+              </button>
+            </div>
+          </div>
+        `).join('');
+
+      } catch (error) {
+        console.error('Error loading channels:', error);
+        container.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444;">Error: ${error.message}</div>`;
+      }
+    }
+
+    async function addNewChannel() {
+      if (!confirm('Add a new YouTube channel?\n\nYou\'ll be redirected to sign in with Google. Make sure to use a different Google account if you want to add a different channel.')) {
+        return;
+      }
+
+      try {
+        // Redirect to YouTube OAuth
+        window.location.href = `${API_BASE}/api/oauth/youtube/authorize`;
+      } catch (error) {
+        alert('Failed to start OAuth flow: ' + error.message);
+      }
+    }
+
+    async function setDefaultChannel(channelAccountId) {
+      try {
+        const res = await fetch(`${API_BASE}/api/channels/set-default`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ channel_account_id: channelAccountId })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          alert('✓ Default channel updated!');
+          loadChannels(); // Refresh list
+        } else {
+          throw new Error(data.error || 'Failed to set default channel');
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    }
+
+    async function removeChannel(channelAccountId, channelName) {
+      if (!confirm(`Remove channel "${channelName}"?\n\nThis will not delete the channel from YouTube, only remove it from MSS. Videos synced from this channel will remain in analytics.`)) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/channels/remove`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ channel_account_id: channelAccountId })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          alert('✓ Channel removed!');
+          loadChannels(); // Refresh list
+        } else {
+          throw new Error(data.error || 'Failed to remove channel');
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    }
+
+    function formatDate(dateString) {
+      if (!dateString) return 'N/A';
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    // Load channels on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      loadChannels();
+    });
+  </script>
+</body>
+</html>
