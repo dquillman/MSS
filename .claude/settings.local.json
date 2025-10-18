@@ -25,7 +25,11 @@
       "Bash(for pid in 32244 34252 15228 26668 35332)",
       "Bash(do taskkill //F //PID $pid)",
       "Bash(done)",
-      "Bash(del clean_unicode.py)"
+      "Bash(del clean_unicode.py)",
+      "Bash(for file in workflow.html channel-manager.html analytics-dashboard.html multi-platform.html)",
+      "Bash(do echo \"=== $file ===\")",
+      "Bash(start /B python api_server.py)",
+      "Bash(sqlite3:*)"
     ],
     "deny": [],
     "ask": []

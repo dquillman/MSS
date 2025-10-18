@@ -12,12 +12,10 @@
   <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
     <h1 style="margin:0;">Script Generator <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
     <div style="display:flex; gap:10px; flex-wrap:wrap; position:relative;">
-      <button class="btn" onclick="window.location.href='index.html'">Topics</button>
       <button class="btn" onclick="window.location.href='avatar-manager.html'">Avatars</button>
       <button class="btn" onclick="window.location.href='logo-manager.html'">Logos</button>
-      <button class="btn" onclick="window.location.href='meme-library.html'">Memes</button>
+      <button class="btn" onclick="window.location.href='meme-library.html'">Thumbnails</button>
       <button class="btn" onclick="window.location.href='intro-outro.html'">Intro/Outro</button>
-      <button class="btn" onclick="window.location.href='viewer.html'">Viewer</button>
       <button class="btn" style="background:#3b82f6; border-color:#3b82f6;" onclick="window.location.href='studio.html'">Studio</button>
       <div class="dropdown" id="oldMenusContainer" style="position:relative;display:none;">
         <button class="btn" id="oldMenusBtn">Old Menus</button>
@@ -35,10 +33,9 @@
 <script>(function(){ const btn=document.getElementById("oldMenusBtn"); const menu=document.getElementById("oldMenus"); const $oldMenusContainer = document.getElementById('oldMenusContainer'); if(btn&&menu&&$oldMenusContainer){ btn.addEventListener("click",(e)=>{ e.stopPropagation(); menu.style.display=(menu.style.display==="block"?"none":"block");}); document.addEventListener("click",()=>{ menu.style.display="none";}); menu.addEventListener("click",(e)=>e.stopPropagation()); document.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key.toLowerCase()==='o'){ e.preventDefault(); $oldMenusContainer.style.display = ($oldMenusContainer.style.display==='none'||!$oldMenusContainer.style.display)?'block':'none'; } }); }})();</script>
 
   <div class="card">
-    <h1>Topic Picker</h1>
+    <h1>Video Topic</h1>
     <div class="row" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
       <button class="btn" id="liteLoadLast">Load Last Topic</button>
-      <a class="btn" href="index.html?return=script-generator.html" id="openFullPicker">Open Full Topic Picker</a>
       <span id="liteStatus" class="status info" style="display:none;"></span>
     </div>
     <div class="row" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">

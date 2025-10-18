@@ -744,6 +744,122 @@ class PlatformAPIManager:
             print(f"[INSTAGRAM] Error handling callback: {e}")
             return False
 
+    # ======================
+    # Facebook API Integration
+    # ======================
+
+    def get_facebook_auth_url(self, user_email: str, redirect_uri: str) -> Optional[str]:
+        """Generate Facebook OAuth URL"""
+        config_file = self.credentials_dir / "facebook_config.json"
+        if not config_file.exists():
+            print("[FACEBOOK] Config file not found. Create facebook_config.json with app_id and app_secret")
+            return None
+
+        try:
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+
+            app_id = config['app_id']
+
+            # Generate state
+            import secrets
+            state = secrets.token_urlsafe(32)
+            self._store_oauth_state(user_email, 'facebook', state)
+
+            # Scopes for Facebook Pages
+            scope = 'pages_show_list,pages_read_engagement,pages_manage_posts,publish_video'
+
+            auth_url = (
+                f"https://www.facebook.com/v18.0/dialog/oauth"
+                f"?client_id={app_id}"
+                f"&redirect_uri={redirect_uri}"
+                f"&state={state}"
+                f"&scope={scope}"
+            )
+
+            return auth_url
+
+        except Exception as e:
+            print(f"[FACEBOOK] Error generating auth URL: {e}")
+            return None
+
+    def handle_facebook_callback(self, user_email: str, code: str, state: str, redirect_uri: str) -> bool:
+        """Handle Facebook OAuth callback and store page info in channel_accounts"""
+        stored_state = self._get_oauth_state(user_email, 'facebook')
+        if not stored_state or stored_state != state:
+            print("[FACEBOOK] State mismatch")
+            return False
+
+        config_file = self.credentials_dir / "facebook_config.json"
+
+        try:
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+
+            # Exchange code for access token
+            response = requests.get(
+                'https://graph.facebook.com/v18.0/oauth/access_token',
+                params={
+                    'client_id': config['app_id'],
+                    'client_secret': config['app_secret'],
+                    'redirect_uri': redirect_uri,
+                    'code': code
+                }
+            )
+
+            data = response.json()
+
+            if 'access_token' not in data:
+                print(f"[FACEBOOK] No access token in response: {data}")
+                return False
+
+            access_token = data['access_token']
+
+            # Get Facebook pages
+            pages_response = requests.get(
+                'https://graph.facebook.com/v18.0/me/accounts',
+                params={'access_token': access_token}
+            )
+
+            pages_data = pages_response.json()
+
+            if 'data' not in pages_data or len(pages_data['data']) == 0:
+                print("[FACEBOOK] No pages found for this account")
+                return False
+
+            # Store credentials
+            self._store_platform_credentials(user_email, 'facebook', {
+                'access_token': access_token,
+                'token_type': data.get('token_type'),
+                'expires_in': data.get('expires_in'),
+                'pages': pages_data['data']
+            })
+
+            # Add each page to channel_accounts table
+            if hasattr(self, 'analytics_manager') and self.analytics_manager:
+                for page in pages_data['data']:
+                    channel_data = {
+                        'channel_id': page['id'],
+                        'channel_name': page['name'],
+                        'channel_handle': page.get('username', ''),
+                        'thumbnail_url': f"https://graph.facebook.com/{page['id']}/picture?type=large",
+                        'access_token': page.get('access_token', access_token)  # Page-specific token
+                    }
+
+                    try:
+                        self.analytics_manager.add_channel_account(user_email, 'facebook', channel_data)
+                        print(f"[FACEBOOK] Added page: {page['name']}")
+                    except Exception as e:
+                        print(f"[FACEBOOK] Error adding page {page['name']}: {e}")
+
+            return True
+
+        except Exception as e:
+            print(f"[FACEBOOK] Error handling callback: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
     def upload_to_instagram_reel(self, user_email: str, video_url: str, caption: str,
                                  instagram_account_id: str) -> Dict[str, Any]:
         """Upload video to Instagram Reels"""

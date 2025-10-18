@@ -3,16 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Meme Library - MSS Studio</title>
+  <title>Thumbnail Library - MSS Studio</title>
   <link rel="stylesheet" href="studio.css">
   <script src="version.js" defer></script>
 </head>
 <body>
   <div id="loadingBar" class="loading-bar"></div>
   <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
-    <h1 style="margin:0;">Meme Library <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
+    <h1 style="margin:0;">Thumbnail Library <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
     <div style="display:flex; gap:10px; flex-wrap:wrap; position:relative;">
-      <button class="btn" style="background:#3b82f6; border-color:#3b82f6;" onclick="window.location.href='studio.html'">Studio</button>
+      <button class="btn" style="background:#22c55e; border-color:#22c55e;" onclick="window.location.href='workflow.html' + window.location.search">📋 Workflow</button>
+      <button class="btn" style="background:#3b82f6; border-color:#3b82f6;" onclick="goToStudio()">Studio</button>
       <div class="dropdown" style="position:relative; display:none;" id="oldMenusContainer">
         <button class="btn" id="oldMenusBtn">Old Menus</button>
         <div class="dropdown-content" id="oldMenus" style="display:none; position:absolute; top:110%; left:0; background:#0B0F19; border:1px solid #334; border-radius:8px; min-width:180px; z-index:20; box-shadow:0 6px 18px rgba(0,0,0,0.4);">
@@ -28,10 +29,8 @@
 <script>(function(){ const btn=document.getElementById("oldMenusBtn"); const menu=document.getElementById("oldMenus"); const container=document.getElementById("oldMenusContainer"); if(btn&&menu&&container){ btn.addEventListener("click",(e)=>{ e.stopPropagation(); menu.style.display=(menu.style.display==="block"?"none":"block");}); document.addEventListener("click",()=>{ menu.style.display="none";}); menu.addEventListener("click",(e)=>e.stopPropagation()); document.addEventListener("keydown",(e)=>{ if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key.toLowerCase()==='o'){ e.preventDefault(); container.style.display=(container.style.display==="none"||!container.style.display)?"block":"none"; }}); }})();</script>
 
   <div class="card">
-    <h1>Topic Picker</h1>
+    <h1>Video Topic</h1>
     <div class="row" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-      <button class="btn" id="liteLoadLast">Load Last Topic</button>
-      <a class="btn" href="index.html?return=meme-library.html" id="openFullPicker">Open Full Topic Picker</a>
       <span id="liteStatus" class="status info" style="display:none; padding:8px 12px; background:rgba(34,197,94,0.2); border:1px solid #22c55e; border-radius:6px; color:#22c55e; font-size:14px; font-weight:600;"></span>
     </div>
     <div class="row" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
@@ -55,7 +54,7 @@
   </div>
 
   <div class="card" style="margin-top:16px;">
-    <h1>AI Meme Prompt</h1>
+    <h1>AI Thumbnail Prompt</h1>
     <div class="row">
       <label>Prompt (persists locally; only changes if you edit it)</label>
       <textarea id="memePrompt" class="large" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF; height:140px;"></textarea>
@@ -65,7 +64,7 @@
 
   <div class="card" style="margin-top:16px;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-      <h1 style="margin:0;">Meme Creator</h1>
+      <h1 style="margin:0;">Thumbnail Creator</h1>
       <div style="display:flex; gap:8px;">
         <button class="btn" id="saveTemplateBtn" style="font-size:12px; padding:6px 12px; background:#7c3aed; border-color:#7c3aed;">💾 Save Template</button>
         <button class="btn" id="loadTemplateBtn" style="font-size:12px; padding:6px 12px; background:#7c3aed; border-color:#7c3aed;">📁 Templates</button>
@@ -94,7 +93,7 @@
     <div class="row">
       <label>Font Style</label>
       <select id="memeFont" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;">
-        <option value="Impact">Impact (Classic Meme)</option>
+        <option value="Impact">Impact (Classic Thumbnail)</option>
         <option value="Arial Black">Arial Black (Bold)</option>
         <option value="Bebas Neue">Bebas Neue (Modern)</option>
         <option value="Anton">Anton (Heavy)</option>
@@ -110,8 +109,8 @@
       <label style="display:flex; align-items:center; gap:6px;">
         <input type="checkbox" id="forceCleanBg" checked> Force clean (no text)
       </label>
-      <button class="btn" id="memeGenerate">Render Meme</button>
-      <button class="btn" id="memeClear" style="background:#dc2626; border-color:#dc2626;">Clear Meme</button>
+      <button class="btn" id="memeGenerate">Render Thumbnail</button>
+      <button class="btn" id="memeClear" style="background:#dc2626; border-color:#dc2626;">Clear Thumbnail</button>
       <a class="btn" id="memeDownload" download="meme.png" style="display:none;">Download</a>
     </div>
     <div class="row">
@@ -121,6 +120,22 @@
 
   <script>
     const API_BASE = window.location.origin;
+
+    // Function to navigate to Studio while preserving current topic data
+    function goToStudio() {
+      const title = document.getElementById('liteTitle')?.value || '';
+      const hook = document.getElementById('liteHook')?.value || '';
+      const keywords = document.getElementById('liteKeywords')?.value || '';
+
+      const params = new URLSearchParams();
+      if (title) params.append('topic', title);
+      if (hook) params.append('hook', hook);
+      if (keywords) params.append('keywords', keywords);
+
+      const url = params.toString() ? `studio.html?${params.toString()}` : 'studio.html';
+      window.location.href = url;
+    }
+
     const DEFAULT_PROMPT = `Design a cinematic, high-contrast abstract BACKGROUND (no typography) that captures the topic.
 
 Topic: {{title}}
@@ -196,7 +211,7 @@ CRITICAL: BACKGROUND ONLY — absolutely no text, letters, words, numbers, typog
       try {
         localStorage.setItem('editingTopic', JSON.stringify(topic));
       } catch {}
-      // Populate Meme Creator fields
+      // Populate Thumbnail Creator fields
       const title = topic.title || topic.yt_title || '';
       const hook = topic.angle || topic.hook || '';
       const desc = topic.yt_description || topic.description || '';
@@ -209,7 +224,7 @@ CRITICAL: BACKGROUND ONLY — absolutely no text, letters, words, numbers, typog
         const lTitle = document.getElementById('liteTitle'); if (lTitle) lTitle.value = title;
         const lHook = document.getElementById('liteHook'); if (lHook) lHook.value = hook;
         const lKw = document.getElementById('liteKeywords'); if (lKw) lKw.value = uniq.join(', ');
-        // Populate Meme Creator text fields
+        // Populate Thumbnail Creator text fields
         const mTop = document.getElementById('memeTop'); if (mTop && title) mTop.value = title.toUpperCase();
         const mBottom = document.getElementById('memeBottom'); if (mBottom && hook) mBottom.value = hook;
       // Render keyword chips
@@ -244,17 +259,7 @@ CRITICAL: BACKGROUND ONLY — absolutely no text, letters, words, numbers, typog
     }
 
     // Wire Inline Picker controls
-    document.getElementById('liteLoadLast').addEventListener('click', async () => {
-      liteStatus('Loading last topic...', 'info');
-      try {
-        const r = await fetch(`${API_BASE}/get-selected-topic`);
-        const j = await r.json();
-        if (!j.success) throw new Error(j.error || 'Not found');
-        applyTopicToUI(j.topic || {});
-      } catch (e) {
-        liteStatus('Error: ' + e.message, 'err');
-      }
-    });
+    // Removed liteLoadLast button event listener
 
     // Render meme text overlay (Top/Bottom) on the current canvas and enable download
     function drawGradientBG(ctx, w, h) {
@@ -340,13 +345,13 @@ CRITICAL: BACKGROUND ONLY — absolutely no text, letters, words, numbers, typog
         // Save canvas state after rendering
         localStorage.setItem('memeCanvasState', canvas.toDataURL('image/png'));
       } catch {}
-      setStatus('Meme rendered.', 'ok');
+      setStatus('Thumbnail rendered.', 'ok');
       trackEvent('thumbnail_generated', {
         hasBackground: !!document.getElementById('memeBg').files?.length
       });
     });
 
-    // Clear Meme button handler
+    // Clear Thumbnail button handler
     document.getElementById('memeClear').addEventListener('click', () => {
       const canvas = document.getElementById('memecanvas');
       const ctx = canvas.getContext('2d');
@@ -363,7 +368,7 @@ CRITICAL: BACKGROUND ONLY — absolutely no text, letters, words, numbers, typog
       const existing = canvasRow.querySelector('.variants-grid');
       if (existing) existing.remove();
 
-      setStatus('Meme cleared.', 'ok');
+      setStatus('Thumbnail cleared.', 'ok');
     });
 
     // Toast Notification System
@@ -575,6 +580,13 @@ CRITICAL: BACKGROUND ONLY — absolutely no text, letters, words, numbers, typog
         if (arr.length > 0 && tokensRow) {
           tokensRow.style.display = 'block';
         }
+      }
+
+      // Skip if URL parameters exist - they take priority
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('topic')) {
+        console.log('[THUMBNAIL] Skipping localStorage/API load because URL params exist');
+        return;
       }
 
       try {
@@ -1208,7 +1220,7 @@ CRITICAL: BACKGROUND ONLY — absolutely no text, letters, words, numbers, typog
       }
     }, 2000);
 
-    // Topic Picker auto-load functionality
+    // Topic auto-load functionality
     (function(){
       function renderTokens(keywords){
         try {
@@ -1241,13 +1253,14 @@ CRITICAL: BACKGROUND ONLY — absolutely no text, letters, words, numbers, typog
           if (!t) return false;
 
           // Check if all required fields exist in DOM
-          const topicTitle = document.getElementById('topicTitle');
-          const topicHook = document.getElementById('topicHook');
+          const liteTitle = document.getElementById('liteTitle');
+          const liteHook = document.getElementById('liteHook');
+          const liteKeywords = document.getElementById('liteKeywords');
           const topicDesc = document.getElementById('topicDesc');
           const memeTop = document.getElementById('memeTop');
           const memeBottom = document.getElementById('memeBottom');
 
-          if (!topicTitle || !topicHook || !topicDesc || !memeTop || !memeBottom) {
+          if (!liteTitle || !liteHook || !liteKeywords || !topicDesc || !memeTop || !memeBottom) {
             return false;
           }
 
@@ -1256,22 +1269,15 @@ CRITICAL: BACKGROUND ONLY — absolutely no text, letters, words, numbers, typog
           const desc = t.yt_description || '';
           const keywords = t.keywords || [];
 
-          // Inline Picker fields
-          const liteTitle = document.getElementById('liteTitle');
-          const liteHook = document.getElementById('liteHook');
-          const liteKw = document.getElementById('liteKeywords');
+          // Fill Inline Picker fields
           if (liteTitle) liteTitle.value = title;
           if (liteHook) liteHook.value = hook;
-          if (liteKw) liteKw.value = keywords.join(', ');
+          if (liteKeywords) liteKeywords.value = keywords.join(', ');
 
-          // Meme Creator (Quick) fields
-          topicTitle.value = title;
-          topicHook.value = hook;
-          const topicKw = document.getElementById('topicKeywords');
-          if (topicKw) topicKw.value = keywords.join(', ');
+          // Fill description
           topicDesc.value = desc;
 
-          // Meme Creator text fields
+          // Thumbnail Creator text fields
           if (title) memeTop.value = title.toUpperCase();
           if (hook) memeBottom.value = hook;
 
@@ -1289,10 +1295,17 @@ CRITICAL: BACKGROUND ONLY — absolutely no text, letters, words, numbers, typog
       }
 
       // Aggressive retry strategy - keep trying until it works or we give up
+      // BUT skip if URL params exist (e.g., from Trends page)
       let attempts = 0;
       const maxAttempts = 20;
 
       function retryLoad() {
+        // Check if URL has topic parameter - if so, don't load from localStorage
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('topic')) {
+          return; // Skip localStorage loading
+        }
+
         attempts++;
         if (tryLoad()) {
           return;
@@ -1302,19 +1315,31 @@ CRITICAL: BACKGROUND ONLY — absolutely no text, letters, words, numbers, typog
         }
       }
 
-      // Start trying immediately
-      retryLoad();
-
-      // Also try when page is fully loaded
-      window.addEventListener('load', tryLoad);
-
-      // And when DOM is ready
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', tryLoad);
+      // Start trying immediately (unless URL params exist)
+      const urlParams = new URLSearchParams(window.location.search);
+      if (!urlParams.has('topic')) {
+        retryLoad();
       }
 
-      const btn = document.getElementById('liteLoadLast');
-      if (btn) btn.addEventListener('click', tryLoad);
+      // Also try when page is fully loaded (unless URL params exist)
+      window.addEventListener('load', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (!urlParams.has('topic')) {
+          tryLoad();
+        }
+      });
+
+      // And when DOM is ready (unless URL params exist)
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+          const urlParams = new URLSearchParams(window.location.search);
+          if (!urlParams.has('topic')) {
+            tryLoad();
+          }
+        });
+      }
+
+      // Removed liteLoadLast button reference
     })();
 
     // Welcome message with keyboard shortcuts
@@ -1378,6 +1403,117 @@ CRITICAL: BACKGROUND ONLY — absolutely no text, letters, words, numbers, typog
           console.error('Failed to restore canvas:', e);
         }
       }
+    })();
+
+    // Auto-fill from URL parameters (e.g., from Trends page)
+    (function loadFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      const topic = params.get('topic');
+      const keywords = params.get('keywords');
+      const hook = params.get('hook');
+
+      console.log('[THUMBNAIL] URL params:', {
+        topic,
+        keywords,
+        hook,
+        fullURL: window.location.href
+      });
+
+      if (!topic) {
+        console.log('[THUMBNAIL] No topic in URL, skipping URL parameter loading');
+        return;
+      }
+
+      function tryFillFromURL() {
+        const liteTitle = document.getElementById('liteTitle');
+        const liteHook = document.getElementById('liteHook');
+        const liteKeywords = document.getElementById('liteKeywords');
+        const topicDesc = document.getElementById('topicDesc');
+        const memeTop = document.getElementById('memeTop');
+        const memeBottom = document.getElementById('memeBottom');
+
+        console.log('[THUMBNAIL] Attempting to fill from URL. Found elements:', {
+          liteTitle: !!liteTitle,
+          liteHook: !!liteHook,
+          liteKeywords: !!liteKeywords,
+          topicDesc: !!topicDesc,
+          memeTop: !!memeTop,
+          memeBottom: !!memeBottom
+        });
+
+        if (!liteTitle || !liteHook || !liteKeywords || !topicDesc || !memeTop || !memeBottom) {
+          console.log('[THUMBNAIL] Elements not ready yet, will retry...');
+          return false;
+        }
+
+        // Fill Video Topic fields
+        liteTitle.value = topic;
+        console.log('[THUMBNAIL] ✓ Set title to:', topic);
+
+        if (keywords) {
+          liteKeywords.value = keywords;
+          console.log('[THUMBNAIL] ✓ Set keywords to:', keywords);
+        } else {
+          liteKeywords.value = '';
+        }
+
+        if (hook) {
+          liteHook.value = hook;
+          console.log('[THUMBNAIL] ✓ Set hook to:', hook);
+        } else {
+          liteHook.value = '';
+        }
+
+        // Clear YouTube description (trends don't provide this)
+        topicDesc.value = '';
+        console.log('[THUMBNAIL] ✓ Cleared YouTube description');
+
+        // Fill Thumbnail Creator fields
+        memeTop.value = topic.toUpperCase();
+        console.log('[THUMBNAIL] ✓ Set meme top text to:', topic.toUpperCase());
+
+        if (hook) {
+          memeBottom.value = hook;
+          console.log('[THUMBNAIL] ✓ Set meme bottom text to:', hook);
+        } else {
+          memeBottom.value = '';
+        }
+
+        // Show status message
+        const statusEl = document.getElementById('liteStatus');
+        if (statusEl) {
+          if (hook && keywords) {
+            statusEl.textContent = 'Topic, keywords, and hook loaded from Trends';
+          } else if (keywords) {
+            statusEl.textContent = 'Topic and keywords loaded from Trends';
+          } else {
+            statusEl.textContent = 'Topic loaded from Trends';
+          }
+          statusEl.className = 'status ok';
+          statusEl.style.display = 'block';
+        }
+
+        console.log('[THUMBNAIL] ✓ Successfully filled all fields from URL parameters');
+        return true;
+      }
+
+      // Try immediately
+      if (tryFillFromURL()) return;
+
+      // Retry with delays if not ready
+      let attempts = 0;
+      const maxAttempts = 10;
+      const retryInterval = setInterval(() => {
+        attempts++;
+        console.log(`[THUMBNAIL] Retry attempt ${attempts}/${maxAttempts} to fill from URL`);
+
+        if (tryFillFromURL() || attempts >= maxAttempts) {
+          clearInterval(retryInterval);
+          if (attempts >= maxAttempts) {
+            console.error('[THUMBNAIL] Failed to fill fields from URL after max attempts');
+          }
+        }
+      }, 100);
     })();
   </script>
 </body>

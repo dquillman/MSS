@@ -223,12 +223,12 @@
     })();
   </script>
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-    <h2 style="margin: 0;">📝 Edit Topic & Customize Prompts <span style="font-size:14px; color:#64748b; font-weight:400;">v3.0.0</span></h2>
+    <h2 style="margin: 0;">📝 Edit Topic & Customize Prompts <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h2>
     <div style="display: flex; gap: 10px;">
       <button onclick="window.location.href='studio.html'" style="padding: 8px 16px; margin: 0;" class="button-secondary" data-nav-studio="1">Studio</button>
       <button onclick="window.location.href='intro-outro.html'" style="padding: 8px 16px; margin: 0;">🎬 Intro/Outro</button>
       <button onclick="window.location.href='preview.html'" style="padding: 8px 16px; margin: 0;">📺 View Preview</button>
-      <button onclick="window.location.href='index.html'" style="padding: 8px 16px; margin: 0;">← Back to Topics</button>
+      <button onclick="window.location.href='studio.html'" style="padding: 8px 16px; margin: 0;">← Back to Studio</button>
     </div>
   </div>
   <p class="subtitle">Review and edit your topic before generating the video</p>
@@ -336,7 +336,7 @@
 
   <!-- Action Buttons -->
   <div class="button-group">
-    <button onclick="window.location.href='index.html'" class="button-secondary">← Back to Topics</button>
+    <button onclick="window.location.href='studio.html'" class="button-secondary">← Back to Studio</button>
     <button onclick="saveAndPreview()">Save & Preview Script</button>
     <button onclick="generateVideo()" style="background:#22c55e; border-color:#22c55e;">🎬 Generate Video</button>
   </div>

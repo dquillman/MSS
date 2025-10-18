@@ -239,8 +239,9 @@
   <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
     <h1 style="margin:0;">Multi-Platform Publisher</h1>
     <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn" onclick="window.location.href='workflow.html'" style="background:#22c55e; border-color:#22c55e;">📋 Workflow</button>
       <button class="btn" onclick="window.location.href='/dashboard'" style="background:#3b82f6; border-color:#3b82f6;">Dashboard</button>
-      <button class="btn" onclick="window.location.href='/studio'" style="background:#22c55e; border-color:#22c55e;">Studio</button>
+      <button class="btn" onclick="window.location.href='studio.html'" style="background:#22c55e; border-color:#22c55e;">Studio</button>
     </div>
   </div>
 
@@ -256,7 +257,7 @@
   </div>
 
   <!-- Tabs -->
-  <div class="tab-nav">
+  <div class="tab-nav" style="max-width:1000px; margin:0 auto;">
     <button class="tab-button active" onclick="switchTab('publish')">Publish Video</button>
     <button class="tab-button" onclick="switchTab('queue')">Publishing Queue</button>
     <button class="tab-button" onclick="switchTab('platforms')">Platforms</button>
@@ -319,9 +320,12 @@
   <!-- Queue Tab -->
   <div id="queueTab" class="tab-content">
     <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
         <h2 style="margin:0;">Publishing Queue</h2>
-        <button class="btn" onclick="loadQueue()" style="background:#22c55e; border-color:#22c55e;">Refresh</button>
+        <div style="display:flex; gap:10px;">
+          <button class="btn" onclick="loadQueue()" style="background:#22c55e; border-color:#22c55e;">🔄 Refresh</button>
+          <button class="btn" onclick="clearCompleted()" style="background:#ef4444; border-color:#ef4444;">🗑️ Clear Completed</button>
+        </div>
       </div>
       <div id="queueContainer">
         <div style="text-align:center; padding:40px; color:#A8B3CF;">Loading queue...</div>
@@ -382,25 +386,65 @@
           'facebook': '👥'
         };
 
-        grid.innerHTML = presets.map(preset => `
-          <div class="platform-card" data-platform="${preset.platform}">
-            <div class="platform-icon">${platformIcons[preset.platform] || '🎥'}</div>
-            <div class="platform-name">${formatPlatformName(preset.platform)}</div>
-            <div class="platform-specs">
-              ${preset.aspect_ratio} • Max ${preset.max_duration_seconds}s<br>
-              ${preset.recommended_resolution}
+        // Fetch connected channels for each platform
+        const channelsData = await fetchConnectedChannels();
+
+        grid.innerHTML = presets.map(preset => {
+          const platformKey = preset.platform.includes('youtube') ? 'youtube' : preset.platform.split('_')[0];
+          const channel = channelsData[platformKey];
+
+          let accountDisplay = '';
+          if (channel) {
+            accountDisplay = `<div style="margin-top:8px; padding:8px; background:rgba(34,197,94,0.1); border:1px solid #22c55e; border-radius:6px; font-size:12px; color:#22c55e;">✓ ${channel.channel_name || channel.channel_handle || 'Connected'}</div>`;
+          } else {
+            accountDisplay = `<div style="margin-top:8px; padding:8px; background:rgba(239,68,68,0.1); border:1px solid #ef4444; border-radius:6px; font-size:12px; color:#ef4444;">⚠ Not connected</div>`;
+          }
+
+          return `
+            <div class="platform-card" data-platform="${preset.platform}">
+              <div class="platform-icon">${platformIcons[preset.platform] || '🎥'}</div>
+              <div class="platform-name">${formatPlatformName(preset.platform)}</div>
+              <div class="platform-specs">
+                ${preset.aspect_ratio} • Max ${preset.max_duration_seconds}s<br>
+                ${preset.recommended_resolution}
+              </div>
+              ${accountDisplay}
+              <div class="platform-checkbox">
+                <input type="checkbox" id="platform_${preset.platform}" onchange="togglePlatform('${preset.platform}')" ${!channel ? 'disabled' : ''}>
+                <label for="platform_${preset.platform}" style="cursor:pointer; margin:0;">${channel ? 'Select' : 'Connect First'}</label>
+              </div>
             </div>
-            <div class="platform-checkbox">
-              <input type="checkbox" id="platform_${preset.platform}" onchange="togglePlatform('${preset.platform}')">
-              <label for="platform_${preset.platform}" style="cursor:pointer; margin:0;">Select</label>
-            </div>
-          </div>
-        `).join('');
+          `;
+        }).join('');
 
       } catch (error) {
         console.error('Error loading platforms:', error);
         grid.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444; grid-column:1/-1;">Error: ${error.message}</div>`;
       }
+    }
+
+    // Fetch connected channels for all platforms
+    async function fetchConnectedChannels() {
+      const channels = {};
+
+      try {
+        // Fetch YouTube channels
+        const ytRes = await fetch(`${API_BASE}/api/channels/list?platform=youtube`, { credentials: 'include' });
+        if (ytRes.ok) {
+          const ytData = await ytRes.json();
+          if (ytData.success && ytData.channels && ytData.channels.length > 0) {
+            // Get default channel or first channel
+            channels.youtube = ytData.channels.find(ch => ch.is_default) || ytData.channels[0];
+          }
+        }
+
+        // TODO: Add support for TikTok, Instagram, Facebook when their APIs are integrated
+
+      } catch (error) {
+        console.error('Error fetching connected channels:', error);
+      }
+
+      return channels;
     }
 
     function formatPlatformName(platform) {
@@ -536,18 +580,27 @@
 
         container.innerHTML = queue.map(item => {
           const platforms = JSON.parse(item.platforms || '[]');
+          const createdDate = new Date(item.created_at);
+          const now = new Date();
+          const hoursSince = Math.floor((now - createdDate) / (1000 * 60 * 60));
+          const ageDisplay = hoursSince < 24 ? `${hoursSince}h ago` : `${Math.floor(hoursSince / 24)}d ago`;
+
           return `
             <div class="queue-item ${item.status}">
-              <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:12px;">
-                <div>
+              <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:12px; gap:12px;">
+                <div style="flex:1;">
                   <div style="font-size:16px; font-weight:700; color:#E8EBFF; margin-bottom:4px;">${item.title}</div>
                   <div style="font-size:12px; color:#A8B3CF;">
-                    ${new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    ${new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })} (${ageDisplay})
                   </div>
                 </div>
-                <span class="status-badge status-${item.status}">${item.status}</span>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <span class="status-badge status-${item.status}">${item.status}</span>
+                  ${item.status === 'pending' ? `<button class="btn" onclick="publishQueueItem(${item.id})" style="background:#22c55e; border-color:#22c55e; padding:4px 8px; font-size:11px;">🚀 Publish Now</button>` : ''}
+                  <button class="btn" onclick="deleteQueueItem(${item.id})" style="background:#ef4444; border-color:#ef4444; padding:4px 8px; font-size:11px;">🗑️</button>
+                </div>
               </div>
-              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
                 ${platforms.map(p => `<span style="padding:4px 10px; background:rgba(139,92,246,0.2); border-radius:12px; font-size:11px; color:#a78bfa;">${formatPlatformName(p)}</span>`).join('')}
               </div>
               ${item.error_message ? `<div style="margin-top:12px; padding:12px; background:rgba(239,68,68,0.1); border:1px solid #ef4444; border-radius:6px; color:#ef4444; font-size:12px;">${item.error_message}</div>` : ''}
@@ -558,6 +611,78 @@
       } catch (error) {
         console.error('Error loading queue:', error);
         container.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444;">Error: ${error.message}</div>`;
+      }
+    }
+
+    async function deleteQueueItem(queueId) {
+      if (!confirm('Delete this queue item?')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/platforms/queue/${queueId}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          loadQueue(); // Refresh queue
+        } else {
+          alert('Failed to delete: ' + (data.error || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Error deleting queue item:', error);
+        alert('Error deleting item: ' + error.message);
+      }
+    }
+
+    async function clearCompleted() {
+      if (!confirm('Clear all completed and failed items from the queue?')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/platforms/queue/clear-completed`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          alert(`✓ Cleared ${data.deleted} items from queue`);
+          loadQueue(); // Refresh queue
+        } else {
+          alert('Failed to clear: ' + (data.error || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Error clearing completed:', error);
+        alert('Error clearing completed items: ' + error.message);
+      }
+    }
+
+    async function publishQueueItem(queueId) {
+      if (!confirm('Publish this video to the selected platforms now?')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/platforms/queue/${queueId}/process`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          alert(`✓ Successfully published to all platforms!\n\nCheck your channel for the published video.`);
+          loadQueue(); // Refresh queue to show completed status
+        } else {
+          const errorMsg = data.error || 'Unknown error';
+          const errors = data.errors ? '\n\nDetails:\n' + data.errors.join('\n') : '';
+          alert(`❌ Publishing failed: ${errorMsg}${errors}`);
+          loadQueue(); // Refresh queue to show error status
+        }
+      } catch (error) {
+        console.error('Error publishing queue item:', error);
+        alert('Error publishing: ' + error.message);
+        loadQueue(); // Refresh queue
       }
     }
 
@@ -620,9 +745,156 @@
       }
     }
 
+    // Auto-fill form from URL parameters
+    function autoFillFromURL() {
+      const urlParams = new URLSearchParams(window.location.search);
+
+      const title = urlParams.get('title');
+      const description = urlParams.get('description');
+      const tags = urlParams.get('tags');
+      const video = urlParams.get('video');
+
+      if (title) {
+        document.getElementById('publishTitle').value = decodeURIComponent(title);
+      }
+      if (description) {
+        document.getElementById('publishDescription').value = decodeURIComponent(description);
+      }
+      if (tags) {
+        document.getElementById('publishTags').value = decodeURIComponent(tags);
+      }
+      if (video) {
+        selectedVideo = decodeURIComponent(video);
+      }
+    }
+
+    // Load recent videos
+    async function loadRecentVideos() {
+      const container = document.getElementById('recentVideos');
+      container.innerHTML = '<div style="text-align:center; padding:20px; color:#A8B3CF;">Loading videos...</div>';
+
+      try {
+        const res = await fetch(`${API_BASE}/list-outputs?dir=out&limit=10`);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        let videos = Array.isArray(data.files) ? data.files : [];
+
+        // Filter to only video files
+        videos = videos.filter(v => v.ext && /\.(mp4|mov|avi|mkv)$/i.test(v.ext));
+
+        // Sort by modified time (newest first)
+        videos.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+
+        if (videos.length === 0) {
+          container.innerHTML = '<div style="text-align:center; padding:20px; color:#A8B3CF;">No videos found</div>';
+          return;
+        }
+
+        container.innerHTML = videos.map(video => {
+          const date = video.mtime ? new Date(video.mtime * 1000).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric'
+          }) : 'Unknown';
+
+          const sizeMB = video.size ? (video.size / (1024 * 1024)).toFixed(1) : '0.0';
+
+          // Extract title from filename (remove extension and timestamp)
+          let videoTitle = video.path.replace(/\.(mp4|mov|avi|mkv)$/i, '');
+          // Remove common timestamp patterns
+          videoTitle = videoTitle.replace(/_\d{10,}$/g, '');
+          videoTitle = videoTitle.replace(/_final_with_intro_outro/g, '');
+          videoTitle = videoTitle.replace(/_with_avatar/g, '');
+          videoTitle = videoTitle.replace(/_/g, ' ');
+          // Capitalize first letter of each word
+          videoTitle = videoTitle.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+          return `
+            <div class="video-select" data-filename="${video.path}" data-title="${videoTitle.replace(/"/g, '&quot;')}" style="cursor:pointer;">
+              <div style="display:flex; gap:12px; align-items:center;">
+                <video src="${API_BASE}/out/${video.path}" style="width:120px; height:68px; object-fit:cover; border-radius:6px; background:#000;"></video>
+                <div style="flex:1;">
+                  <div style="font-weight:600; margin-bottom:4px;">${videoTitle}</div>
+                  <div style="font-size:12px; color:#A8B3CF;">${date} • ${sizeMB} MB</div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // Add click event listeners to video cards
+        setTimeout(() => {
+          document.querySelectorAll('.video-select').forEach(card => {
+            card.addEventListener('click', function() {
+              const filename = this.getAttribute('data-filename');
+              const title = this.getAttribute('data-title');
+              selectVideo(filename, title);
+            });
+          });
+        }, 100);
+
+      } catch (error) {
+        console.error('Error loading videos:', error);
+        container.innerHTML = `<div style="text-align:center; padding:20px; color:#ef4444;">Error loading videos</div>`;
+      }
+    }
+
+    async function selectVideo(filename, title) {
+      selectedVideo = filename;
+
+      // Update visual selection
+      document.querySelectorAll('.video-select').forEach(el => {
+        el.classList.remove('selected');
+        if (el.getAttribute('data-filename') === filename) {
+          el.classList.add('selected');
+        }
+      });
+
+      const titleInput = document.getElementById('publishTitle');
+      const descInput = document.getElementById('publishDescription');
+      const tagsInput = document.getElementById('publishTags');
+      const status = document.getElementById('publishStatus');
+
+      // Try to fetch metadata from database
+      try {
+        const res = await fetch(`${API_BASE}/api/video/metadata/${encodeURIComponent(filename)}`, {
+          credentials: 'include'
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+
+          if (data.success && data.metadata) {
+            // Fill fields with metadata (or empty if no metadata)
+            titleInput.value = data.metadata.title || '';
+            descInput.value = data.metadata.description || '';
+            tagsInput.value = data.metadata.tags || '';
+
+            status.innerHTML = `<span style="color:#22c55e;">✓ Selected and auto-filled from database: ${filename}</span>`;
+            setTimeout(() => { status.innerHTML = ''; }, 3000);
+            return;
+          }
+        }
+      } catch (error) {
+        console.log('No metadata found, using filename-based title:', error);
+      }
+
+      // Fallback: Use filename-based title and clear other fields
+      titleInput.value = title;
+      descInput.value = '';
+      tagsInput.value = '';
+
+      status.innerHTML = `<span style="color:#f59e0b;">⚠ Selected: ${filename} (no metadata found, fields cleared)</span>`;
+      setTimeout(() => { status.innerHTML = ''; }, 3000);
+    }
+
     // Load platforms on page load
     document.addEventListener('DOMContentLoaded', () => {
+      autoFillFromURL();
       loadPlatforms();
+      loadRecentVideos();
     });
   </script>
 </body>

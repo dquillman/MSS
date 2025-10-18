@@ -12,14 +12,78 @@ import os
 # YouTube trending topics data source (can be replaced with real API)
 # For now, using mock data - integrate with YouTube Data API v3 later
 MOCK_TRENDING_TOPICS = [
-    {"topic": "AI Tools 2025", "views": "2.5M", "growth": "+125%", "niche": "technology", "difficulty": "medium"},
-    {"topic": "Side Hustles", "views": "1.8M", "growth": "+98%", "niche": "business", "difficulty": "low"},
-    {"topic": "Travel Tips Europe", "views": "1.2M", "growth": "+76%", "niche": "travel", "difficulty": "medium"},
-    {"topic": "Fitness Transformation", "views": "950K", "growth": "+65%", "niche": "health", "difficulty": "high"},
-    {"topic": "Cryptocurrency Updates", "views": "890K", "growth": "+54%", "niche": "finance", "difficulty": "high"},
-    {"topic": "DIY Home Projects", "views": "780K", "growth": "+43%", "niche": "lifestyle", "difficulty": "low"},
-    {"topic": "Gaming News", "views": "650K", "growth": "+38%", "niche": "gaming", "difficulty": "medium"},
-    {"topic": "Productivity Hacks", "views": "580K", "growth": "+32%", "niche": "self-improvement", "difficulty": "low"},
+    {
+        "topic": "AI Tools 2025",
+        "views": "2.5M",
+        "growth": "+125%",
+        "niche": "technology",
+        "difficulty": "medium",
+        "keywords": ["AI", "automation", "ChatGPT", "productivity", "artificial intelligence"],
+        "subtopics": ["Best AI Tools for Content Creation", "AI vs Human Workers", "Free AI Tools You Need"]
+    },
+    {
+        "topic": "Side Hustles",
+        "views": "1.8M",
+        "growth": "+98%",
+        "niche": "business",
+        "difficulty": "low",
+        "keywords": ["passive income", "make money online", "side business", "entrepreneur", "freelance"],
+        "subtopics": ["Best Side Hustles for 2025", "How to Start with $0", "Side Hustles That Pay $1000/month"]
+    },
+    {
+        "topic": "Travel Tips Europe",
+        "views": "1.2M",
+        "growth": "+76%",
+        "niche": "travel",
+        "difficulty": "medium",
+        "keywords": ["Europe travel", "budget travel", "hidden gems", "backpacking", "travel guide"],
+        "subtopics": ["Cheapest European Cities", "Europe Travel Mistakes", "Best Time to Visit Europe"]
+    },
+    {
+        "topic": "Fitness Transformation",
+        "views": "950K",
+        "growth": "+65%",
+        "niche": "health",
+        "difficulty": "high",
+        "keywords": ["weight loss", "gym routine", "fitness journey", "body transformation", "workout plan"],
+        "subtopics": ["90-Day Transformation Challenge", "From Beginner to Athlete", "Home Workout Transformations"]
+    },
+    {
+        "topic": "Cryptocurrency Updates",
+        "views": "890K",
+        "growth": "+54%",
+        "niche": "finance",
+        "difficulty": "high",
+        "keywords": ["crypto", "Bitcoin", "blockchain", "investing", "cryptocurrency news"],
+        "subtopics": ["Bitcoin Price Predictions 2025", "Best Crypto to Buy Now", "Crypto Regulation Changes"]
+    },
+    {
+        "topic": "DIY Home Projects",
+        "views": "780K",
+        "growth": "+43%",
+        "niche": "lifestyle",
+        "difficulty": "low",
+        "keywords": ["DIY", "home improvement", "crafts", "woodworking", "home decor"],
+        "subtopics": ["Budget-Friendly Home Upgrades", "DIY Furniture Projects", "Easy Weekend DIY Projects"]
+    },
+    {
+        "topic": "Gaming News",
+        "views": "650K",
+        "growth": "+38%",
+        "niche": "gaming",
+        "difficulty": "medium",
+        "keywords": ["gaming", "video games", "esports", "game reviews", "new releases"],
+        "subtopics": ["Upcoming Game Releases 2025", "Gaming Industry Trends", "Best Games of the Year"]
+    },
+    {
+        "topic": "Productivity Hacks",
+        "views": "580K",
+        "growth": "+32%",
+        "niche": "self-improvement",
+        "difficulty": "low",
+        "keywords": ["productivity", "time management", "efficiency", "work-life balance", "habits"],
+        "subtopics": ["Morning Routines of Successful People", "Top Productivity Apps", "How to Focus Better"]
+    },
 ]
 
 class TrendCalendarManager:

@@ -3,7 +3,7 @@ import json
 import time
 import sqlite3
 from pathlib import Path
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
 from PIL import Image, ImageDraw, ImageFont
 import io
@@ -649,6 +649,12 @@ def serve_trends_calendar():
     """Serve Trends & Calendar Page"""
     return send_from_directory('topic-picker-standalone', 'trends-calendar.html')
 
+@app.route('/workflow')
+@app.route('/workflow.html')
+def serve_workflow():
+    """Serve Video Creation Workflow Page"""
+    return send_from_directory('topic-picker-standalone', 'workflow.html')
+
 @app.route('/<path:filename>')
 def serve_frontend_file(filename):
     """Serve CSS, JS, and other frontend static files"""
@@ -672,7 +678,7 @@ def _health():
     return jsonify({
         'ok': True,
         'service': 'MSS API',
-        'version': '5.5.4',
+        'version': '5.5.6',
         'endpoints': [
             '/studio', '/topics', '/post-process-video',
             '/get-avatar-library', '/get-logo-library', '/api/logo-files',
@@ -1618,6 +1624,37 @@ def list_outputs():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/video/metadata/<path:filename>', methods=['GET'])
+def get_video_metadata(filename):
+    """Get metadata for a video by filename"""
+    if not analytics_manager:
+        return jsonify({'success': False, 'error': 'Analytics not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    try:
+        video = analytics_manager.get_video_by_filename(user_email, filename)
+
+        if video:
+            return jsonify({
+                'success': True,
+                'metadata': {
+                    'title': video.get('title', ''),
+                    'description': video.get('description', ''),
+                    'tags': video.get('tags', ''),
+                    'filename': video.get('filename', ''),
+                    'created_at': video.get('created_at', '')
+                }
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'metadata': None
+            })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/webout/<path:filename>', methods=['GET'])
 def serve_web_out(filename):
@@ -4442,18 +4479,18 @@ try:
     print("[TRENDS] Attempting import from web.trend_calendar...")
     from web.trend_calendar import TrendCalendarManager
     trend_manager = TrendCalendarManager()
-    print("[TRENDS] ✓ TrendCalendarManager loaded successfully (web.trend_calendar)")
+    print("[TRENDS] TrendCalendarManager loaded successfully (web.trend_calendar)")
 except Exception as e1:
-    print(f"[TRENDS] ✗ Failed to import from web.trend_calendar: {e1}")
+    print(f"[TRENDS] Failed to import from web.trend_calendar: {e1}")
     import traceback
     traceback.print_exc()
     try:
         print("[TRENDS] Attempting import from trend_calendar...")
         from trend_calendar import TrendCalendarManager
         trend_manager = TrendCalendarManager()
-        print("[TRENDS] ✓ TrendCalendarManager loaded successfully (trend_calendar)")
+        print("[TRENDS] TrendCalendarManager loaded successfully (trend_calendar)")
     except Exception as e2:
-        print(f"[TRENDS] ✗ Failed to import from trend_calendar: {e2}")
+        print(f"[TRENDS] Failed to import from trend_calendar: {e2}")
         traceback.print_exc()
         trend_manager = None
         print("[TRENDS] WARNING: Trend manager not available - endpoints will return 500")
@@ -4469,16 +4506,16 @@ try:
     print("[ANALYTICS] Attempting import from web.analytics...")
     from web.analytics import AnalyticsManager
     analytics_manager = AnalyticsManager()
-    print("[ANALYTICS] ✓ AnalyticsManager loaded successfully")
+    print("[ANALYTICS] AnalyticsManager loaded successfully")
 except Exception as e1:
-    print(f"[ANALYTICS] ✗ Failed to import from web.analytics: {e1}")
+    print(f"[ANALYTICS] Failed to import from web.analytics: {e1}")
     try:
         print("[ANALYTICS] Attempting import from analytics...")
         from analytics import AnalyticsManager
         analytics_manager = AnalyticsManager()
-        print("[ANALYTICS] ✓ AnalyticsManager loaded successfully (analytics)")
+        print("[ANALYTICS] AnalyticsManager loaded successfully (analytics)")
     except Exception as e2:
-        print(f"[ANALYTICS] ✗ Failed to import from analytics: {e2}")
+        print(f"[ANALYTICS] Failed to import from analytics: {e2}")
         analytics_manager = None
         print("[ANALYTICS] WARNING: Analytics manager not available")
 
@@ -4493,16 +4530,16 @@ try:
     print("[MULTIPLATFORM] Attempting import from web.multi_platform...")
     from web.multi_platform import MultiPlatformPublisher
     multi_platform = MultiPlatformPublisher()
-    print("[MULTIPLATFORM] ✓ MultiPlatformPublisher loaded successfully")
+    print("[MULTIPLATFORM] MultiPlatformPublisher loaded successfully")
 except Exception as e1:
-    print(f"[MULTIPLATFORM] ✗ Failed to import from web.multi_platform: {e1}")
+    print(f"[MULTIPLATFORM] Failed to import from web.multi_platform: {e1}")
     try:
         print("[MULTIPLATFORM] Attempting import from multi_platform...")
         from multi_platform import MultiPlatformPublisher
         multi_platform = MultiPlatformPublisher()
-        print("[MULTIPLATFORM] ✓ MultiPlatformPublisher loaded successfully (multi_platform)")
+        print("[MULTIPLATFORM] MultiPlatformPublisher loaded successfully (multi_platform)")
     except Exception as e2:
-        print(f"[MULTIPLATFORM] ✗ Failed to import from multi_platform: {e2}")
+        print(f"[MULTIPLATFORM] Failed to import from multi_platform: {e2}")
         multi_platform = None
         print("[MULTIPLATFORM] WARNING: Multi-platform publisher not available")
 
@@ -4517,16 +4554,16 @@ try:
     print("[PLATFORM_API] Attempting import from web.platform_apis...")
     from web.platform_apis import PlatformAPIManager
     platform_api = PlatformAPIManager()
-    print("[PLATFORM_API] ✓ PlatformAPIManager loaded successfully")
+    print("[PLATFORM_API] PlatformAPIManager loaded successfully")
 except Exception as e1:
-    print(f"[PLATFORM_API] ✗ Failed to import from web.platform_apis: {e1}")
+    print(f"[PLATFORM_API] Failed to import from web.platform_apis: {e1}")
     try:
         print("[PLATFORM_API] Attempting import from platform_apis...")
         from platform_apis import PlatformAPIManager
         platform_api = PlatformAPIManager()
-        print("[PLATFORM_API] ✓ PlatformAPIManager loaded successfully (platform_apis)")
+        print("[PLATFORM_API] PlatformAPIManager loaded successfully (platform_apis)")
     except Exception as e2:
-        print(f"[PLATFORM_API] ✗ Failed to import from platform_apis: {e2}")
+        print(f"[PLATFORM_API] Failed to import from platform_apis: {e2}")
         platform_api = None
         print("[PLATFORM_API] WARNING: Platform API manager not available")
 
@@ -5021,6 +5058,144 @@ def get_publishing_queue():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/platforms/queue/<int:queue_id>', methods=['DELETE'])
+def delete_queue_item(queue_id):
+    """Delete a queue item"""
+    if not multi_platform:
+        return jsonify({'success': False, 'error': 'Multi-platform publisher not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    try:
+        success = multi_platform.delete_queue_item(user_email, queue_id)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/platforms/queue/clear-completed', methods=['POST'])
+def clear_completed_queue():
+    """Clear all completed and failed queue items"""
+    if not multi_platform:
+        return jsonify({'success': False, 'error': 'Multi-platform publisher not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    try:
+        deleted = multi_platform.clear_completed_queue(user_email)
+        return jsonify({'success': True, 'deleted': deleted})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/platforms/queue/<int:queue_id>/process', methods=['POST'])
+def process_queue_item(queue_id):
+    """Process a queue item and publish to platforms"""
+    if not multi_platform or not platform_api:
+        return jsonify({'success': False, 'error': 'Multi-platform publisher not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    try:
+        # Get queue item
+        queue_items = multi_platform.get_publishing_queue(user_email)
+        queue_item = next((item for item in queue_items if item['id'] == queue_id), None)
+
+        if not queue_item:
+            return jsonify({'success': False, 'error': 'Queue item not found'}), 404
+
+        # Parse platforms
+        platforms = json.loads(queue_item['platforms'])
+        video_filename = queue_item['video_filename']
+        title = queue_item['title']
+        description = queue_item.get('description', '')
+        tags = json.loads(queue_item.get('tags', '[]'))
+
+        # Construct video path
+        video_path = os.path.join('out', video_filename)
+
+        if not os.path.exists(video_path):
+            multi_platform.update_queue_status(queue_id, 'failed', f'Video file not found: {video_filename}')
+            return jsonify({'success': False, 'error': f'Video file not found: {video_filename}'}), 404
+
+        # Update status to processing
+        multi_platform.update_queue_status(queue_id, 'processing')
+
+        results = {}
+        errors = []
+
+        # Process each platform
+        for platform in platforms:
+            try:
+                if platform == 'youtube' or platform == 'youtube_shorts':
+                    # Upload to YouTube
+                    result = platform_api.upload_to_youtube(
+                        user_email,
+                        video_path,
+                        title,
+                        description,
+                        tags,
+                        category_id='22',
+                        privacy='public'
+                    )
+
+                    if result.get('success'):
+                        results[platform] = {
+                            'success': True,
+                            'url': result.get('url'),
+                            'video_id': result.get('video_id')
+                        }
+
+                        # Record publication
+                        multi_platform.record_publication(
+                            user_email,
+                            None,  # video_id from database
+                            platform,
+                            result.get('video_id', ''),
+                            result.get('url', ''),
+                            title,
+                            description
+                        )
+                    else:
+                        errors.append(f"{platform}: {result.get('error', 'Unknown error')}")
+                        results[platform] = {'success': False, 'error': result.get('error')}
+                else:
+                    errors.append(f"{platform}: Platform not yet implemented")
+                    results[platform] = {'success': False, 'error': 'Platform not yet implemented'}
+
+            except Exception as e:
+                error_msg = str(e)
+                errors.append(f"{platform}: {error_msg}")
+                results[platform] = {'success': False, 'error': error_msg}
+
+        # Update final status
+        if errors:
+            multi_platform.update_queue_status(queue_id, 'failed', '; '.join(errors))
+            return jsonify({
+                'success': False,
+                'error': 'Some platforms failed',
+                'results': results,
+                'errors': errors
+            }), 500
+        else:
+            multi_platform.update_queue_status(queue_id, 'completed')
+            return jsonify({
+                'success': True,
+                'message': 'Published to all platforms successfully',
+                'results': results
+            })
+
+    except Exception as e:
+        print(f"[QUEUE] Error processing queue item {queue_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        multi_platform.update_queue_status(queue_id, 'failed', str(e))
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/platforms/published', methods=['GET'])
 def get_published_videos():
     """Get published videos for user"""
@@ -5268,6 +5443,73 @@ def instagram_oauth_callback():
                     <p>You can now close this window and return to MSS.</p>
                     <script>
                         setTimeout(() => window.close(), 2000);
+                    </script>
+                </body>
+                </html>
+            """
+        else:
+            return "OAuth callback failed", 500
+    except Exception as e:
+        return f"Error: {str(e)}", 500
+
+@app.route('/api/oauth/facebook/authorize', methods=['GET'])
+def facebook_oauth_authorize():
+    """Start Facebook OAuth flow"""
+    if not platform_api:
+        return jsonify({'success': False, 'error': 'Platform API not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    redirect_uri = request.args.get('redirect_uri', request.host_url + 'api/oauth/facebook/callback')
+
+    try:
+        auth_url = platform_api.get_facebook_auth_url(user_email, redirect_uri)
+        if auth_url:
+            # Redirect directly to Facebook auth (like YouTube does)
+            return redirect(auth_url)
+        else:
+            return jsonify({'success': False, 'error': 'Failed to generate auth URL. Check Facebook credentials.'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/oauth/facebook/callback', methods=['GET'])
+def facebook_oauth_callback():
+    """Handle Facebook OAuth callback"""
+    if not platform_api:
+        return "Platform API not available", 500
+
+    code = request.args.get('code')
+    state = request.args.get('state')
+
+    if not code or not state:
+        return "Missing code or state", 400
+
+    session_id = request.cookies.get('session_id')
+    if not session_id:
+        return "Not authenticated", 401
+
+    result = database.get_session(session_id)
+    if not result.get('success'):
+        return "Invalid session", 401
+
+    user_email = result['user']['email']
+    redirect_uri = request.host_url + 'api/oauth/facebook/callback'
+
+    try:
+        success = platform_api.handle_facebook_callback(user_email, code, state, redirect_uri)
+        if success:
+            return """
+                <html>
+                <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+                    <h2 style="color: #1877F2;">Facebook Connected Successfully!</h2>
+                    <p>You can now close this window and return to MSS.</p>
+                    <script>
+                        setTimeout(() => {
+                            window.opener.postMessage({type: 'oauth_complete', platform: 'facebook'}, '*');
+                            window.close();
+                        }, 2000);
                     </script>
                 </body>
                 </html>
@@ -5662,10 +5904,47 @@ def add_youtube_channel():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/proxy-image')
+def proxy_image():
+    """Proxy external images to avoid CORS issues (e.g., YouTube thumbnails)"""
+    try:
+        url = request.args.get('url')
+        if not url:
+            return jsonify({'error': 'No URL provided'}), 400
+
+        # Security: Only allow specific domains
+        allowed_domains = ['yt3.ggpht.com', 'yt3.googleusercontent.com', 'i.ytimg.com']
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc
+        if domain not in allowed_domains:
+            return jsonify({'error': 'Domain not allowed'}), 403
+
+        # Fetch the image
+        response = requests.get(url, timeout=5, headers={'User-Agent': 'Mozilla/5.0'})
+        response.raise_for_status()
+
+        # Return the image with appropriate headers
+        return Response(
+            response.content,
+            mimetype=response.headers.get('Content-Type', 'image/jpeg'),
+            headers={
+                'Cache-Control': 'public, max-age=86400',  # Cache for 1 day
+                'Access-Control-Allow-Origin': '*'
+            }
+        )
+    except Exception as e:
+        print(f"[PROXY-IMAGE] Error proxying image: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     debug = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
     print(f"\n[SERVER] Starting Flask server on http://127.0.0.1:{port}")
     print(f"[SERVER] Debug mode: {debug}")
+    print(f"[SERVER] Registered routes:")
+    for rule in app.url_map.iter_rules():
+        if 'proxy' in str(rule):
+            print(f"  - {rule}")
     app.run(host='127.0.0.1', port=port, debug=debug, threaded=True)
 

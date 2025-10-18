@@ -297,10 +297,9 @@
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <h1> Video Composer <span class="version">v3.0.0</span></h1>
+            <h1> Video Composer <span id="appVersion" class="version">v-</span></h1>
             <div class="nav-buttons">
                 <button onclick="window.location.href='studio.html'" class="nav-btn" data-nav-studio="1">Studio</button>
-                <button onclick="window.location.href='index.html'" class="nav-btn"> Topic Picker</button>
                 <button onclick="window.location.href='avatar-manager.html'" class="nav-btn"> Avatars</button>
                 <button onclick="window.location.href='intro-outro.html'" class="nav-btn"> Intro/Outro</button>
                 <button onclick="window.location.href='post-process.html'" class="nav-btn"> Post-Process</button>
@@ -475,9 +474,9 @@
         function sanitizeUI() {
             try {
                 const headerTitle = document.querySelector('.header h1');
-                if (headerTitle) headerTitle.innerHTML = 'Video Composer <span class="version">v3.0.0</span>';
+                if (headerTitle) headerTitle.innerHTML = 'Video Composer <span id="appVersion" class="version">v-</span>';
                 const navs = document.querySelectorAll('.nav-buttons .nav-btn');
-                const navTexts = ['Topic Picker','Avatars','Intro/Outro','Post-Process','Preview'];
+                const navTexts = ['Avatars','Intro/Outro','Post-Process','Preview'];
                 navs.forEach((btn, i) => { if (navTexts[i]) btn.textContent = navTexts[i]; });
                 const infoStrong = document.querySelector('.info-box strong');
                 if (infoStrong) infoStrong.textContent = 'How it works:';

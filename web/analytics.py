@@ -115,6 +115,13 @@ class AnalyticsManager:
             # Column already exists
             pass
 
+        # Add tags column to videos table if it doesn't exist
+        try:
+            c.execute('ALTER TABLE videos ADD COLUMN tags TEXT')
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
+
         conn.commit()
         conn.close()
 
@@ -124,13 +131,14 @@ class AnalyticsManager:
         c = conn.cursor()
 
         c.execute('''
-            INSERT INTO videos (user_email, title, description, filename, topic_data, status)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO videos (user_email, title, description, filename, tags, topic_data, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         ''', (
             user_email,
             video_data.get('title', ''),
             video_data.get('description', ''),
             video_data.get('filename', ''),
+            video_data.get('tags', ''),
             json.dumps(video_data.get('topic_data', {})),
             'created'
         ))

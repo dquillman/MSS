@@ -14,15 +14,15 @@
   <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
     <h1 style="margin:0;">MSS Studio <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
     <div style="display:flex; gap:10px; flex-wrap:wrap; position:relative;">
-      <button class="btn" onclick="window.location.href='index.html'">Topics</button>
-      <button class="btn" onclick="window.location.href='/analytics-dashboard'" style="background:#22c55e; border-color:#22c55e;">Analytics</button>
-      <button class="btn" onclick="window.location.href='/multi-platform'" style="background:#f59e0b; border-color:#f59e0b;">Multi-Platform</button>
+      <button class="btn" onclick="window.location.href='workflow.html' + window.location.search" style="background:#22c55e; border-color:#22c55e;">📋 Workflow</button>
+      <button class="btn" onclick="window.location.href='trends-calendar.html'" style="background:#22c55e; border-color:#22c55e;">📊 Trends</button>
       <button class="btn" onclick="window.location.href='avatar-manager.html'">Avatars</button>
       <button class="btn" onclick="window.location.href='logo-manager.html'">Logos</button>
-      <button class="btn" onclick="window.location.href='meme-library.html'">Memes</button>
+      <button class="btn" onclick="window.location.href='meme-library.html' + window.location.search">Thumbnails</button>
       <button class="btn" onclick="window.location.href='intro-outro.html'">Intro/Outro</button>
-      <button class="btn" onclick="window.location.href='viewer.html'">Viewer</button>
       <button class="btn" onclick="window.location.href='/dashboard'">Dashboard</button>
+      <button class="btn" onclick="window.location.href='/analytics-dashboard'" style="background:#22c55e; border-color:#22c55e;">Analytics</button>
+      <button class="btn" onclick="goToPublisher()" style="background:#f59e0b; border-color:#f59e0b;">Multi-Platform</button>
       <button class="btn" onclick="window.location.href='settings.html'" style="background:#7c3aed; border-color:#7c3aed;">Settings</button>
       <button class="btn" onclick="logout()" style="background:#ef4444; border-color:#ef4444;">Logout</button>
     </div>
@@ -59,11 +59,10 @@
 </script>
 
   <div class="card">
-    <h1>Topic Picker</h1>
+    <h1>Video Topic</h1>
     <div class="row" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
       <button class="btn" id="liteLoadLast">Load Last Topic</button>
-      <a class="btn" href="index.html?return=studio.html" id="openFullPicker" style="text-decoration:none; text-align:center;">Topic Picker</a>
-      <button class="btn" id="liteClear" style="background:#ef4444; border-color:#ef4444;">Clear Picker</button>
+      <button class="btn" id="liteClear" style="background:#ef4444; border-color:#ef4444;">Clear Topic</button>
       <span id="liteStatus" class="status info" style="display:none; padding:8px 12px; background:rgba(34,197,94,0.2); border:1px solid #22c55e; border-radius:6px; color:#22c55e; font-size:14px; font-weight:600;"></span>
     </div>
     <div class="row" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
@@ -129,10 +128,17 @@
       }
 
       // Aggressive retry strategy - keep trying until it works or we give up
+      // BUT skip if URL params exist (e.g., from Trends page)
       let attempts = 0;
       const maxAttempts = 20;
 
       function retryLoad() {
+        // Check if URL has topic parameter - if so, don't load from localStorage
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('topic')) {
+          return; // Skip localStorage loading
+        }
+
         attempts++;
         if (tryLoad()) {
           return;
@@ -142,15 +148,25 @@
         }
       }
 
-      // Start trying immediately
+      // Start trying immediately (unless URL params exist)
       retryLoad();
 
-      // Also try when page is fully loaded
-      window.addEventListener('load', tryLoad);
+      // Also try when page is fully loaded (unless URL params exist)
+      window.addEventListener('load', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (!urlParams.has('topic')) {
+          tryLoad();
+        }
+      });
 
-      // And when DOM is ready
+      // And when DOM is ready (unless URL params exist)
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', tryLoad);
+        document.addEventListener('DOMContentLoaded', () => {
+          const urlParams = new URLSearchParams(window.location.search);
+          if (!urlParams.has('topic')) {
+            tryLoad();
+          }
+        });
       }
 
       const btn = document.getElementById('liteLoadLast');
@@ -894,7 +910,19 @@ Make it stand out in search results and suggested videos.`;
 
     // Load topic keywords/tags from localStorage or API fallback
     async function primeFromLocalOrAPI() {
+      // Skip if URL parameters exist - they take priority
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('topic')) {
+        console.log('[STUDIO] Skipping primeFromLocalOrAPI because URL params exist');
+        return;
+      }
+
       const tokensEl = document.getElementById('topicTokens');
+      if (!tokensEl) {
+        console.warn('[STUDIO] topicTokens element not found, skipping primeFromLocalOrAPI');
+        return;
+      }
+
       const renderTokens = (arr) => {
         tokensEl.innerHTML = '';
         arr.slice(0, 50).forEach(t => {
@@ -940,6 +968,90 @@ Make it stand out in search results and suggested videos.`;
     }
 
     primeFromLocalOrAPI();
+
+    // Auto-fill from URL parameters (e.g., from Trends page)
+    (function loadFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      const topic = params.get('topic');
+      const keywords = params.get('keywords');
+      const hook = params.get('hook');
+
+      console.log('[STUDIO] URL params:', {
+        topic,
+        keywords,
+        hook,
+        fullURL: window.location.href
+      });
+
+      if (!topic) {
+        console.log('[STUDIO] No topic in URL, skipping URL parameter loading');
+        return;
+      }
+
+      function tryFillFromURL() {
+        const liteTitle = document.getElementById('liteTitle');
+        const liteHook = document.getElementById('liteHook');
+        const liteKeywords = document.getElementById('liteKeywords');
+
+        console.log('[STUDIO] Attempting to fill from URL. Found elements:', {
+          liteTitle: !!liteTitle,
+          liteHook: !!liteHook,
+          liteKeywords: !!liteKeywords
+        });
+
+        if (!liteTitle || !liteHook || !liteKeywords) {
+          console.log('[STUDIO] Elements not ready yet, will retry...');
+          return false;
+        }
+
+        // Fill title
+        liteTitle.value = topic;
+        console.log('[STUDIO] ✓ Set title to:', topic);
+
+        // Fill keywords if provided
+        if (keywords) {
+          liteKeywords.value = keywords;
+          console.log('[STUDIO] ✓ Set keywords to:', keywords);
+        } else {
+          liteKeywords.value = '';
+        }
+
+        // Fill hook if provided
+        if (hook) {
+          liteHook.value = hook;
+          console.log('[STUDIO] ✓ Set hook to:', hook);
+          liteStatus('Topic, keywords, and hook loaded from Trends', 'ok');
+        } else {
+          liteHook.value = '';
+          if (keywords) {
+            liteStatus('Topic and keywords loaded from Trends', 'ok');
+          } else {
+            liteStatus('Topic loaded from Trends', 'ok');
+          }
+        }
+
+        console.log('[STUDIO] ✓ Successfully filled all fields from URL parameters');
+        return true;
+      }
+
+      // Try immediately
+      if (tryFillFromURL()) return;
+
+      // Retry with delays if not ready
+      let attempts = 0;
+      const maxAttempts = 10;
+      const retryInterval = setInterval(() => {
+        attempts++;
+        console.log(`[STUDIO] Retry attempt ${attempts}/${maxAttempts} to fill from URL`);
+
+        if (tryFillFromURL() || attempts >= maxAttempts) {
+          clearInterval(retryInterval);
+          if (attempts >= maxAttempts) {
+            console.error('[STUDIO] Failed to fill fields from URL after max attempts');
+          }
+        }
+      }, 100);
+    })();
 
 
     mainInput.addEventListener('change', () => {
@@ -1344,6 +1456,22 @@ Make it stand out in search results and suggested videos.`;
         console.error('Error logging out:', error);
         alert('Error logging out. Please try again.');
       }
+    }
+
+    // Navigate to publisher with video data
+    function goToPublisher() {
+      const title = document.getElementById('liteTitle')?.value?.trim() || '';
+      const description = document.getElementById('liteHook')?.value?.trim() || '';
+      const keywords = document.getElementById('liteKeywords')?.value?.trim() || '';
+
+      // Build URL with parameters
+      const params = new URLSearchParams();
+      if (title) params.append('title', title);
+      if (description) params.append('description', description);
+      if (keywords) params.append('tags', keywords);
+
+      const url = '/multi-platform' + (params.toString() ? '?' + params.toString() : '');
+      window.location.href = url;
     }
   </script>
 </body>

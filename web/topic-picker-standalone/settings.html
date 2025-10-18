@@ -13,12 +13,10 @@
     <h1 style="margin:0;">Settings <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
     <div style="display:flex; gap:10px; flex-wrap:wrap; position:relative;">
       <button class="btn" style="background:#3b82f6; border-color:#3b82f6;" onclick="window.location.href='studio.html'">Studio</button>
-      <button class="btn" onclick="window.location.href='index.html'">Topics</button>
       <button class="btn" onclick="window.location.href='avatar-manager.html'">Avatars</button>
       <button class="btn" onclick="window.location.href='logo-manager.html'">Logos</button>
-      <button class="btn" onclick="window.location.href='meme-library.html'">Memes</button>
+      <button class="btn" onclick="window.location.href='meme-library.html'">Thumbnails</button>
       <button class="btn" onclick="window.location.href='intro-outro.html'">Intro/Outro</button>
-      <button class="btn" onclick="window.location.href='viewer.html'">Viewer</button>
       <div class="dropdown" id="oldMenusContainer" style="position:relative;display:none;">
         <button class="btn" id="oldMenusBtn">Old Menus</button>
         <div class="dropdown-content" id="oldMenus" style="display:none; position:absolute; top:110%; left:0; background:#0B0F19; border:1px solid #334; border-radius:8px; min-width:180px; z-index:20; box-shadow:0 6px 18px rgba(0,0,0,0.4);">
@@ -48,7 +46,6 @@
         <select id="defaultStartPage" style="width:100%; padding:10px;">
           <option value="landing.html">Landing Page</option>
           <option value="studio.html">Studio</option>
-          <option value="index.html">Topic Picker</option>
         </select>
         <div class="help-text">Page to open when launching MSS</div>
       </div>
@@ -128,13 +125,13 @@
     </div>
   </div>
 
-  <!-- Meme Generator Defaults -->
+  <!-- Thumbnail Generator Defaults -->
   <div class="card">
-    <h1>Meme Generator Defaults</h1>
+    <h1>Thumbnail Generator Defaults</h1>
     <div class="row">
       <label>Default Font</label>
       <select id="defaultMemeFont" style="width:100%; max-width:300px; padding:10px;">
-        <option value="Impact">Impact (Classic Meme)</option>
+        <option value="Impact">Impact (Classic Thumbnail)</option>
         <option value="Arial Black">Arial Black (Bold)</option>
         <option value="Bebas Neue">Bebas Neue (Modern)</option>
         <option value="Anton">Anton (Heavy)</option>
@@ -222,7 +219,7 @@
       if (settings.defaultLogoPosition) document.getElementById('defaultLogoPosition').value = settings.defaultLogoPosition;
       if (settings.defaultIncludeIntroOutro !== undefined) document.getElementById('defaultIncludeIntroOutro').checked = settings.defaultIncludeIntroOutro;
 
-      // Meme
+      // Thumbnail
       if (settings.defaultMemeFont) document.getElementById('defaultMemeFont').value = settings.defaultMemeFont;
       if (settings.defaultTopTextColor) document.getElementById('defaultTopTextColor').value = settings.defaultTopTextColor;
       if (settings.defaultBottomTextColor) document.getElementById('defaultBottomTextColor').value = settings.defaultBottomTextColor;
@@ -250,7 +247,7 @@
         defaultLogoPosition: document.getElementById('defaultLogoPosition').value,
         defaultIncludeIntroOutro: document.getElementById('defaultIncludeIntroOutro').checked,
 
-        // Meme
+        // Thumbnail
         defaultMemeFont: document.getElementById('defaultMemeFont').value,
         defaultTopTextColor: document.getElementById('defaultTopTextColor').value,
         defaultBottomTextColor: document.getElementById('defaultBottomTextColor').value,

@@ -5,25 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard - MSS Studio</title>
   <link rel="stylesheet" href="studio.css">
+  <script src="version.js" defer></script>
 </head>
 <body>
   <div id="loadingBar" class="loading-bar"></div>
 
   <!-- Header -->
   <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
-    <h1 style="margin:0;">Dashboard <span id="userEmail" style="font-size:14px; color:#64748b; font-weight:400;"></span></h1>
+    <h1 style="margin:0;">Dashboard <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;"></span></h1>
     <div style="display:flex; gap:10px; flex-wrap:wrap; flex:1; justify-content:flex-end;">
+      <button class="btn" style="background:#22c55e; border-color:#22c55e; flex:1;" onclick="window.location.href='/workflow'">📋 Workflow</button>
       <button class="btn" style="background:#3b82f6; border-color:#3b82f6; flex:1;" onclick="window.location.href='/studio'">🎬 Studio</button>
-      <button class="btn" style="background:#8b5cf6; border-color:#8b5cf6; flex:1;" onclick="window.location.href='/trends-calendar'">📊 Trends & Calendar</button>
+      <button class="btn" style="background:#8b5cf6; border-color:#8b5cf6; flex:1;" onclick="window.location.href='/trends-calendar'">📊 Trends</button>
       <button class="btn" style="flex:1;" onclick="window.location.href='/pricing'">💰 Pricing</button>
       <button class="btn" onclick="logout()" style="background:#ef4444; border-color:#ef4444; flex:1;">🚪 Logout</button>
     </div>
   </div>
 
   <!-- Stats Cards -->
-  <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:20px; margin-top:20px;">
+  <div style="max-width: 1000px; margin: 20px auto 0; display:grid; grid-template-columns: 1fr 1fr 1fr; gap:20px;">
     <!-- Subscription Tier -->
-    <div class="card" style="background:linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(17, 24, 39, 0.5)); border-color: #3b82f6;">
+    <div class="card" style="background:linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(17, 24, 39, 0.5)); border-color: #3b82f6; margin:0;">
       <h2 style="margin:0 0 10px 0; font-size:16px; color:#A8B3CF;">Current Plan</h2>
       <div style="font-size:32px; font-weight:900; color:#3b82f6; text-transform:capitalize;" id="planTier">Free</div>
       <div style="margin-top:8px; font-size:14px; color:#A8B3CF;" id="planLimit">3 videos/month</div>
@@ -31,7 +33,7 @@
     </div>
 
     <!-- Videos This Month -->
-    <div class="card">
+    <div class="card" style="margin:0;">
       <h2 style="margin:0 0 10px 0; font-size:16px; color:#A8B3CF;">Videos This Month</h2>
       <div style="font-size:32px; font-weight:900;" id="videosMonth">0</div>
       <div style="margin-top:8px; font-size:14px; color:#A8B3CF;" id="videoLimit">of 3 videos used</div>
@@ -41,7 +43,7 @@
     </div>
 
     <!-- Total Videos -->
-    <div class="card">
+    <div class="card" style="margin:0;">
       <h2 style="margin:0 0 10px 0; font-size:16px; color:#A8B3CF;">Total Videos Created</h2>
       <div style="font-size:32px; font-weight:900; color:#22c55e;" id="videosTotal">0</div>
       <div style="margin-top:8px; font-size:14px; color:#A8B3CF;">All time</div>
@@ -131,7 +133,6 @@
         const user = userData.user;
 
         // Update UI
-        document.getElementById('userEmail').textContent = `(${user.email})`;
         document.getElementById('userEmailFull').textContent = user.email;
         document.getElementById('username').textContent = user.username || 'N/A';
         document.getElementById('planTier').textContent = user.subscription_tier || 'Free';
@@ -290,16 +291,19 @@
           }) : 'Unknown date';
 
           const sizeMB = video.size ? (video.size / (1024 * 1024)).toFixed(1) : '0.0';
+          const videoUrl = `${API_BASE}/out/${video.path}`;
 
           return `
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom:10px;">
+            <div style="display:flex; gap:12px; align-items:start; padding:12px; border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom:10px;">
+              <video src="${videoUrl}" style="width:160px; height:90px; object-fit:cover; border-radius:6px; background:#000;"></video>
               <div style="flex:1;">
                 <div style="font-weight:600; margin-bottom:4px;">${video.path}</div>
-                <div style="font-size:13px; color:#A8B3CF;">${date} • ${sizeMB} MB</div>
-              </div>
-              <div style="display:flex; gap:8px;">
-                <a href="${API_BASE}/out/${video.path}" target="_blank" class="btn" style="background:#3b82f6; border-color:#3b82f6; padding:8px 16px; font-size:13px;">View</a>
-                <a href="${API_BASE}/out/${video.path}" download="${video.path}" class="btn" style="background:#22c55e; border-color:#22c55e; padding:8px 16px; font-size:13px;">Download</a>
+                <div style="font-size:13px; color:#A8B3CF; margin-bottom:8px;">${date} • ${sizeMB} MB</div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <a href="${videoUrl}" target="_blank" class="btn" style="background:#3b82f6; border-color:#3b82f6; padding:6px 12px; font-size:13px;">View</a>
+                  <a href="${videoUrl}" download="${video.path}" class="btn" style="background:#22c55e; border-color:#22c55e; padding:6px 12px; font-size:13px;">Download</a>
+                  <button class="btn" onclick="deleteVideo('${video.path}')" style="background:#ef4444; border-color:#ef4444; padding:6px 12px; font-size:13px;">Delete</button>
+                </div>
               </div>
             </div>
           `;
@@ -310,6 +314,35 @@
       } catch (error) {
         console.error('Error loading videos:', error);
         gallery.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444;">Error loading videos: ${error.message}</div>`;
+      }
+    }
+
+    async function deleteVideo(filename) {
+      if (!confirm(`Are you sure you want to delete "${filename}"?`)) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/delete-output`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ path: filename, dir: 'out' })
+        });
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+
+        const data = await res.json();
+
+        if (data.success) {
+          alert('Video deleted successfully!');
+          loadVideos(); // Refresh the gallery
+        } else {
+          throw new Error(data.error || 'Failed to delete video');
+        }
+      } catch (error) {
+        console.error('Error deleting video:', error);
+        alert(`Error deleting video: ${error.message}`);
       }
     }
 

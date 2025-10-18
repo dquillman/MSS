@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Creation Workflow - MSS Studio</title>
+  <link rel="stylesheet" href="studio.css">
+  <script src="version.js" defer></script>
+  <style>
+    .workflow-container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .workflow-step {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(17, 24, 39, 0.5));
+      border: 2px solid #3b82f6;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+      position: relative;
+      transition: all 0.3s;
+    }
+
+    .workflow-step:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+    }
+
+    .workflow-step.completed {
+      border-color: #22c55e;
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(17, 24, 39, 0.5));
+    }
+
+    .step-number {
+      position: absolute;
+      top: -12px;
+      left: 20px;
+      background: #3b82f6;
+      color: white;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 16px;
+    }
+
+    .workflow-step.completed .step-number {
+      background: #22c55e;
+    }
+
+    .step-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #E8EBFF;
+      margin-bottom: 8px;
+      padding-left: 0;
+    }
+
+    .step-description {
+      color: #A8B3CF;
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+
+    .step-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .arrow-down {
+      text-align: center;
+      font-size: 32px;
+      color: #3b82f6;
+      margin: -10px 0;
+      animation: bounce 2s infinite;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    .quick-links {
+      background: #1a202c;
+      border: 1px solid #2a3550;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .quick-links-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .info-banner {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(17, 24, 39, 0.5));
+      border: 1px solid #8b5cf6;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 0 auto 20px;
+      max-width: 900px;
+      display: flex;
+      align-items: start;
+      gap: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div id="loadingBar" class="loading-bar"></div>
+
+  <!-- Header -->
+  <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+    <h1 style="margin:0;">Video Creation Workflow</h1>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn" onclick="window.location.href='/dashboard'" style="background:#3b82f6; border-color:#3b82f6;">Dashboard</button>
+      <button class="btn" onclick="window.location.href='studio.html' + window.location.search" style="background:#22c55e; border-color:#22c55e;">Studio</button>
+    </div>
+  </div>
+
+  <!-- Info Banner -->
+  <div class="info-banner">
+    <div style="font-size:40px;">🎬</div>
+    <div>
+      <h3 style="margin:0 0 8px 0;">Complete Video Creation Guide</h3>
+      <p style="margin:0; color:#A8B3CF; font-size:14px;">Follow these steps to create, analyze, and publish your videos. Each step includes direct links to the tools you need.</p>
+    </div>
+  </div>
+
+  <div class="workflow-container">
+
+    <!-- Step 1: Find Trending Topics -->
+    <div class="workflow-step">
+      <div class="step-number">1</div>
+      <div class="step-title">📊 Find Trending Topics & Plan Content</div>
+      <div class="step-description">
+        Discover what's trending and schedule your content calendar. Research popular topics, see what's working, and plan when to create your videos.
+      </div>
+      <div class="step-actions">
+        <button class="btn" onclick="window.location.href='/trends-calendar'" style="background:#8b5cf6; border-color:#8b5cf6;">
+          Open Trends & Calendar
+        </button>
+        <button class="btn" onclick="showTips('trends')" style="background:#64748b; border-color:#64748b;">
+          Tips
+        </button>
+      </div>
+    </div>
+
+    <div class="arrow-down">↓</div>
+
+    <!-- Step 2: Create Video -->
+    <div class="workflow-step">
+      <div class="step-number">2</div>
+      <div class="step-title">🎥 Create Your Video</div>
+      <div class="step-description">
+        Generate your video using AI-powered tools. Enter your topic, customize settings, add avatars, backgrounds, logos, and create your video with intro/outro clips.
+      </div>
+      <div class="step-actions">
+        <button class="btn" onclick="window.location.href='studio.html' + window.location.search" style="background:#22c55e; border-color:#22c55e;">
+          Open Studio
+        </button>
+        <button class="btn" onclick="window.location.href='logo-manager.html'" style="background:#f59e0b; border-color:#f59e0b;">
+          Manage Logos
+        </button>
+        <button class="btn" onclick="showTips('create')" style="background:#64748b; border-color:#64748b;">
+          Tips
+        </button>
+      </div>
+    </div>
+
+    <div class="arrow-down">↓</div>
+
+    <!-- Step 3: Create Thumbnail -->
+    <div class="workflow-step">
+      <div class="step-number">3</div>
+      <div class="step-title">🎨 Create Video Thumbnail</div>
+      <div class="step-description">
+        Design an eye-catching thumbnail for your video. Use AI-generated backgrounds, add text overlays, and customize your thumbnail to maximize click-through rates.
+      </div>
+      <div class="step-actions">
+        <button class="btn" onclick="window.location.href='meme-library.html' + window.location.search" style="background:#f59e0b; border-color:#f59e0b;">
+          Open Thumbnail Creator
+        </button>
+        <button class="btn" onclick="showTips('thumbnail')" style="background:#64748b; border-color:#64748b;">
+          Tips
+        </button>
+      </div>
+    </div>
+
+    <div class="arrow-down">↓</div>
+
+    <!-- Step 4: Connect Platforms -->
+    <div class="workflow-step">
+      <div class="step-number">4</div>
+      <div class="step-title">🔗 Connect Your Channels</div>
+      <div class="step-description">
+        Connect your YouTube, TikTok, Instagram, and other social media accounts. This allows you to publish directly and track analytics across all platforms.
+      </div>
+      <div class="step-actions">
+        <button class="btn" onclick="window.location.href='channel-manager.html'" style="background:#FF0000; border-color:#FF0000;">
+          Channel Manager
+        </button>
+        <button class="btn" onclick="showTips('connect')" style="background:#64748b; border-color:#64748b;">
+          Setup Guide
+        </button>
+      </div>
+    </div>
+
+    <div class="arrow-down">↓</div>
+
+    <!-- Step 5: Publish Video -->
+    <div class="workflow-step">
+      <div class="step-number">5</div>
+      <div class="step-title">🚀 Publish to Platforms</div>
+      <div class="step-description">
+        Publish your video to multiple platforms at once. Automatically optimize format, resolution, and aspect ratio for each platform (YouTube, TikTok, Instagram, etc).
+      </div>
+      <div class="step-actions">
+        <button class="btn" onclick="window.location.href='/multi-platform'" style="background:#8b5cf6; border-color:#8b5cf6;">
+          Multi-Platform Publisher
+        </button>
+        <button class="btn" onclick="showTips('publish')" style="background:#64748b; border-color:#64748b;">
+          Tips
+        </button>
+      </div>
+    </div>
+
+    <div class="arrow-down">↓</div>
+
+    <!-- Step 6: Track Performance -->
+    <div class="workflow-step">
+      <div class="step-number">6</div>
+      <div class="step-title">📈 Track Performance & Analytics</div>
+      <div class="step-description">
+        Monitor your video performance across all platforms. See views, likes, comments, engagement rates, and identify your top-performing content.
+      </div>
+      <div class="step-actions">
+        <button class="btn" onclick="window.location.href='/analytics-dashboard'" style="background:#3b82f6; border-color:#3b82f6;">
+          View Analytics
+        </button>
+        <button class="btn" onclick="syncMetrics()" style="background:#FF0000; border-color:#FF0000;">
+          Sync YouTube Data
+        </button>
+        <button class="btn" onclick="showTips('analytics')" style="background:#64748b; border-color:#64748b;">
+          Tips
+        </button>
+      </div>
+    </div>
+
+    <div class="arrow-down">↓</div>
+
+    <!-- Step 6: Repeat & Improve -->
+    <div class="workflow-step completed">
+      <div class="step-number">✓</div>
+      <div class="step-title">🔄 Repeat & Improve</div>
+      <div class="step-description">
+        Use your analytics insights to create better content. Go back to step 1, find more trending topics, and create videos that resonate with your audience.
+      </div>
+      <div class="step-actions">
+        <button class="btn" onclick="window.location.href='/trends-calendar'" style="background:#22c55e; border-color:#22c55e;">
+          Start Over
+        </button>
+        <button class="btn" onclick="window.location.href='/dashboard'" style="background:#3b82f6; border-color:#3b82f6;">
+          Dashboard
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Quick Access Links -->
+  <div class="card" style="margin-top:40px;">
+    <h2 style="margin-top:0;">⚡ Quick Access</h2>
+    <div class="quick-links-grid">
+      <button class="btn" onclick="window.location.href='/dashboard'" style="background:#3b82f6; border-color:#3b82f6;">
+        📊 Dashboard
+      </button>
+      <button class="btn" onclick="window.location.href='studio.html' + window.location.search" style="background:#22c55e; border-color:#22c55e;">
+        🎬 Studio
+      </button>
+      <button class="btn" onclick="window.location.href='trends-calendar.html'" style="background:#8b5cf6; border-color:#8b5cf6;">
+        📈 Trends
+      </button>
+      <button class="btn" onclick="window.location.href='channel-manager.html'" style="background:#FF0000; border-color:#FF0000;">
+        📺 Channels
+      </button>
+      <button class="btn" onclick="window.location.href='/analytics-dashboard'" style="background:#3b82f6; border-color:#3b82f6;">
+        📊 Analytics
+      </button>
+      <button class="btn" onclick="window.location.href='/multi-platform'" style="background:#8b5cf6; border-color:#8b5cf6;">
+        🚀 Publisher
+      </button>
+      <button class="btn" onclick="window.location.href='logo-manager.html'" style="background:#f59e0b; border-color:#f59e0b;">
+        🎨 Logos
+      </button>
+      <button class="btn" onclick="window.location.href='/pricing'" style="background:#ec4899; border-color:#ec4899;">
+        💰 Pricing
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+
+    function showTips(section) {
+      const tips = {
+        trends: `📊 Trends & Calendar Tips:
+
+• Check trending topics daily for fresh content ideas
+• Schedule content in advance using the calendar
+• Add calendar events to sync with Google Calendar
+• Look for topics with high search volume
+• Monitor what competitors are creating`,
+
+        create: `🎥 Video Creation Tips:
+
+• Start with a clear, engaging topic
+• Use avatars to make videos more personal
+• Add your logo for branding consistency
+• Keep videos under 3 minutes for better engagement
+• Use trending topics from Step 1
+• Preview before finalizing`,
+
+        thumbnail: `🎨 Thumbnail Creation Tips:
+
+• Use bold, high-contrast text for visibility
+• Keep text short and punchy (2-5 words max)
+• Generate AI backgrounds that match your topic
+• Use bright colors to stand out in feeds
+• Include faces or emotions when possible
+• Test different styles to see what works
+• Make sure text is readable on mobile`,
+
+        connect: `🔗 Channel Connection Tips:
+
+• Connect YouTube first for best analytics
+• You can manage multiple channels per platform
+• Set one channel as default for easy publishing
+• Re-authenticate if you see connection errors
+• Check YOUTUBE_SETUP_QUICKSTART.md for setup help`,
+
+        publish: `🚀 Publishing Tips:
+
+• Videos are auto-optimized for each platform
+• Select multiple platforms to save time
+• Use relevant tags for better discoverability
+• Write engaging descriptions
+• Check queue tab to monitor publishing status
+• YouTube: 16:9 aspect ratio
+• TikTok/Reels: 9:16 vertical format`,
+
+        analytics: `📈 Analytics Tips:
+
+• Sync YouTube data regularly for latest metrics
+• Focus on engagement rate, not just views
+• Identify your best-performing videos
+• Use insights to plan future content
+• Track performance over time (7/30/90 days)
+• Compare different content types`
+      };
+
+      alert(tips[section] || 'Tips not available');
+    }
+
+    async function syncMetrics() {
+      if (!confirm('Sync latest data from YouTube?\n\nThis will fetch the most recent views, likes, and comments for all your videos.')) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/youtube/sync-metrics`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          alert(`✓ YouTube Sync Complete!\n\n${data.message}\n\nTotal Videos: ${data.total}\nNew Videos: ${data.synced}\nUpdated: ${data.updated}`);
+        } else {
+          throw new Error(data.error || 'Sync failed');
+        }
+      } catch (error) {
+        console.error('YouTube sync error:', error);
+        if (error.message.includes('not connected') || error.message.includes('credentials')) {
+          alert('❌ YouTube not connected\n\nPlease connect your YouTube account first in the Channel Manager (Step 4).');
+        } else {
+          alert(`❌ Sync failed: ${error.message}`);
+        }
+      }
+    }
+  </script>
+</body>
+</html>

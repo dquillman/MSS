@@ -282,6 +282,42 @@ class MultiPlatformPublisher:
 
         return success
 
+    def delete_queue_item(self, user_email: str, queue_id: int) -> bool:
+        """Delete a queue item"""
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+
+        c.execute('''
+            DELETE FROM publishing_queue
+            WHERE id = ? AND user_email = ?
+        ''', (queue_id, user_email))
+
+        success = c.rowcount > 0
+        conn.commit()
+        conn.close()
+
+        return success
+
+    def clear_completed_queue(self, user_email: str) -> int:
+        """Clear all completed, failed, and old pending queue items"""
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+
+        # Delete completed and failed items, and pending items older than 24 hours
+        c.execute('''
+            DELETE FROM publishing_queue
+            WHERE user_email = ? AND (
+                status IN ('completed', 'failed') OR
+                (status = 'pending' AND datetime(created_at) < datetime('now', '-1 day'))
+            )
+        ''', (user_email,))
+
+        deleted = c.rowcount
+        conn.commit()
+        conn.close()
+
+        return deleted
+
     def record_publication(self, user_email: str, video_id: Optional[int], platform: str,
                           platform_video_id: str, platform_url: str,
                           title: str, description: str = '') -> int:

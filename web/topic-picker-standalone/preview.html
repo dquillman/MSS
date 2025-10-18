@@ -266,20 +266,15 @@
         studio.style.padding = '8px 16px'; studio.style.margin = '0';
         studio.onclick = () => { window.location.href = 'studio.html'; };
         group.prepend(studio);
-        const viewer = document.createElement('button');
-        viewer.textContent = 'Viewer';
-        viewer.style.padding = '8px 16px'; viewer.style.margin = '0';
-        viewer.onclick = () => { window.location.href = 'viewer.html'; };
-        group.prepend(viewer);
       }
     })();
   </script>
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-    <h2 style="margin: 0;">🎬 Video Preview & Quality Check <span style="font-size:14px; color:#64748b; font-weight:400;">v3.0.0</span></h2>
+    <h2 style="margin: 0;">🎬 Video Preview & Quality Check <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h2>
     <div style="display: flex; gap: 10px;">
       <button onclick="window.location.href='studio.html'" style="padding: 8px 16px; margin: 0;">Studio</button>
       <button onclick="window.location.href='intro-outro.html'" style="padding: 8px 16px; margin: 0;">🎬 Intro/Outro</button>
-      <button onclick="window.location.href='index.html'" style="padding: 8px 16px; margin: 0;">← Back to Topics</button>
+      <button onclick="window.location.href='studio.html'" style="padding: 8px 16px; margin: 0;">← Back to Studio</button>
     </div>
   </div>
   <p class="subtitle">Review your generated video and thumbnails before publishing</p>
@@ -403,7 +398,7 @@
 
     <!-- Action Buttons -->
     <div class="button-group">
-      <button onclick="window.location.href='index.html'" class="button-secondary">← Back to Topics</button>
+      <button onclick="window.location.href='studio.html'" class="button-secondary">← Back to Studio</button>
       <button onclick="regenerateVideo()" class="button-secondary">🔄 Regenerate</button>
       <button onclick="downloadFiles()">☁️ Upload to Drive</button>
       <button onclick="approveForPublish()" class="button-success">✅ Approve & Publish</button>
@@ -503,7 +498,7 @@
         document.getElementById('loading').innerHTML = `
           <h3 style="color:#dc2626;">❌ Error Loading Preview</h3>
           <p>${error.message}</p>
-          <button onclick="window.location.href='index.html'" class="button-secondary">← Back to Topics</button>
+          <button onclick="window.location.href='studio.html'" class="button-secondary">← Back to Studio</button>
         `;
       }
     }

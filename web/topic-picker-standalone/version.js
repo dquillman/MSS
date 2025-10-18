@@ -1,6 +1,6 @@
 // Global version injector for MSS pages
 (function(){
-  window.code_version = "5.5.5";
+  window.code_version = "5.5.6";
   async function resolveVersion(){
     try {
       const r = await fetch('http://localhost:5000/health');
@@ -14,6 +14,14 @@
     const candidates = Array.from(document.querySelectorAll('#appVersion, .version, h1 span, h2 span, h3 span'));
     let updated = false;
     for (const el of candidates) {
+      // Skip elements or their parents with data-no-version attribute
+      if (el.hasAttribute('data-no-version') || el.parentElement?.hasAttribute('data-no-version')) {
+        continue;
+      }
+      // Skip spans with IDs other than appVersion (like platformTitle, etc)
+      if (el.id && el.id !== 'appVersion') {
+        continue;
+      }
       const txt = (el.textContent || '').trim();
       if (el.id === 'appVersion' || (el.classList && el.classList.contains('version')) || /^v/i.test(txt) || txt.length <= 10) {
         el.textContent = 'v' + window.code_version;

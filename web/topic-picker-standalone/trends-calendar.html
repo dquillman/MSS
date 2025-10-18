@@ -158,6 +158,7 @@
       gap: 10px;
       margin-bottom: 20px;
       border-bottom: 2px solid #2a3550;
+      justify-content: center;
     }
 
     .tab-button {
@@ -209,8 +210,9 @@
   <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
     <h1 style="margin:0;">Trends & Content Calendar</h1>
     <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn" onclick="window.location.href='workflow.html'" style="background:#22c55e; border-color:#22c55e;">📋 Workflow</button>
       <button class="btn" onclick="window.location.href='/dashboard'" style="background:#3b82f6; border-color:#3b82f6;">Dashboard</button>
-      <button class="btn" onclick="window.location.href='/studio'" style="background:#22c55e; border-color:#22c55e;">Studio</button>
+      <button class="btn" onclick="window.location.href='studio.html'" style="background:#22c55e; border-color:#22c55e;">Studio</button>
     </div>
   </div>
 
@@ -324,10 +326,18 @@
           return;
         }
 
-        container.innerHTML = trends.map(trend => `
-          <div class="trend-card">
+        container.innerHTML = trends.map(trend => {
+          const keywords = trend.keywords || [];
+          const subtopics = trend.subtopics || [];
+
+          return `
+          <div class="trend-card"
+               data-topic="${trend.topic.replace(/"/g, '&quot;')}"
+               data-keywords='${JSON.stringify(keywords).replace(/'/g, '&apos;')}'
+               data-subtopics='${JSON.stringify(subtopics).replace(/'/g, '&apos;')}'
+               style="cursor:pointer;">
             <div class="trend-header">
-              <div>
+              <div style="flex:1;">
                 <div class="trend-topic">${trend.topic}</div>
                 <div style="margin-bottom:12px;">
                   <span class="niche-tag">${trend.niche}</span>
@@ -343,11 +353,103 @@
                     <div class="trend-stat-value growth-positive">${trend.growth}</div>
                   </div>
                 </div>
+                ${keywords.length > 0 ? `
+                  <div style="margin-top:12px;">
+                    <div style="font-size:11px; color:#A8B3CF; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Top Keywords</div>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                      ${keywords.slice(0, 5).map(kw => `<span style="padding:3px 8px; background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.3); border-radius:10px; font-size:11px; color:#60a5fa;">${kw}</span>`).join('')}
+                    </div>
+                  </div>
+                ` : ''}
+                ${subtopics.length > 0 ? `
+                  <div style="margin-top:12px;">
+                    <div style="font-size:11px; color:#A8B3CF; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Top Subtopics (click to use as Hook)</div>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                      ${subtopics.map(st => `
+                        <button class="subtopic-btn" data-subtopic="${st.replace(/"/g, '&quot;')}"
+                          style="padding:8px 12px; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.3); border-radius:6px; font-size:12px; color:#c084fc; text-align:left; cursor:pointer; transition:all 0.2s; width:100%;"
+                          onmouseover="this.style.background='rgba(139,92,246,0.25)'; this.style.borderColor='rgba(139,92,246,0.5)';"
+                          onmouseout="this.style.background='rgba(139,92,246,0.15)'; this.style.borderColor='rgba(139,92,246,0.3)';">
+                          ${st}
+                        </button>
+                      `).join('')}
+                    </div>
+                  </div>
+                ` : ''}
               </div>
-              <button class="btn" onclick='saveTrendAlert(${JSON.stringify(trend)})' style="background:#3b82f6; border-color:#3b82f6; padding:8px 16px;">Save Alert</button>
             </div>
           </div>
-        `).join('');
+        `}).join('');
+
+        // Add click handlers after rendering
+        setTimeout(() => {
+          // Subtopic button handlers - these take priority over card click
+          document.querySelectorAll('.subtopic-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+              e.stopPropagation(); // Prevent card click
+
+              const card = this.closest('.trend-card');
+              const topic = card.getAttribute('data-topic');
+              const keywordsAttr = card.getAttribute('data-keywords');
+              const subtopic = this.getAttribute('data-subtopic');
+
+              console.log('[TRENDS] Clicked subtopic:', subtopic);
+
+              const keywords = JSON.parse(keywordsAttr || '[]');
+
+              // Build URL with topic and selected subtopic as hook
+              const params = new URLSearchParams();
+              params.append('topic', topic);
+              params.append('hook', subtopic); // Use subtopic as hook
+              if (keywords.length > 0) {
+                params.append('keywords', keywords.join(', '));
+              }
+
+              const url = `studio.html?${params.toString()}`;
+              console.log('[TRENDS] Navigating to:', url);
+              window.location.href = url;
+            });
+          });
+
+          // Trend card handlers - navigate with first subtopic as hook
+          document.querySelectorAll('.trend-card').forEach(card => {
+            card.addEventListener('click', function(e) {
+              // Don't trigger if clicking on a subtopic button (they handle their own clicks)
+              if (e.target.classList.contains('subtopic-btn') || e.target.closest('.subtopic-btn')) {
+                return;
+              }
+
+              const topic = this.getAttribute('data-topic');
+              const keywordsAttr = this.getAttribute('data-keywords');
+              const subtopicsAttr = this.getAttribute('data-subtopics');
+
+              console.log('[TRENDS] Clicked trend card (not subtopic):', topic);
+              console.log('[TRENDS] Keywords attr:', keywordsAttr);
+              console.log('[TRENDS] Subtopics attr:', subtopicsAttr);
+
+              const keywords = JSON.parse(keywordsAttr || '[]');
+              const subtopics = JSON.parse(subtopicsAttr || '[]');
+
+              console.log('[TRENDS] Parsed keywords:', keywords);
+              console.log('[TRENDS] Parsed subtopics:', subtopics);
+
+              // Build URL with all trend data
+              const params = new URLSearchParams();
+              params.append('topic', topic);
+              if (keywords.length > 0) {
+                params.append('keywords', keywords.join(', '));
+              }
+              // Use first subtopic as hook if available
+              if (subtopics.length > 0) {
+                params.append('hook', subtopics[0]);
+              }
+
+              const url = `studio.html?${params.toString()}`;
+              console.log('[TRENDS] Card click navigating to:', url);
+              window.location.href = url;
+            });
+          });
+        }, 100);
 
       } catch (error) {
         console.error('Error loading trends:', error);
@@ -357,27 +459,6 @@
 
     function refreshTrends() {
       loadTrends();
-    }
-
-    async function saveTrendAlert(trend) {
-      try {
-        const res = await fetch(`${API_BASE}/api/trends/save`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(trend)
-        });
-
-        const data = await res.json();
-
-        if (data.success) {
-          alert(`Trend alert saved! Topic: "${trend.topic}"`);
-        } else {
-          throw new Error(data.error || 'Failed to save alert');
-        }
-      } catch (error) {
-        alert('Error saving alert: ' + error.message);
-      }
     }
 
     // Generate content calendar
