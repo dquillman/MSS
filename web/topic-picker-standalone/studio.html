@@ -199,9 +199,8 @@
 Angle / Hook:
 {{Angle}}
 
-Topic Description (balanced perspective):
-Analyze the topic {{Title}}, exploring both the positive and negative dimensions of the issue. Discuss how {{Angle}} relates to larger trends in society, technology, or policy.
-Examine key themes such as {{Keywords}} — highlighting both progress and problems. Consider successes like innovation, reform, or cooperation, and challenges such as inequality, misinformation, or ethical dilemmas. Conclude by reflecting on what lessons humanity can carry forward to build a more resilient and informed future.
+Topic Description:
+Create an engaging analysis of {{Title}}, focusing on {{Angle}}. Explore the key aspects and implications of {{Keywords}}, providing valuable insights and perspectives that inform and educate viewers.
 
 Keywords:
 {{Keywords}}
@@ -209,7 +208,7 @@ Keywords:
 YouTube Description:
 {{YouTube_Description}}`;
 
-    const CONDENSED_TEMPLATE = `Analyze {{Title}}, exploring both the benefits and drawbacks of {{Angle}}. Discuss how it shaped or reflected key issues in {{Keywords}}, noting both progress (innovation, cooperation, reform) and challenges (inequality, misinformation, ethical conflict). Summarize what lessons society can learn and how these insights might guide future policy or understanding.`;
+    const CONDENSED_TEMPLATE = `Analyze {{Title}} from the perspective of {{Angle}}. Discuss the key themes and insights related to {{Keywords}}, providing a comprehensive overview that educates and informs viewers.`;
 
     function normalizeKeywords(v) {
       if (Array.isArray(v)) {
@@ -444,14 +443,20 @@ YouTube Description:
         window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
       }
     })();
-    const DEFAULT_PROMPT = `Create a vibrant, eye-catching YouTube thumbnail for a video titled: {{title}}
+    const DEFAULT_PROMPT = `Topic: {{title}}
+Hook: {{hook}}
+Description: {{description}}
+Keywords: {{keywords}}
 
-Style: Bold, high-contrast, professional
-Elements: Large readable text, dramatic v-isuals, bright colors
-Emotion: Exciting, curiosity-inducing, click-worthy
-Format: 1280x720 pixels, 16:9 aspect ratio
+Your favorite meme style is the "Bold Contrast News Cut" — a clean, high-impact, visually balanced look that you use for YouTube thumbnails and meme-style posts. It usually includes:
 
-Make it stand out in search results and suggested videos.`;
+A red-and-blue political color split (especially for MSS videos)
+
+A central visual metaphor (e.g., a symbol, object, or expressive hand)
+
+Photo-realistic elements to add depth
+
+High contrast, clean composition, and optimized for small sizes (like YouTube thumbnails)`;
 
     // Track processing state to prevent navigation during video processing
     let isProcessing = false;

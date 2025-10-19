@@ -395,14 +395,20 @@
     // Removed variation selection - using single thumbnail design
 
     function getDefaultPrompt() {
-      return `Create a vibrant, eye-catching YouTube thumbnail for a video titled: {{title}}
+      return `Topic: {{title}}
+Hook: {{hook}}
+Description: {{description}}
+Keywords: {{keywords}}
 
-Style: Bold, high-contrast, professional
-Elements: Large readable text, dramatic visuals, bright colors
-Emotion: Exciting, curiosity-inducing, click-worthy
-Format: 1280x720 pixels, 16:9 aspect ratio
+Your favorite meme style is the "Bold Contrast News Cut" — a clean, high-impact, visually balanced look that you use for YouTube thumbnails and meme-style posts. It usually includes:
 
-Make it stand out in search results and suggested videos.`;
+A red-and-blue political color split (especially for MSS videos)
+
+A central visual metaphor (e.g., a symbol, object, or expressive hand)
+
+Photo-realistic elements to add depth
+
+High contrast, clean composition, and optimized for small sizes (like YouTube thumbnails)`;
     }
 
     // Load saved settings on page load

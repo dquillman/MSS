@@ -164,10 +164,20 @@ class TrendCalendarManager:
         conn.close()
 
     def get_trending_topics(self, user_email: str, niche: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Get trending topics, optionally filtered by niche"""
-        # In production, this would call YouTube Data API
-        # For now, return mock data filtered by user preferences
+        """Get trending topics from YouTube Trending API"""
+        try:
+            # Try to fetch real trending videos from YouTube
+            trends = self._fetch_youtube_trending(user_email, niche)
 
+            if trends:
+                print(f"[TRENDS] Fetched {len(trends)} real trending topics from YouTube")
+                return trends
+            else:
+                print("[TRENDS] YouTube API returned no results, using fallback mock data")
+        except Exception as e:
+            print(f"[TRENDS] Error fetching from YouTube API: {e}, using fallback mock data")
+
+        # Fallback to mock data if YouTube API fails
         trends = MOCK_TRENDING_TOPICS.copy()
 
         # Filter by niche if specified
@@ -188,10 +198,9 @@ class TrendCalendarManager:
             others = [t for t in trends if t['niche'] not in preferred_niches]
             trends = preferred + others
 
-        # Sort by growth rate (extract percentage and sort descending)
+        # Sort by growth rate
         def extract_growth_percentage(trend):
             growth_str = trend.get('growth', '+0%')
-            # Extract number from string like "+125%"
             import re
             match = re.search(r'([+-]?\d+)', growth_str)
             return int(match.group(1)) if match else 0
@@ -199,6 +208,229 @@ class TrendCalendarManager:
         trends.sort(key=extract_growth_percentage, reverse=True)
 
         return trends
+
+    def _fetch_youtube_trending(self, user_email: str, niche: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Fetch trending videos from YouTube Data API v3"""
+        try:
+            # Import YouTube API
+            from googleapiclient.discovery import build
+            from google.oauth2.credentials import Credentials
+            import os
+
+            # Get API key or credentials
+            api_key = os.getenv('YOUTUBE_API_KEY')
+
+            if not api_key:
+                # Try to get user's YouTube credentials
+                conn = sqlite3.connect(self.db_path)
+                c = conn.cursor()
+                c.execute('''
+                    SELECT credentials FROM platform_connections
+                    WHERE user_email = ? AND platform = 'youtube' AND status = 'active'
+                    LIMIT 1
+                ''', (user_email,))
+                result = c.fetchone()
+                conn.close()
+
+                if not result:
+                    print("[TRENDS] No YouTube API key or credentials found")
+                    return []
+
+                # Use user's OAuth credentials
+                creds_data = json.loads(result[0])
+                credentials = Credentials(
+                    token=creds_data.get('token'),
+                    refresh_token=creds_data.get('refresh_token'),
+                    token_uri=creds_data.get('token_uri'),
+                    client_id=creds_data.get('client_id'),
+                    client_secret=creds_data.get('client_secret')
+                )
+                youtube = build('youtube', 'v3', credentials=credentials)
+            else:
+                # Use API key
+                youtube = build('youtube', 'v3', developerKey=api_key)
+
+            # Target categories we WANT - AI, science, technology, world issues, health, government
+            # YouTube category IDs: https://developers.google.com/youtube/v3/docs/videoCategories/list
+            target_categories = [
+                '28',  # Science & Technology (includes AI, tech innovation, research)
+                '22',  # People & Blogs (often has world issues, political commentary, AI discussions)
+                '26',  # Howto & Style (includes health, fitness, wellness)
+            ]
+
+            # Fetch trending videos from ALL categories (no filter), then filter by target
+            all_trends = []
+
+            # Fetch trending from each target category
+            for category_id in target_categories:
+                try:
+                    request = youtube.videos().list(
+                        part='snippet,statistics',
+                        chart='mostPopular',
+                        regionCode='US',
+                        maxResults=20,
+                        videoCategoryId=category_id
+                    )
+                    response = request.execute()
+
+                    for video in response.get('items', []):
+                        all_trends.append(video)
+
+                except Exception as e:
+                    print(f"[TRENDS] Error fetching category {category_id}: {e}")
+                    continue
+
+            response = {'items': all_trends}
+
+            # Process videos into trends format
+            trends = []
+            for video in response.get('items', []):
+                snippet = video['snippet']
+
+                # Only include English videos
+                default_language = snippet.get('defaultLanguage', '')
+                default_audio_language = snippet.get('defaultAudioLanguage', '')
+                title = snippet.get('title', '')
+
+                # Skip non-English content
+                if default_language and default_language.lower() not in ['en', 'en-us', 'en-gb']:
+                    continue
+                if default_audio_language and default_audio_language.lower() not in ['en', 'en-us', 'en-gb']:
+                    continue
+
+                # Simple heuristic: skip if title contains mostly non-ASCII characters
+                if title:
+                    ascii_chars = sum(1 for c in title if ord(c) < 128)
+                    if len(title) > 0 and ascii_chars / len(title) < 0.7:
+                        continue
+
+                # Filter out late night talk shows
+                channel_title = snippet.get('channelTitle', '').lower()
+                title_lower = title.lower()
+
+                late_night_shows = [
+                    'tonight show', 'late show', 'late night', 'jimmy fallon', 'stephen colbert',
+                    'jimmy kimmel', 'james corden', 'seth meyers', 'conan', 'daily show',
+                    'last week tonight', 'john oliver', 'saturday night live', 'snl'
+                ]
+
+                # Skip if title or channel matches late night shows
+                if any(show in title_lower or show in channel_title for show in late_night_shows):
+                    continue
+
+                stats = video['statistics']
+
+                views = int(stats.get('viewCount', 0))
+                likes = int(stats.get('likeCount', 0))
+                comments = int(stats.get('commentCount', 0))
+
+                # Calculate engagement rate
+                engagement_rate = ((likes + comments) / views * 100) if views > 0 else 0
+
+                # Estimate growth (simplified - in production, compare with historical data)
+                growth_estimate = f"+{int(engagement_rate * 10)}%"
+
+                # Map category ID to niche name
+                category_id = snippet.get('categoryId', '0')
+                category_to_niche = {
+                    '25': 'news-politics',
+                    '28': 'technology',
+                    '27': 'education',
+                    '22': 'world-issues',
+                    '26': 'health',
+                }
+                niche_name = category_to_niche.get(category_id, 'general')
+
+                # Determine difficulty based on competition
+                if views > 1000000:
+                    difficulty = 'high'
+                elif views > 100000:
+                    difficulty = 'medium'
+                else:
+                    difficulty = 'low'
+
+                # Extract keywords from title and description
+                title = snippet['title']
+                description = snippet.get('description', '')
+                keywords = self._extract_keywords(title, description)
+
+                # Generate subtopics based on title
+                subtopics = self._generate_subtopics(title, keywords)
+
+                trend = {
+                    'topic': title,
+                    'views': f"{views // 1000}K" if views < 1000000 else f"{views // 1000000}.{(views % 1000000) // 100000}M",
+                    'growth': growth_estimate,
+                    'niche': niche_name,
+                    'difficulty': difficulty,
+                    'keywords': keywords[:10],
+                    'subtopics': subtopics,
+                    'video_id': video['id'],
+                    'channel_title': snippet.get('channelTitle', ''),
+                    'published_at': snippet.get('publishedAt', '')
+                }
+
+                trends.append(trend)
+
+                # Stop if we have enough trends
+                if len(trends) >= 15:
+                    break
+
+            # If we got some trends but not many, that's OK - return what we have
+            if len(trends) > 0:
+                print(f"[TRENDS] Successfully fetched {len(trends)} trending topics (after filtering)")
+                return trends
+
+            # If we got zero trends, return empty list (will trigger fallback)
+            print(f"[TRENDS] No videos passed category filter")
+            return []
+
+        except Exception as e:
+            print(f"[TRENDS] Error in _fetch_youtube_trending: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+
+    def _extract_keywords(self, title: str, description: str) -> List[str]:
+        """Extract keywords from title and description"""
+        import re
+
+        # Combine title and description
+        text = f"{title} {description}".lower()
+
+        # Remove common words
+        stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+                     'of', 'with', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been',
+                     'this', 'that', 'these', 'those', 'how', 'what', 'when', 'where', 'why'}
+
+        # Extract words (alphanumeric sequences)
+        words = re.findall(r'\b[a-z0-9]+\b', text)
+
+        # Filter and count
+        from collections import Counter
+        word_counts = Counter([w for w in words if w not in stop_words and len(w) > 3])
+
+        # Return top keywords
+        return [word for word, count in word_counts.most_common(15)]
+
+    def _generate_subtopics(self, title: str, keywords: List[str]) -> List[str]:
+        """Generate relevant subtopics based on title and keywords"""
+        # Simple subtopic generation - in production, use AI
+        subtopics = []
+
+        # Common question patterns
+        if keywords:
+            subtopics.append(f"How to {keywords[0] if keywords else 'get started'}")
+            if len(keywords) > 1:
+                subtopics.append(f"{keywords[1].title()} vs {keywords[0].title()}")
+            if len(keywords) > 2:
+                subtopics.append(f"Best {keywords[2]} for beginners")
+
+        # Add title-based subtopic
+        if len(title) < 50:
+            subtopics.insert(0, f"{title}: Complete Guide")
+
+        return subtopics[:3]
 
     def save_trend_alert(self, user_email: str, trend: Dict[str, Any]) -> int:
         """Save a trend alert for a user"""

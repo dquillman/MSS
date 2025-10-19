@@ -678,7 +678,7 @@ def _health():
     return jsonify({
         'ok': True,
         'service': 'MSS API',
-        'version': '5.5.6',
+        'version': '5.5.7',
         'endpoints': [
             '/studio', '/topics', '/post-process-video',
             '/get-avatar-library', '/get-logo-library', '/api/logo-files',
@@ -1624,28 +1624,260 @@ def list_outputs():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/video/metadata/<path:filename>', methods=['GET'])
-def get_video_metadata(filename):
-    """Get metadata for a video by filename"""
-    if not analytics_manager:
-        return jsonify({'success': False, 'error': 'Analytics not available'}), 500
-
+@app.route('/api/generate-description', methods=['POST'])
+def generate_description():
+    """Generate SEO-optimized YouTube description using ChatGPT"""
     user_email, error_response, error_code = _get_user_from_session()
     if error_response:
         return error_response, error_code
 
     try:
-        video = analytics_manager.get_video_by_filename(user_email, filename)
+        data = request.get_json()
+        title = data.get('title', '')
+        hook = data.get('hook', '')
+        keywords = data.get('keywords', [])
+        main_topic = data.get('main_topic', '')
 
-        if video:
+        if not title:
+            return jsonify({'success': False, 'error': 'Title required'}), 400
+
+        # Build the prompt for ChatGPT
+        keywords_str = ', '.join(keywords[:10]) if keywords else 'general trending topics'
+
+        prompt = f"""Create a highly engaging, SEO-optimized YouTube video description for the following video:
+
+Title: {title}
+{f'Main Topic: {main_topic}' if main_topic else ''}
+{f'Specific Angle/Hook: {hook}' if hook else ''}
+Key SEO Keywords: {keywords_str}
+
+Requirements:
+1. Start with a compelling hook that includes the main topic and angle
+2. Use 2-3 of the provided keywords naturally in the first 2 sentences
+3. Include sections with emojis:
+   - 🎯 What's covered in the video
+   - ⏰ Timestamp placeholders (Introduction, Main content, Conclusion)
+   - 📌 Key takeaways
+4. Call-to-action section (Subscribe, Like, Comment, Share)
+5. Related topics/keywords section at the end
+6. Include relevant hashtags at the very end (use the title and 4-5 keywords)
+7. Keep it between 200-300 words
+8. Make it enthusiastic but professional
+9. Focus specifically on the hook/angle provided
+10. Optimize for YouTube SEO and viewer engagement
+
+Generate ONLY the description text, no explanations or meta-commentary."""
+
+        # Call OpenAI API
+        from openai import OpenAI
+        api_key = os.getenv('OPENAI_API_KEY')
+
+        if not api_key:
             return jsonify({
+                'success': False,
+                'error': 'OpenAI API key not configured'
+            }), 500
+
+        client = OpenAI(api_key=api_key)
+
+        print(f"[GENERATE-DESC] Generating description for: {title}")
+        print(f"[GENERATE-DESC] Hook: {hook}")
+        print(f"[GENERATE-DESC] Keywords: {keywords_str}")
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert YouTube content strategist specializing in SEO-optimized video descriptions that maximize engagement and discoverability."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.7,
+            max_tokens=800
+        )
+
+        description = response.choices[0].message.content.strip()
+
+        print(f"[GENERATE-DESC] ✓ Generated {len(description)} characters")
+
+        return jsonify({
+            'success': True,
+            'description': description
+        })
+
+    except Exception as e:
+        print(f"[GENERATE-DESC] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/trends/search', methods=['GET'])
+def search_trends():
+    """Search for trend info by title"""
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    title = request.args.get('title', '').strip()
+    if not title:
+        return jsonify({'success': False, 'error': 'No title provided'}), 400
+
+    try:
+        conn = sqlite3.connect('web/mss_users.db')
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+
+        # Clean and normalize the search title for better matching
+        search_title = title.strip()
+
+        # Try exact match first
+        c.execute('''
+            SELECT title, description, tags, topic_data
+            FROM videos
+            WHERE user_email = ? AND LOWER(TRIM(title)) = LOWER(?)
+            ORDER BY created_at DESC
+            LIMIT 1
+        ''', (user_email, search_title))
+
+        row = c.fetchone()
+
+        # If no exact match, try partial match (contains)
+        if not row:
+            c.execute('''
+                SELECT title, description, tags, topic_data
+                FROM videos
+                WHERE user_email = ? AND LOWER(REPLACE(title, ' ', '')) LIKE LOWER(REPLACE(?, ' ', ''))
+                ORDER BY created_at DESC
+                LIMIT 1
+            ''', (user_email, f'%{search_title}%'))
+
+            row = c.fetchone()
+
+        # If still no match, try even more lenient search
+        if not row:
+            # Remove common words and try matching core keywords
+            core_words = ' '.join([w for w in search_title.split() if len(w) > 3])
+            if core_words:
+                c.execute('''
+                    SELECT title, description, tags, topic_data
+                    FROM videos
+                    WHERE user_email = ? AND LOWER(title) LIKE LOWER(?)
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ''', (user_email, f'%{core_words}%'))
+
+                row = c.fetchone()
+
+        conn.close()
+
+        if row:
+            trend_data = {
                 'success': True,
-                'metadata': {
+                'found': True,
+                'title': row['title'],
+                'description': row['description'],
+                'tags': row['tags'],
+                'topic_data': row['topic_data']
+            }
+        else:
+            trend_data = {
+                'success': True,
+                'found': False,
+                'message': 'No matching trend found'
+            }
+
+        return jsonify(trend_data)
+
+    except Exception as e:
+        print(f"[TRENDS] Error searching trends: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/video/metadata/<path:filename>', methods=['GET', 'POST'])
+@app.route('/api/video/metadata/', methods=['POST'])
+def get_video_metadata(filename=None):
+    """Get or set metadata for a video by filename"""
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    # Handle POST - save metadata
+    if request.method == 'POST':
+        try:
+            data = request.get_json()
+            video_filename = data.get('filename') or filename
+            topic_data = data.get('topic_data')
+
+            if not video_filename:
+                return jsonify({'success': False, 'error': 'No filename provided'}), 400
+
+            if not topic_data:
+                return jsonify({'success': False, 'error': 'No topic_data provided'}), 400
+
+            # Save metadata to sidecar file
+            video_path = Path('out') / video_filename
+            metadata_path = video_path.with_suffix('.metadata.json')
+
+            with open(metadata_path, 'w', encoding='utf-8') as f:
+                json.dump(topic_data, f, indent=2)
+
+            print(f"[METADATA] Saved topic data for {video_filename}")
+            return jsonify({'success': True, 'message': 'Metadata saved'})
+
+        except Exception as e:
+            print(f"[METADATA] Error saving: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # Handle GET - retrieve metadata
+    try:
+        # First, try to load metadata from sidecar JSON file (preferred method)
+        video_path = Path('out') / filename
+        metadata_path = video_path.with_suffix('.metadata.json')
+
+        topic_data = None
+        db_metadata = None
+
+        if metadata_path.exists():
+            try:
+                with open(metadata_path, 'r', encoding='utf-8') as f:
+                    topic_data = json.load(f)
+                print(f"[METADATA] Loaded topic data from {metadata_path}")
+            except Exception as e:
+                print(f"[METADATA] Error reading metadata file: {e}")
+
+        # Also check database if analytics_manager is available
+        if analytics_manager:
+            video = analytics_manager.get_video_by_filename(user_email, filename)
+            if video:
+                db_metadata = {
                     'title': video.get('title', ''),
                     'description': video.get('description', ''),
                     'tags': video.get('tags', ''),
                     'filename': video.get('filename', ''),
                     'created_at': video.get('created_at', '')
+                }
+
+                # Try to parse topic_data from database if no sidecar file
+                if not topic_data and video.get('topic_data'):
+                    try:
+                        topic_data = json.loads(video.get('topic_data'))
+                    except:
+                        pass
+
+        # Return metadata (prioritize database metadata, but always include topic_data)
+        if db_metadata or topic_data:
+            return jsonify({
+                'success': True,
+                'metadata': {
+                    'title': db_metadata.get('title', '') if db_metadata else '',
+                    'description': db_metadata.get('description', '') if db_metadata else '',
+                    'tags': db_metadata.get('tags', '') if db_metadata else '',
+                    'filename': filename,
+                    'created_at': db_metadata.get('created_at', '') if db_metadata else '',
+                    'topic_data': topic_data
                 }
             })
         else:
@@ -1654,6 +1886,7 @@ def get_video_metadata(filename):
                 'metadata': None
             })
     except Exception as e:
+        print(f"[METADATA] Error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/webout/<path:filename>', methods=['GET'])
@@ -3868,6 +4101,23 @@ def post_process_video():
             database.add_video_to_history(user_id, final_video.name, title)
             print(f"[AUTH] Video counted for user {user_id}")
 
+        # Save topic metadata as sidecar file for the video
+        try:
+            topic_selected_path = outdir / 'topic_selected.json'
+            if topic_selected_path.exists():
+                metadata_path = final_video.with_suffix('.metadata.json')
+                import shutil
+                shutil.copy(topic_selected_path, metadata_path)
+                print(f"[METADATA] Saved topic data to {metadata_path.name}")
+
+                # Also save for wide variant if it exists
+                if final_wide:
+                    wide_metadata_path = final_wide.with_suffix('.metadata.json')
+                    shutil.copy(topic_selected_path, wide_metadata_path)
+                    print(f"[METADATA] Saved topic data to {wide_metadata_path.name}")
+        except Exception as meta_err:
+            print(f"[METADATA] Warning: Could not save metadata: {meta_err}")
+
         return jsonify({
             'success': True,
             'message': 'Video post-processed successfully',
@@ -5011,6 +5261,132 @@ def optimize_video():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/upload/video', methods=['POST'])
+def upload_video():
+    """Upload video file to out/ directory"""
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    if 'video' not in request.files:
+        return jsonify({'success': False, 'error': 'No video file provided'}), 400
+
+    video_file = request.files['video']
+
+    if video_file.filename == '':
+        return jsonify({'success': False, 'error': 'No file selected'}), 400
+
+    # Validate file extension
+    allowed_extensions = {'mp4', 'mov', 'avi', 'mkv'}
+    file_ext = video_file.filename.rsplit('.', 1)[1].lower() if '.' in video_file.filename else ''
+
+    if file_ext not in allowed_extensions:
+        return jsonify({'success': False, 'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'}), 400
+
+    try:
+        # Generate unique filename
+        timestamp = int(time.time())
+        # Use original filename but make it safe
+        original_name = video_file.filename.rsplit('.', 1)[0]
+        safe_name = ''.join(c if c.isalnum() or c in ('-', '_') else '_' for c in original_name)
+        safe_filename = f"{safe_name}_{timestamp}.{file_ext}"
+        video_path = os.path.join('out', safe_filename)
+
+        # Save the file
+        video_file.save(video_path)
+
+        print(f"[UPLOAD] Video uploaded: {video_path}")
+
+        return jsonify({
+            'success': True,
+            'video_path': safe_filename,
+            'message': 'Video uploaded successfully'
+        })
+
+    except Exception as e:
+        print(f"[UPLOAD] Video upload error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/upload/thumbnail', methods=['POST'])
+def upload_thumbnail():
+    """Upload thumbnail image for video publishing"""
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    if 'thumbnail' not in request.files:
+        return jsonify({'success': False, 'error': 'No thumbnail file provided'}), 400
+
+    thumbnail_file = request.files['thumbnail']
+
+    if thumbnail_file.filename == '':
+        return jsonify({'success': False, 'error': 'No file selected'}), 400
+
+    # Validate file extension
+    allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+    file_ext = thumbnail_file.filename.rsplit('.', 1)[1].lower() if '.' in thumbnail_file.filename else ''
+
+    if file_ext not in allowed_extensions:
+        return jsonify({'success': False, 'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'}), 400
+
+    try:
+        # Create thumbnails directory if it doesn't exist
+        thumbnails_dir = os.path.join('out', 'thumbnails')
+        os.makedirs(thumbnails_dir, exist_ok=True)
+
+        # Generate unique filename
+        timestamp = int(time.time())
+        safe_filename = f"thumbnail_{timestamp}.{file_ext}"
+        thumbnail_path = os.path.join(thumbnails_dir, safe_filename)
+
+        # Save the file
+        thumbnail_file.save(thumbnail_path)
+
+        return jsonify({
+            'success': True,
+            'thumbnail_path': thumbnail_path,
+            'message': 'Thumbnail uploaded successfully'
+        })
+
+    except Exception as e:
+        print(f"[UPLOAD] Thumbnail upload error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/video/delete/<path:filename>', methods=['DELETE'])
+def delete_video_file(filename):
+    """Delete a video file from out/ directory"""
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    try:
+        video_path = os.path.join('out', filename)
+
+        # Security check: make sure the path is within 'out' directory
+        if not os.path.abspath(video_path).startswith(os.path.abspath('out')):
+            return jsonify({'success': False, 'error': 'Invalid file path'}), 400
+
+        if not os.path.exists(video_path):
+            return jsonify({'success': False, 'error': 'Video file not found'}), 404
+
+        # Move to trash instead of deleting permanently
+        trash_dir = os.path.join('out', '.trash')
+        os.makedirs(trash_dir, exist_ok=True)
+
+        trash_path = os.path.join(trash_dir, filename)
+        os.rename(video_path, trash_path)
+
+        print(f"[DELETE] Video moved to trash: {filename}")
+
+        return jsonify({
+            'success': True,
+            'message': 'Video moved to trash'
+        })
+
+    except Exception as e:
+        print(f"[DELETE] Error deleting video: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/platforms/queue', methods=['POST'])
 def queue_publication():
     """Add video to publishing queue"""
@@ -5028,13 +5404,14 @@ def queue_publication():
     description = data.get('description', '')
     tags = data.get('tags', [])
     scheduled_time = data.get('scheduled_time')
+    thumbnail_path = data.get('thumbnail_path')
 
     if not video_filename or not platforms:
         return jsonify({'success': False, 'error': 'video_filename and platforms required'}), 400
 
     try:
         queue_id = multi_platform.queue_publication(
-            user_email, video_filename, platforms, title, description, tags, scheduled_time
+            user_email, video_filename, platforms, title, description, tags, scheduled_time, thumbnail_path
         )
         return jsonify({'success': True, 'queue_id': queue_id})
     except Exception as e:
@@ -5114,6 +5491,8 @@ def process_queue_item(queue_id):
         title = queue_item['title']
         description = queue_item.get('description', '')
         tags = json.loads(queue_item.get('tags', '[]'))
+        thumbnail_path = queue_item.get('thumbnail_path')
+        scheduled_time = queue_item.get('scheduled_time')
 
         # Construct video path
         video_path = os.path.join('out', video_filename)
@@ -5140,7 +5519,9 @@ def process_queue_item(queue_id):
                         description,
                         tags,
                         category_id='22',
-                        privacy='public'
+                        privacy='public',
+                        thumbnail_path=thumbnail_path,
+                        publish_at=scheduled_time
                     )
 
                     if result.get('success'):
@@ -5268,7 +5649,7 @@ def youtube_oauth_authorize():
 
 @app.route('/api/oauth/youtube/callback', methods=['GET'])
 def youtube_oauth_callback():
-    """Handle YouTube OAuth callback"""
+    """Handle YouTube/Google Calendar OAuth callback (shared endpoint)"""
     if not platform_api:
         return "Platform API not available", 500
 
@@ -5280,41 +5661,168 @@ def youtube_oauth_callback():
 
     # Get user from session
     session_id = request.cookies.get('session_id')
-    print(f"[YOUTUBE] Callback: session_id from cookie: {session_id[:10] if session_id else 'None'}...")
+    print(f"[OAUTH] Callback: session_id from cookie: {session_id[:10] if session_id else 'None'}...")
 
     if not session_id:
-        print("[YOUTUBE] Callback: No session_id cookie found")
+        print("[OAUTH] Callback: No session_id cookie found")
         return "Not authenticated", 401
 
     result = database.get_session(session_id)
     if not result.get('success'):
-        print(f"[YOUTUBE] Callback: Invalid session for session_id: {session_id[:10]}...")
+        print(f"[OAUTH] Callback: Invalid session for session_id: {session_id[:10]}...")
         return "Invalid session", 401
 
     user_email = result['user']['email']
-    print(f"[YOUTUBE] Callback: Retrieved user email from session: {user_email}")
+    print(f"[OAUTH] Callback: Retrieved user email from session: {user_email}")
 
     redirect_uri = request.host_url + 'api/oauth/youtube/callback'
 
+    # Check which OAuth flow this is by checking stored state
+    is_calendar = False
     try:
-        success = platform_api.handle_youtube_callback(user_email, code, state, redirect_uri)
-        if success:
-            # Fetch and store channel info
-            if analytics_manager:
-                try:
-                    channel_info = platform_api.get_and_store_youtube_channel(user_email, analytics_manager)
-                    if channel_info.get('success'):
-                        print(f"[YOUTUBE] Channel stored: {channel_info.get('title')} (ID: {channel_info.get('channel_id')})")
-                    else:
-                        print(f"[YOUTUBE] Warning: Could not fetch channel info: {channel_info.get('error')}")
-                except Exception as e:
-                    print(f"[YOUTUBE] Warning: Error storing channel info: {e}")
+        calendar_state = platform_api._get_oauth_state(user_email, 'google_calendar')
+        if calendar_state == state:
+            is_calendar = True
+            print(f"[OAUTH] Detected Google Calendar OAuth flow")
+    except:
+        pass
 
+    try:
+        if is_calendar:
+            # Handle Google Calendar callback
+            success = platform_api.handle_google_calendar_callback(user_email, code, state, redirect_uri)
+            if success:
+                return """
+                    <html>
+                    <body style="font-family:Arial; text-align:center; padding-top:100px; background:#111827; color:#E8EBFF;">
+                        <h2 style="color:#22c55e;">✓ Google Calendar Connected Successfully!</h2>
+                        <p>Calendar events will now be automatically synced.</p>
+                        <p style="color:#A8B3CF;">Redirecting back to Channel Manager...</p>
+                        <script>
+                            setTimeout(() => { window.location.href = '/channel-manager'; }, 2000);
+                        </script>
+                    </body>
+                    </html>
+                """
+        else:
+            # Handle YouTube callback
+            success = platform_api.handle_youtube_callback(user_email, code, state, redirect_uri)
+            if success:
+                # Fetch and store channel info
+                if analytics_manager:
+                    try:
+                        channel_info = platform_api.get_and_store_youtube_channel(user_email, analytics_manager)
+                        if channel_info.get('success'):
+                            print(f"[YOUTUBE] Channel stored: {channel_info.get('title')} (ID: {channel_info.get('channel_id')})")
+                        else:
+                            print(f"[YOUTUBE] Warning: Could not fetch channel info: {channel_info.get('error')}")
+                    except Exception as e:
+                        print(f"[YOUTUBE] Warning: Error storing channel info: {e}")
+
+                return """
+                    <html>
+                    <body>
+                        <h2>YouTube Connected Successfully!</h2>
+                        <p>You can now close this window and return to MSS.</p>
+                        <script>
+                            setTimeout(() => { window.location.href = '/channel-manager'; }, 2000);
+                        </script>
+                    </body>
+                    </html>
+                """
+
+        print(f"[OAUTH] OAuth callback returned False for user: {user_email}")
+        return "OAuth callback failed - Check server logs for details", 500
+    except Exception as e:
+        print(f"[OAUTH] Callback error: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"Error: {str(e)}", 500
+
+@app.route('/api/platform/connections', methods=['GET'])
+def get_platform_connections():
+    """Get user's connected platforms"""
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    # Import at function level to avoid initialization issues
+    from multi_platform import MultiPlatformPublisher
+
+    try:
+        mp = MultiPlatformPublisher()
+        platforms = mp.get_connected_platforms(user_email)
+        return jsonify({'success': True, 'platforms': platforms})
+    except Exception as e:
+        print(f"[PLATFORM-CONNECTIONS] Error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/oauth/google-calendar/authorize', methods=['GET'])
+def google_calendar_oauth_authorize():
+    """Start Google Calendar OAuth flow (uses YouTube callback)"""
+    if not platform_api:
+        return jsonify({'success': False, 'error': 'Platform API not available'}), 500
+
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        print("[GOOGLE-CAL] Authorize: Failed to get user from session")
+        return error_response, error_code
+
+    print(f"[GOOGLE-CAL] Authorize: Starting OAuth for user: {user_email}")
+
+    # Use YouTube callback URI (already registered in Google Cloud Console)
+    redirect_uri = request.host_url + 'api/oauth/youtube/callback'
+
+    try:
+        auth_url = platform_api.get_google_calendar_auth_url(user_email, redirect_uri)
+        if auth_url:
+            from flask import redirect
+            return redirect(auth_url)
+        else:
+            return jsonify({'success': False, 'error': 'Failed to generate auth URL. Check Google Calendar credentials.'}), 500
+    except Exception as e:
+        print(f"[GOOGLE-CAL] Authorize error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/oauth/google-calendar/callback', methods=['GET'])
+def google_calendar_oauth_callback():
+    """Handle Google Calendar OAuth callback"""
+    if not platform_api:
+        return "Platform API not available", 500
+
+    code = request.args.get('code')
+    state = request.args.get('state')
+
+    if not code or not state:
+        return "Missing code or state", 400
+
+    # Get user from session
+    session_id = request.cookies.get('session_id')
+    print(f"[GOOGLE-CAL] Callback: session_id from cookie: {session_id[:10] if session_id else 'None'}...")
+
+    if not session_id:
+        print("[GOOGLE-CAL] Callback: No session_id cookie found")
+        return "Not authenticated", 401
+
+    result = database.get_session(session_id)
+    if not result.get('success'):
+        print(f"[GOOGLE-CAL] Callback: Invalid session for session_id: {session_id[:10]}...")
+        return "Invalid session", 401
+
+    user_email = result['user']['email']
+    print(f"[GOOGLE-CAL] Callback: Retrieved user email from session: {user_email}")
+
+    redirect_uri = request.host_url + 'api/oauth/google-calendar/callback'
+
+    try:
+        success = platform_api.handle_google_calendar_callback(user_email, code, state, redirect_uri)
+        if success:
             return """
                 <html>
-                <body>
-                    <h2>YouTube Connected Successfully!</h2>
-                    <p>You can now close this window and return to MSS.</p>
+                <body style="font-family:Arial; text-align:center; padding-top:100px; background:#111827; color:#E8EBFF;">
+                    <h2 style="color:#22c55e;">✓ Google Calendar Connected Successfully!</h2>
+                    <p>Calendar events will now be automatically synced.</p>
+                    <p style="color:#A8B3CF;">Redirecting back to Channel Manager...</p>
                     <script>
                         setTimeout(() => { window.location.href = '/channel-manager'; }, 2000);
                     </script>
@@ -5322,9 +5830,10 @@ def youtube_oauth_callback():
                 </html>
             """
         else:
-            print(f"[YOUTUBE] OAuth callback returned False for user: {user_email}")
+            print(f"[GOOGLE-CAL] OAuth callback returned False for user: {user_email}")
             return "OAuth callback failed - Check server logs for details", 500
     except Exception as e:
+        print(f"[GOOGLE-CAL] Callback error: {e}")
         return f"Error: {str(e)}", 500
 
 @app.route('/api/oauth/tiktok/authorize', methods=['GET'])
