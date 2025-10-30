@@ -2,20 +2,34 @@ import os
 import json
 import time
 import sqlite3
+import logging
 from pathlib import Path
-from flask import Flask, request, jsonify, send_from_directory, Response
+import sys
+
+# Ensure project root is on sys.path so `web` package imports work
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from flask import Flask, request, jsonify, send_from_directory, Response, redirect
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from PIL import Image, ImageDraw, ImageFont
 import io
 import requests
 import stripe
 import shutil
 import uuid
+from pydantic import BaseModel, EmailStr, Field, ValidationError as PydanticValidationError
+from web.exceptions import (
+    MSSException, VideoGenerationError, APIError,
+    AuthenticationError, DatabaseError, FileUploadError
+)
 
-
-# Add parent directory to path so we can import scripts
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent))
+logging.basicConfig(
+    level=logging.INFO if os.getenv('FLASK_ENV') != 'development' else logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Database access (robust import regardless of how app is launched)
 try:
@@ -44,7 +58,20 @@ except Exception:
             def add_video_to_history(user_id, video_filename, title):
                 return {'success': True}
 
+            @staticmethod
+            def verify_user(email, password):
+                return {'success': False, 'error': 'Database unavailable - cannot verify user'}
+
+            @staticmethod
+            def create_user(email, password, username=None):
+                return {'success': False, 'error': 'Database unavailable - cannot create user'}
+
+            @staticmethod
+            def create_session(user_id, duration_days=7, remember_me=False):
+                return 'dummy_session_id'
+
         database = _DatabaseShim()  # type: ignore
+        logger.error("[DATABASE] Failed to import database module - using fallback shim")
 
 from scripts.make_video import (
     read_env,
@@ -129,6 +156,15 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1 GB upload cap
 CORS(app, supports_credentials=True)  # Enable CORS with credentials for authentication
 
+# Initialize database on startup
+try:
+    if hasattr(database, 'init_db'):
+        database.init_db()
+        logger.info("[DATABASE] Database initialized successfully")
+except Exception as e:
+    logger.warning(f"[DATABASE] Database initialization failed: {e}")
+    # Don't crash - database will be created on first use if needed
+
 # Initialize Stripe
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY', '')
 STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY', '')
@@ -182,7 +218,18 @@ def serve_admin():
 @app.route('/signup')
 def serve_auth():
     """Serve Authentication page"""
-    return send_from_directory('topic-picker-standalone', 'auth.html')
+    try:
+        return send_from_directory('topic-picker-standalone', 'auth.html')
+    except Exception as e:
+        logger.error(f"[AUTH] Error serving auth.html: {e}")
+        # Fallback: try with absolute path
+        try:
+            topic_picker_dir = Path(__file__).parent / 'topic-picker-standalone'
+            return send_from_directory(str(topic_picker_dir), 'auth.html')
+        except Exception as e2:
+            logger.error(f"[AUTH] Fallback also failed: {e2}")
+            from flask import abort
+            abort(404)
 
 @app.route('/forgot-password')
 @app.route('/forgot-password.html')
@@ -225,6 +272,7 @@ def api_login():
         data = request.get_json(force=True) or {}
         email = (data.get('email') or '').strip()
         password = (data.get('password') or '').strip()
+        remember_me = data.get('remember_me', False)
         if not email or not password:
             return jsonify({'success': False, 'error': 'Email and password required'}), 400
 
@@ -233,7 +281,7 @@ def api_login():
             return jsonify({'success': False, 'error': result.get('error', 'Invalid credentials')}), 401
 
         user = result['user']
-        session_id = database.create_session(user['id'])
+        session_id = database.create_session(user['id'], remember_me=remember_me)
         resp = jsonify({'success': True, 'user': {'id': user['id'], 'email': user['email']}})
         resp.set_cookie('session_id', session_id, httponly=True, samesite='Lax', secure=False, path='/')
         return resp
@@ -593,11 +641,11 @@ def api_me():
     try:
         session_id = request.cookies.get('session_id')
         if not session_id:
-            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 200
 
         result = database.get_session(session_id)
         if not result.get('success'):
-            return jsonify({'success': False, 'error': 'Invalid or expired session'}), 401
+            return jsonify({'success': False, 'error': 'Invalid or expired session'}), 200
 
         user = result['user']
         return jsonify({
@@ -623,14 +671,19 @@ def api_signup():
         email = (data.get('email') or '').strip()
         password = (data.get('password') or '').strip()
         username = (data.get('username') or '').strip() or None
+        remember_me = data.get('remember_me', False)
         if not email or not password:
             return jsonify({'success': False, 'error': 'Email and password required'}), 400
 
         res = database.create_user(email, password, username=username)
         if not res.get('success'):
-            return jsonify({'success': False, 'error': res.get('error', 'Signup failed')}), 400
+            error_msg = res.get('error', 'Signup failed')
+            # Provide helpful message for common errors
+            if 'already registered' in error_msg.lower():
+                error_msg = 'This email is already registered. Please try logging in instead, or use a different email address.'
+            return jsonify({'success': False, 'error': error_msg}), 400
         user_id = res['user_id']
-        session_id = database.create_session(user_id)
+        session_id = database.create_session(user_id, remember_me=remember_me)
         resp = jsonify({'success': True, 'user': {'id': user_id, 'email': email}})
         resp.set_cookie('session_id', session_id, httponly=True, samesite='Lax', secure=False, path='/')
         return resp
@@ -674,9 +727,11 @@ def serve_frontend_file(filename):
     abort(404)
 
 @app.route('/health')
+@app.route('/healthz')
 def _health():
+    """Health check endpoint for Cloud Run"""
     return jsonify({
-        'ok': True,
+        'status': 'ok',
         'service': 'MSS API',
         'version': '5.5.7',
         'endpoints': [
@@ -2728,7 +2783,7 @@ def create_video_enhanced():
                         pass
                     return logo_path, logo_position
 
-                def _overlay_logo(input_path: Path, output_path: Path, logo_path: Path, position: str, opacity: float = 0.6) -> bool:
+                def _overlay_logo(input_path: Path, output_path: Path, logo_path: Path, position: str, opacity: float = 1.0) -> bool:
                     """Apply a PNG logo over video using ffmpeg. Returns True on success."""
                     try:
                         import subprocess, imageio_ffmpeg
@@ -2742,8 +2797,8 @@ def create_video_enhanced():
                         }
                         pos = pos_map.get(position, '20:H-h-20')
                         filter_complex = (
-                            f"[1:v]scale=-1:100,format=yuva420p,colorchannelmixer=aa={opacity},"
-                            f"fade=t=in:st=0:d=0.5:alpha=1[logo];[0:v][logo]overlay={pos}"
+                            f"[1:v]scale=-1:110,scale=iw*1.25:ih,format=rgba,geq=a='if(gt(a,0),255,0)'[logo];"
+                            f"[0:v][logo]overlay={pos}"
                         )
                         cmd = [
                             ffmpeg, '-hide_banner', '-loglevel', 'error', '-i', str(input_path),
@@ -2774,7 +2829,7 @@ def create_video_enhanced():
                         try:
                             in_path = outdir / result_files[key]
                             out_path = outdir / f"{Path(result_files[key]).stem}_logo.mp4"
-                            if _overlay_logo(in_path, out_path, logo_path, logo_position, opacity=0.6):
+                            if _overlay_logo(in_path, out_path, logo_path, logo_position, opacity=1.0):
                                 result_files[key] = out_path.name
                                 print(f"[LOGO] {key} updated with logo -> {out_path.name}")
                         except Exception as e:
@@ -3115,44 +3170,47 @@ def post_process_video():
                     except Exception:
                         logo_opacity_val = 1.0
                     if logo_path and logo_path.exists():
-                            print(f"[LOGO-FIRST] Starting ffmpeg logo overlay...")
-                            import subprocess, imageio_ffmpeg
-                            ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-                            position_map = {
-                                'bottom-right': 'W-w-20:H-h-20',
-                                'bottom-left': '20:H-h-20',
-                                'top-right': 'W-w-20:20',
-                                'top-left': '20:20',
-                                'center': '(W-w)/2:(H-h)/2'
-                            }
-                            pos = position_map.get(logo_position, '20:H-h-20')
-                            print(f"[LOGO-FIRST] Logo position: {logo_position} -> {pos}")
-                            print(f"[LOGO-FIRST] Logo opacity: {logo_opacity_val}")
-                            # Simple overlay for logos without transparency (134px = 33% smaller than 200px)
-                            filter_complex = f"[1:v]scale=-1:134[logo];[0:v][logo]overlay={pos}"
-                            print(f"[LOGO-FIRST] Filter: {filter_complex}")
-                            video_with_logo = outdir / f"video_with_logo_{int(time.time())}.mp4"
-                            cmd = [
-                                ffmpeg, '-hide_banner', '-loglevel', 'error', '-i', str(current_video),
-                                '-i', str(logo_path),
-                                '-filter_complex', filter_complex,
-                                '-c:v', 'libx264',
-                                '-c:a', 'copy',
-                                '-map', '0:a?',
-                                '-y', str(video_with_logo)
-                            ]
-                            print(f"[LOGO-FIRST] Running ffmpeg command...")
-                            result = subprocess.run(cmd, capture_output=True, text=True)
-                            print(f"[LOGO-FIRST] ffmpeg return code: {result.returncode}")
-                            if result.returncode != 0:
-                                print(f"[LOGO-FIRST] ? ffmpeg ERROR: {result.stderr}")
-                            if result.returncode == 0 and video_with_logo.exists():
-                                current_video = video_with_logo
-                                logo_already_applied = True
-                                print(f"[LOGO-FIRST] ? Logo applied successfully! Video: {video_with_logo}")
-                            else:
-                                print(f"[LOGO-FIRST] ? Logo application failed!")
-                                print(f"[LOGO-FIRST] Logo overlay failed, continuing without early logo: {result.stderr[:300] if result.stderr else 'no stderr'}")
+                        print(f"[LOGO-FIRST] Starting ffmpeg logo overlay...")
+                        import subprocess, imageio_ffmpeg
+                        ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+                        position_map = {
+                            'bottom-right': 'W-w-20:H-h-20',
+                            'bottom-left': '20:H-h-20',
+                            'top-right': 'W-w-20:20',
+                            'top-left': '20:20',
+                            'center': '(W-w)/2:(H-h)/2'
+                        }
+                        pos = position_map.get(logo_position, '20:H-h-20')
+                        print(f"[LOGO-FIRST] Logo position: {logo_position} -> {pos}")
+                        print(f"[LOGO-FIRST] Logo opacity: {logo_opacity_val}")
+                        # Force fully opaque logo inside non-transparent regions, widen 25%, h=110
+                        filter_complex = (
+                            f"[1:v]scale=-1:110,scale=iw*1.25:ih,format=rgba,geq=a='if(gt(a,0),255,0)'[logo];"
+                            f"[0:v][logo]overlay={pos}"
+                        )
+                        print(f"[LOGO-FIRST] Filter: {filter_complex}")
+                        video_with_logo = outdir / f"video_with_logo_{int(time.time())}.mp4"
+                        cmd = [
+                            ffmpeg, '-hide_banner', '-loglevel', 'error', '-i', str(current_video),
+                            '-i', str(logo_path),
+                            '-filter_complex', filter_complex,
+                            '-c:v', 'libx264',
+                            '-c:a', 'copy',
+                            '-map', '0:a?',
+                            '-y', str(video_with_logo)
+                        ]
+                        print(f"[LOGO-FIRST] Running ffmpeg command...")
+                        result = subprocess.run(cmd, capture_output=True, text=True)
+                        print(f"[LOGO-FIRST] ffmpeg return code: {result.returncode}")
+                        if result.returncode != 0:
+                            print(f"[LOGO-FIRST] ? ffmpeg ERROR: {result.stderr}")
+                        if result.returncode == 0 and video_with_logo.exists():
+                            current_video = video_with_logo
+                            logo_already_applied = True
+                            print(f"[LOGO-FIRST] ? Logo applied successfully! Video: {video_with_logo}")
+                        else:
+                            print(f"[LOGO-FIRST] ? Logo application failed!")
+                            print(f"[LOGO-FIRST] Logo overlay failed, continuing without early logo: {result.stderr[:300] if result.stderr else 'no stderr'}")
                 else:
                     print(f"[LOGO-FIRST] ? No logo_path found or file doesn't exist")
         except Exception as e:
@@ -3479,15 +3537,15 @@ def post_process_video():
                     'center': '(W-w)/2:(H-h)/2'
                 }
                 pos = position_map.get(logo_position, '20:H-h-20')
-                # Allow UI to control opacity; default to 0.6 (60% opaque)
-                logo_opacity = request.form.get('logo_opacity', '0.6')
+                # Allow UI to control opacity; default to 1.0 (fully opaque)
+                logo_opacity = request.form.get('logo_opacity', '1.0')
                 try:
                     logo_opacity_val = max(0.0, min(1.0, float(logo_opacity)))
                 except Exception:
-                    logo_opacity_val = 0.6
+                    logo_opacity_val = 1.0
                 filter_complex = (
-                    f"[1:v]scale=-1:100,format=yuva420p,colorchannelmixer=aa={logo_opacity_val},"
-                    f"fade=t=in:st=0:d=0.5:alpha=1[logo];[0:v][logo]overlay={pos}"
+                    f"[1:v]scale=-1:110,scale=iw*1.25:ih,format=rgba,geq=a='if(gt(a,0),255,0)'[logo];"
+                    f"[0:v][logo]overlay={pos}"
                 )
                 cmd = [
                     ffmpeg, '-hide_banner', '-loglevel', 'error', '-i', str(current_video),

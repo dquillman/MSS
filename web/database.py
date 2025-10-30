@@ -3,7 +3,8 @@ Database models and initialization for MSS user accounts
 """
 
 import sqlite3
-import hashlib
+import hashlib  # Legacy - being replaced
+import bcrypt
 import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -12,7 +13,7 @@ DB_PATH = Path(__file__).parent / 'mss_users.db'
 
 def get_db():
     """Get database connection"""
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), timeout=10.0)
     conn.row_factory = sqlite3.Row  # Return rows as dictionaries
     return conn
 
@@ -78,8 +79,16 @@ def init_db():
     print(f"[DATABASE] Initialized at {DB_PATH}")
 
 def hash_password(password):
-    """Hash password with SHA-256"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash password with bcrypt (secure)"""
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def verify_password(stored_hash, provided_password):
+    """Verify password against bcrypt hash"""
+    try:
+        return bcrypt.checkpw(provided_password.encode('utf-8'), stored_hash.encode('utf-8'))
+    except:
+        # Fallback: check if it's old SHA-256 hash (for migration)
+        return stored_hash == hashlib.sha256(provided_password.encode()).hexdigest()
 
 def create_user(email, password, username=None):
     """Create a new user"""
@@ -109,28 +118,54 @@ def verify_user(email, password):
     conn = get_db()
     cursor = conn.cursor()
 
-    password_hash = hash_password(password)
-
+    # Fetch user by email first
     cursor.execute('''
         SELECT * FROM users
-        WHERE email = ? AND password_hash = ?
-    ''', (email, password_hash))
+        WHERE email = ?
+    ''', (email,))
 
     user = cursor.fetchone()
-    conn.close()
 
-    if user:
-        return {'success': True, 'user': dict(user)}
-    else:
+    if not user:
+        conn.close()
         return {'success': False, 'error': 'Invalid email or password'}
 
-def create_session(user_id, duration_days=30):
-    """Create a new session for user"""
+    # Verify password using the new verify_password function
+    stored_hash = user['password_hash']
+    
+    if verify_password(stored_hash, password):
+        # Check if this was an old SHA-256 hash that needs migration
+        if len(stored_hash) == 64:  # SHA-256 produces 64-char hex string
+            # Re-hash with bcrypt for future logins
+            new_hash = hash_password(password)
+            cursor.execute('''
+                UPDATE users
+                SET password_hash = ?
+                WHERE id = ?
+            ''', (new_hash, user['id']))
+            conn.commit()
+        
+        conn.close()
+        return {'success': True, 'user': dict(user)}
+    else:
+        conn.close()
+        return {'success': False, 'error': 'Invalid email or password'}
+
+def create_session(user_id, duration_days=7, remember_me=False):
+    """Create a new session for user
+    
+    Args:
+        user_id: User ID
+        duration_days: Session duration (default: 7 days)
+        remember_me: If True, extends to 30 days (default: False)
+    """
     conn = get_db()
     cursor = conn.cursor()
 
     session_id = secrets.token_urlsafe(32)
-    expires_at = datetime.now() + timedelta(days=duration_days)
+    # Use 30 days if "Remember Me" is checked, otherwise 7 days
+    actual_duration = 30 if remember_me else duration_days
+    expires_at = datetime.now() + timedelta(days=actual_duration)
 
     cursor.execute('''
         INSERT INTO sessions (session_id, user_id, expires_at)
@@ -374,7 +409,8 @@ def validate_reset_token(token):
 
 def reset_password(token, new_password):
     """Reset user's password using a valid token"""
-    import hashlib
+    import hashlib  # Legacy - being replaced
+    import bcrypt
     from datetime import datetime
 
     # Validate token first
@@ -385,7 +421,7 @@ def reset_password(token, new_password):
     user_id = validation['user_id']
 
     # Hash new password
-    password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+    password_hash = hash_password(new_password)
 
     conn = get_db()
     cursor = conn.cursor()
