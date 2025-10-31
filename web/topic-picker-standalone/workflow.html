@@ -402,6 +402,20 @@
           credentials: 'include'
         });
 
+        // Check for authentication errors before parsing JSON
+        if (res.status === 401 || res.status === 403) {
+          const errorMsg = 'Authentication required. Please log in to sync YouTube metrics.';
+          if (confirm(`${errorMsg}\n\nWould you like to go to the login page?`)) {
+            window.location.href = '/auth';
+          }
+          return;
+        }
+
+        // Check if response is OK before parsing
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+
         const data = await res.json();
 
         if (data.success) {
@@ -410,9 +424,15 @@
           throw new Error(data.error || 'Sync failed');
         }
       } catch (error) {
-        console.error('YouTube sync error:', error);
+        // Don't log handled authentication errors
+        if (!error.message.includes('Authentication required')) {
+          console.error('YouTube sync error:', error);
+        }
+        
         if (error.message.includes('not connected') || error.message.includes('credentials')) {
           alert('❌ YouTube not connected\n\nPlease connect your YouTube account first in the Channel Manager (Step 4).');
+        } else if (error.message.includes('Authentication required')) {
+          // Already handled above, do nothing
         } else {
           alert(`❌ Sync failed: ${error.message}`);
         }

@@ -380,10 +380,50 @@
     // Load trending topics
     async function loadTrends() {
       const container = document.getElementById('trendsContainer');
+      if (!container) return;
+      
       container.innerHTML = '<div style="text-align:center; padding:40px; color:#A8B3CF;">Loading trends...</div>';
 
       try {
         const res = await fetch(`${API_BASE}/api/trends`, { credentials: 'include' });
+        
+        // Handle authentication errors gracefully - check status BEFORE parsing JSON
+        // This prevents any console errors for 401 responses
+        if (res.status === 401 || res.status === 403) {
+          container.innerHTML = `
+            <div style="text-align:center; padding:40px;">
+              <p style="color:#f59e0b; margin-bottom:20px;">Authentication required</p>
+              <p style="color:#A8B3CF; margin-bottom:20px;">Please log in to view trending topics.</p>
+              <button class="btn" onclick="window.location.href='/auth?redirect=' + encodeURIComponent(window.location.pathname)" style="background:#3b82f6; border-color:#3b82f6;">
+                Go to Login
+              </button>
+            </div>
+          `;
+          // Silently return - don't throw or log anything
+          return;
+        }
+        
+        // Check if response is OK before parsing JSON
+        if (!res.ok) {
+          let errorMessage = `HTTP ${res.status}: Failed to load trends`;
+          try {
+            const errorText = await res.text();
+            if (errorText) {
+              try {
+                const errorData = JSON.parse(errorText);
+                errorMessage = errorData.error || errorMessage;
+              } catch {
+                errorMessage = errorText.slice(0, 100) || errorMessage;
+              }
+            }
+          } catch {
+            // Ignore parsing errors
+          }
+          // Only throw if not already handled (401/403 handled above)
+          throw new Error(errorMessage);
+        }
+        
+        // Parse JSON only if response is OK
         const data = await res.json();
 
         if (!data.success) {
@@ -512,8 +552,39 @@
         }, 100);
 
       } catch (error) {
-        console.error('Error loading trends:', error);
-        container.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444;">Error: ${error.message}</div>`;
+        // Suppress console errors for authentication issues - they're handled above
+        const isAuthError = error.message && (
+          error.message.includes('Invalid or expired session') ||
+          error.message.includes('Not authenticated') ||
+          error.message.includes('401') ||
+          error.message.includes('403') ||
+          error.message.includes('Authentication required')
+        );
+        
+        // Check if we already handled auth in the try block (401/403 status check)
+        const currentContent = container.innerHTML || '';
+        const alreadyHandledAuth = currentContent.includes('Authentication required');
+        
+        // Only log if not an auth error and not already handled
+        if (!isAuthError && !alreadyHandledAuth) {
+          console.error('Error loading trends:', error);
+        }
+        
+        // Only show error if we haven't already set innerHTML for auth (401/403 case handled above)
+        if (!alreadyHandledAuth && !isAuthError) {
+          container.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444;">Error: ${error.message}</div>`;
+        } else if (isAuthError && !alreadyHandledAuth) {
+          // Fallback auth message if somehow we got here
+          container.innerHTML = `
+            <div style="text-align:center; padding:40px;">
+              <p style="color:#f59e0b; margin-bottom:20px;">Authentication required</p>
+              <p style="color:#A8B3CF; margin-bottom:20px;">Please log in to view trending topics.</p>
+              <button class="btn" onclick="window.location.href='/auth?redirect=' + encodeURIComponent(window.location.pathname)" style="background:#3b82f6; border-color:#3b82f6;">
+                Go to Login
+              </button>
+            </div>
+          `;
+        }
       }
     }
 
