@@ -18,16 +18,18 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install runtime dependencies
+# Install runtime and build dependencies (needed for some Python packages)
 RUN apt-get update && apt-get install -y \
     curl \
     ffmpeg \
+    gcc \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first
 COPY requirements.txt .
 
-# Install all Python dependencies directly (don't rely on builder copy)
+# Install all Python dependencies directly (with build tools available)
 RUN pip install --user --no-cache-dir -r requirements.txt
 
 # Copy application code
