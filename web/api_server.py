@@ -13,22 +13,6 @@ from flask import Flask, request, jsonify, send_from_directory, Response, redire
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-
-logging.basicConfig(
-    level=logging.INFO if os.getenv('FLASK_ENV') != 'development' else logging.DEBUG,
-    format='%(asctime)s [%(levelname)s] %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-# Optional: flask-compress for response compression
-try:
-    from flask_compress import Compress
-    COMPRESS_AVAILABLE = True
-except ImportError:
-    Compress = None
-    COMPRESS_AVAILABLE = False
-    logger.warning("[PERF] flask-compress not installed - response compression disabled")
-
 from PIL import Image, ImageDraw, ImageFont
 import io
 import requests
@@ -40,6 +24,12 @@ from web.exceptions import (
     MSSException, VideoGenerationError, APIError,
     AuthenticationError, DatabaseError, FileUploadError
 )
+
+logging.basicConfig(
+    level=logging.INFO if os.getenv('FLASK_ENV') != 'development' else logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Database access (robust import regardless of how app is launched)
 try:
@@ -165,13 +155,6 @@ except Exception as _e:
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1 GB upload cap
 
-# Initialize API documentation (Swagger)
-try:
-    from web.api.docs import init_swagger
-    init_swagger(app)
-except Exception as e:
-    logger.warning(f"[DOCS] Swagger initialization failed: {e}")
-
 # CORS Configuration - Security: Restrict to allowed origins only
 ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', '').split(',') if os.getenv('ALLOWED_ORIGINS') else []
 # Remove empty strings and add common dev origins if not in production
@@ -221,20 +204,8 @@ def add_security_headers(response):
     # XSS protection (legacy, but still useful)
     response.headers['X-XSS-Protection'] = '1; mode=block'
     
-    # Content Security Policy - always explicitly set connect-src
-    # Detect if we're in production by checking if we're on Cloud Run (has .run.app domain) or FLASK_ENV
-    is_production = (
-        os.getenv('FLASK_ENV') == 'production' or 
-        os.getenv('K_SERVICE') or 
-        (hasattr(request, 'host') and 'run.app' in request.host)
-    )
-    
-    if is_production:
-        # Production (Cloud Run): same origin only
-        csp = "default-src 'self'; connect-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;"
-    else:
-        # Development: allow localhost connections on common ports
-        csp = "default-src 'self'; connect-src 'self' http://localhost:5000 http://localhost:3000 http://127.0.0.1:5000 http://127.0.0.1:3000 ws://localhost:* wss://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;"
+    # Content Security Policy (basic)
+    csp = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;"
     response.headers['Content-Security-Policy'] = csp
     
     # Referrer Policy
@@ -250,21 +221,6 @@ app.config['SESSION_COOKIE_SECURE'] = os.getenv('FLASK_ENV') == 'production'  # 
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
 app.config['SESSION_COOKIE_PATH'] = '/'
-
-# Initialize rate limiter
-limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"],
-    storage_uri=os.getenv('REDIS_URL', 'memory://')
-)
-
-# Performance: Enable response compression (optional)
-if COMPRESS_AVAILABLE and Compress:
-    Compress(app)
-    logger.info("[PERF] Response compression enabled")
-else:
-    logger.debug("[PERF] Response compression disabled (flask-compress not available)")
 
 # Initialize database on startup
 try:
@@ -399,24 +355,9 @@ def api_login():
 
         result = database.verify_user(email, password)
         if not result.get('success'):
-            # Security: Log failed login attempt
-            try:
-                from web.utils.security_logging import log_failed_login
-                log_failed_login(email, get_remote_address(), result.get('error', 'Invalid credentials'))
-            except Exception:
-                pass  # Don't fail if logging fails
-            
             return jsonify({'success': False, 'error': result.get('error', 'Invalid credentials')}), 401
 
         user = result['user']
-        
-        # Security: Log successful login
-        try:
-            from web.utils.security_logging import log_successful_login
-            log_successful_login(email, get_remote_address(), user['id'])
-        except Exception:
-            pass  # Don't fail if logging fails
-        
         session_id = database.create_session(user['id'], remember_me=remember_me)
         resp = jsonify({'success': True, 'user': {'id': user['id'], 'email': user['email']}})
         resp.set_cookie('session_id', session_id, httponly=True, samesite='Lax', secure=False, path='/')
@@ -886,21 +827,6 @@ def serve_workflow():
     """Serve Video Creation Workflow Page"""
     return send_from_directory('topic-picker-standalone', 'workflow.html')
 
-@app.route('/health')
-@app.route('/healthz')
-def _health():
-    """Health check endpoint for Cloud Run - MUST be before catch-all route"""
-    return jsonify({
-        'status': 'ok',
-        'service': 'MSS API',
-        'version': '5.5.7',
-        'endpoints': [
-            '/studio', '/topics', '/post-process-video',
-            '/get-avatar-library', '/get-logo-library', '/api/logo-files',
-            '/api/usage', '/youtube-categories', '/out/<file>', '/logos/<file>'
-        ]
-    })
-
 @app.route('/<path:filename>')
 def serve_frontend_file(filename):
     """Serve CSS, JS, and other frontend static files"""
@@ -918,6 +844,21 @@ def serve_frontend_file(filename):
             pass
     from flask import abort
     abort(404)
+
+@app.route('/health')
+@app.route('/healthz')
+def _health():
+    """Health check endpoint for Cloud Run"""
+    return jsonify({
+        'status': 'ok',
+        'service': 'MSS API',
+        'version': '5.5.7',
+        'endpoints': [
+            '/studio', '/topics', '/post-process-video',
+            '/get-avatar-library', '/get-logo-library', '/api/logo-files',
+            '/api/usage', '/youtube-categories', '/out/<file>', '/logos/<file>'
+        ]
+    })
 
 @app.route('/get-selected-topic', methods=['GET'])
 def get_selected_topic():
@@ -2726,46 +2667,9 @@ def preview_script():
 
 @app.route('/create-video-enhanced', methods=['POST'])
 def create_video_enhanced():
-    """
-    Create video with custom prompts and AI thumbnail
-     
-    Security: Input validated with Pydantic models
+    """Create video with custom prompts and AI thumbnail
     
-    ---
-    tags:
-      - Videos
-    summary: Create enhanced video
-    description: Generate video with AI thumbnail and custom prompts
-    consumes:
-      - application/json
-    produces:
-      - application/json
-    parameters:
-      - in: body
-        name: body
-        description: Video creation parameters
-        required: true
-        schema:
-          type: object
-          required:
-            - topic
-          properties:
-            topic:
-              type: object
-              description: Topic data with title, description, etc.
-            duration:
-              type: integer
-              minimum: 1
-              maximum: 600
-            generate_ai_thumbnail:
-              type: boolean
-    responses:
-      200:
-        description: Video created successfully
-      400:
-        description: Invalid input
-      500:
-        description: Video generation failed
+    Security: Input validated with Pydantic models
     """
     print("\n" + "="*70)
     print("[VIDEO] CREATE-VIDEO-ENHANCED ENDPOINT CALLED")
@@ -4463,18 +4367,11 @@ def post_process_video():
 
 @app.route('/get-recent-videos', methods=['GET'])
 def get_recent_videos():
-    """Get list of recent video files from out directory with pagination"""
+    """Get list of recent video files from out directory"""
     try:
-        from web.utils.pagination import parse_pagination_params
-        
-        # Performance: Parse pagination parameters
-        page, per_page = parse_pagination_params(request)
-        
         outdir = Path("out")
         if not outdir.exists():
-            return jsonify({'success': True, 'videos': [], 'pagination': {
-                'page': page, 'per_page': per_page, 'total': 0, 'pages': 0, 'has_next': False, 'has_prev': False
-            }})
+            return jsonify({'success': True, 'videos': []})
 
         # Get all video files
         video_files = []
@@ -4490,15 +4387,9 @@ def get_recent_videos():
         # Sort by modification time (most recent first)
         processed_videos.sort(key=lambda f: f.stat().st_mtime, reverse=True)
 
-        # Performance: Apply pagination
-        from math import ceil
-        total = len(processed_videos)
-        offset = (page - 1) * per_page
-        paginated_videos = processed_videos[offset:offset + per_page]
-        pages = ceil(total / per_page) if total > 0 else 1
-        
+        # Return top 10 most recent
         videos = []
-        for video_file in paginated_videos:
+        for video_file in processed_videos[:10]:
             stat = video_file.stat()
             size_mb = stat.st_size / (1024 * 1024)
             mtime = stat.st_mtime
@@ -4520,19 +4411,7 @@ def get_recent_videos():
                 'path': str(video_file)
             })
 
-        # Performance: Add pagination metadata
-        return jsonify({
-            'success': True,
-            'videos': videos,
-            'pagination': {
-                'page': page,
-                'per_page': per_page,
-                'total': total,
-                'pages': pages,
-                'has_next': page < pages,
-                'has_prev': page > 1
-            }
-        })
+        return jsonify({'success': True, 'videos': videos})
 
     except Exception as e:
         print(f"Error getting recent videos: {e}")
@@ -5047,23 +4926,38 @@ def upload_logo_to_library():
         if not dest.exists() or dest.stat().st_size == 0:
             return jsonify({'success': False, 'error': 'Failed to save file'}), 500
         
-        url = f"http://127.0.0.1:5000/logos/{dest.name}"
-        lib_path = Path('logo_library.json')
-        library = {'logos': []}
-        if lib_path.exists():
-            try: library = json.loads(lib_path.read_text(encoding='utf-8') or '{}')
-            except Exception: library = {'logos': []}
+        # Use request origin for URL generation (works in dev and production)
+        base_url = f"{request.scheme}://{request.host}"
+        url = f"{base_url}/logos/{dest.name}"
+        
+        # Generate unique ID
+        logo_id = f"{int(time.time()*1000)}_logo_{uuid.uuid4().hex[:8]}"
+        
         entry = {
-            'id': str(int(time.time()*1000)),
+            'id': logo_id,
             'name': name,
             'url': url,
             'filename': dest.name,
             'active': False,
-            'uploadedAt': time.strftime('%Y-%m-%d %H:%M:%S')
         }
-        library.setdefault('logos', []).append(entry)
-        lib_path.write_text(json.dumps(library, indent=2), encoding='utf-8')
-        return jsonify({'success': True, 'url': url, 'logo': entry})
+        
+        # Try database first
+        try:
+            from web.database import save_logo_to_db
+            save_logo_to_db(entry)
+            return jsonify({'success': True, 'url': url, 'logo': entry})
+        except Exception as e:
+            logger.warning(f"[LOGO] Database save failed, falling back to JSON: {e}")
+            # Fallback to JSON (backward compatibility)
+            lib_path = Path('logo_library.json')
+            library = {'logos': []}
+            if lib_path.exists():
+                try: library = json.loads(lib_path.read_text(encoding='utf-8') or '{}')
+                except Exception: library = {'logos': []}
+            entry['uploadedAt'] = time.strftime('%Y-%m-%d %H:%M:%S')
+            library.setdefault('logos', []).append(entry)
+            lib_path.write_text(json.dumps(library, indent=2), encoding='utf-8')
+            return jsonify({'success': True, 'url': url, 'logo': entry})
     except FileUploadError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
@@ -5491,10 +5385,7 @@ def save_user_preferences():
 
 @app.route('/api/analytics/dashboard', methods=['GET'])
 def get_analytics_dashboard():
-    """Get comprehensive analytics dashboard data
-    
-    Performance: Results cached for 15 minutes to reduce database load
-    """
+    """Get comprehensive analytics dashboard data"""
     if not analytics_manager:
         return jsonify({'success': False, 'error': 'Analytics not available'}), 500
 
@@ -5503,23 +5394,10 @@ def get_analytics_dashboard():
         return error_response, error_code
 
     days = request.args.get('days', 30, type=int)
-    
-    # Performance: Check cache first
-    from web.cache import get_cached, set_cached, cache_key
-    cache_key_str = cache_key("analytics_dashboard", user_email, days)
-    cached_stats = get_cached(cache_key_str)
-    if cached_stats is not None:
-        logger.info("[CACHE] Analytics dashboard cache hit")
-        return jsonify({'success': True, 'stats': cached_stats, 'cached': True})
 
     try:
         stats = analytics_manager.get_dashboard_stats(user_email, days)
-        
-        # Performance: Cache results for 15 minutes
-        set_cached(cache_key_str, stats, ttl=900)
-        logger.info(f"[CACHE] Analytics dashboard cached: {cache_key_str}")
-        
-        return jsonify({'success': True, 'stats': stats, 'cached': False})
+        return jsonify({'success': True, 'stats': stats})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

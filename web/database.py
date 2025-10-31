@@ -6,8 +6,11 @@ import sqlite3
 import hashlib  # Legacy - being replaced
 import bcrypt
 import secrets
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 DB_PATH = Path(__file__).parent / 'mss_users.db'
 
@@ -74,6 +77,39 @@ def init_db():
         )
     ''')
 
+    # Avatars table - store avatar metadata and file paths
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS avatars (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            type TEXT DEFAULT 'image',
+            image_url TEXT,
+            video_url TEXT,
+            filename TEXT NOT NULL,
+            position TEXT DEFAULT 'bottom-right',
+            scale INTEGER DEFAULT 18,
+            opacity INTEGER DEFAULT 100,
+            gender TEXT DEFAULT 'female',
+            voice TEXT DEFAULT 'en-US-Neural2-F',
+            active BOOLEAN DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Logos table - store logo metadata and file paths
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS logos (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            url TEXT NOT NULL,
+            active BOOLEAN DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
     # Performance: Add indexes for faster queries
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)')
@@ -81,6 +117,8 @@ def init_db():
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_sessions_session_id ON sessions(session_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_video_history_user_id ON video_history(user_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_video_history_created ON video_history(created_at)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_avatars_active ON avatars(active)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_logos_active ON logos(active)')
     
     conn.commit()
     conn.close()
@@ -91,12 +129,24 @@ def hash_password(password):
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 def verify_password(stored_hash, provided_password):
-    """Verify password against bcrypt hash"""
+    """Verify password against bcrypt hash, with migration support for old SHA-256 hashes"""
     try:
-        return bcrypt.checkpw(provided_password.encode('utf-8'), stored_hash.encode('utf-8'))
-    except:
-        # Fallback: check if it's old SHA-256 hash (for migration)
-        return stored_hash == hashlib.sha256(provided_password.encode()).hexdigest()
+        # Try bcrypt first (newer, secure method)
+        if bcrypt.checkpw(provided_password.encode('utf-8'), stored_hash.encode('utf-8')):
+            return True
+    except (ValueError, TypeError):
+        # Invalid bcrypt hash format - might be old SHA-256 hash
+        pass
+    
+    # Fallback: check if it's old SHA-256 hash (for migration)
+    # This is less secure but needed for existing users
+    old_hash = hashlib.sha256(provided_password.encode()).hexdigest()
+    if stored_hash == old_hash:
+        # Password verified with old hash - should be migrated on next login
+        # Note: Migration should happen in the verify_user function
+        return True
+    
+    return False
 
 def create_user(email, password, username=None):
     """Create a new user"""
@@ -140,11 +190,14 @@ def verify_user(email, password):
 
     # Verify password using the new verify_password function
     stored_hash = user['password_hash']
+    password_valid = verify_password(stored_hash, password)
     
-    if verify_password(stored_hash, password):
-        # Check if this was an old SHA-256 hash that needs migration
-        if len(stored_hash) == 64:  # SHA-256 produces 64-char hex string
-            # Re-hash with bcrypt for future logins
+    # If password is valid and it was using old SHA-256 hash, migrate to bcrypt
+    if password_valid:
+        # Check if it's an old SHA-256 hash (64 char hex string, not bcrypt format)
+        # Bcrypt hashes start with $2b$ and are 60 chars long
+        if len(stored_hash) == 64 and all(c in '0123456789abcdef' for c in stored_hash.lower()):
+            # This is an old SHA-256 hash - migrate to bcrypt
             new_hash = hash_password(password)
             cursor.execute('''
                 UPDATE users
@@ -152,6 +205,7 @@ def verify_user(email, password):
                 WHERE id = ?
             ''', (new_hash, user['id']))
             conn.commit()
+            logger.info(f"[SECURITY] Migrated password hash for user {email} from SHA-256 to bcrypt")
         
         conn.close()
         return {'success': True, 'user': dict(user)}
@@ -706,6 +760,259 @@ def update_subscription_tier(user_id, tier):
     conn.close()
 
     return {'success': True, 'tier': tier, 'new_limit': USAGE_LIMITS[tier]}
+
+# ============================================================================
+# Avatar and Logo Database Functions
+# ============================================================================
+
+def get_all_avatars():
+    """Get all avatars from database"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, name, type, image_url, video_url, filename, position, 
+               scale, opacity, gender, voice, active, created_at, updated_at
+        FROM avatars
+        ORDER BY created_at DESC
+    ''')
+    rows = cursor.fetchall()
+    conn.close()
+    
+    avatars = []
+    for row in rows:
+        avatars.append({
+            'id': row[0],
+            'name': row[1],
+            'type': row[2],
+            'image_url': row[3],
+            'video_url': row[4],
+            'filename': row[5],
+            'position': row[6],
+            'scale': row[7],
+            'opacity': row[8],
+            'gender': row[9],
+            'voice': row[10],
+            'active': bool(row[11]),
+            'created_at': row[12],
+            'updated_at': row[13]
+        })
+    return avatars
+
+def get_active_avatar():
+    """Get the currently active avatar"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, name, type, image_url, video_url, filename, position, 
+               scale, opacity, gender, voice, active
+        FROM avatars
+        WHERE active = 1
+        LIMIT 1
+    ''')
+    row = cursor.fetchone()
+    conn.close()
+    
+    if not row:
+        return None
+    
+    return {
+        'id': row[0],
+        'name': row[1],
+        'type': row[2],
+        'image_url': row[3],
+        'video_url': row[4],
+        'filename': row[5],
+        'position': row[6],
+        'scale': row[7],
+        'opacity': row[8],
+        'gender': row[9],
+        'voice': row[10],
+        'active': bool(row[11])
+    }
+
+def save_avatar_to_db(avatar_data):
+    """Save or update an avatar in the database"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Check if avatar exists
+    cursor.execute('SELECT id FROM avatars WHERE id = ?', (avatar_data['id'],))
+    exists = cursor.fetchone()
+    
+    if exists:
+        # Update existing avatar
+        cursor.execute('''
+            UPDATE avatars
+            SET name = ?, type = ?, image_url = ?, video_url = ?, filename = ?,
+                position = ?, scale = ?, opacity = ?, gender = ?, voice = ?,
+                active = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (
+            avatar_data.get('name'),
+            avatar_data.get('type', 'image'),
+            avatar_data.get('image_url'),
+            avatar_data.get('video_url', ''),
+            avatar_data.get('filename'),
+            avatar_data.get('position', 'bottom-right'),
+            avatar_data.get('scale', 18),
+            avatar_data.get('opacity', 100),
+            avatar_data.get('gender', 'female'),
+            avatar_data.get('voice', 'en-US-Neural2-F'),
+            avatar_data.get('active', False),
+            avatar_data['id']
+        ))
+    else:
+        # Insert new avatar
+        cursor.execute('''
+            INSERT INTO avatars 
+            (id, name, type, image_url, video_url, filename, position, scale, opacity, gender, voice, active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            avatar_data['id'],
+            avatar_data.get('name'),
+            avatar_data.get('type', 'image'),
+            avatar_data.get('image_url'),
+            avatar_data.get('video_url', ''),
+            avatar_data.get('filename'),
+            avatar_data.get('position', 'bottom-right'),
+            avatar_data.get('scale', 18),
+            avatar_data.get('opacity', 100),
+            avatar_data.get('gender', 'female'),
+            avatar_data.get('voice', 'en-US-Neural2-F'),
+            avatar_data.get('active', False)
+        ))
+    
+    conn.commit()
+    conn.close()
+    return True
+
+def set_active_avatar_in_db(avatar_id):
+    """Set an avatar as active (and deactivate all others)"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Set all to inactive
+    cursor.execute('UPDATE avatars SET active = 0')
+    
+    # Set the selected one to active
+    cursor.execute('UPDATE avatars SET active = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', (avatar_id,))
+    
+    conn.commit()
+    conn.close()
+    return True
+
+def get_all_logos():
+    """Get all logos from database"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, name, filename, url, active, created_at, updated_at
+        FROM logos
+        ORDER BY created_at DESC
+    ''')
+    rows = cursor.fetchall()
+    conn.close()
+    
+    logos = []
+    for row in rows:
+        logos.append({
+            'id': row[0],
+            'name': row[1],
+            'filename': row[2],
+            'url': row[3],
+            'active': bool(row[4]),
+            'created_at': row[5],
+            'updated_at': row[6]
+        })
+    return logos
+
+def get_active_logo():
+    """Get the currently active logo"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, name, filename, url, active
+        FROM logos
+        WHERE active = 1
+        LIMIT 1
+    ''')
+    row = cursor.fetchone()
+    conn.close()
+    
+    if not row:
+        return None
+    
+    return {
+        'id': row[0],
+        'name': row[1],
+        'filename': row[2],
+        'url': row[3],
+        'active': bool(row[4])
+    }
+
+def save_logo_to_db(logo_data):
+    """Save or update a logo in the database"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Check if logo exists
+    cursor.execute('SELECT id FROM logos WHERE id = ?', (logo_data['id'],))
+    exists = cursor.fetchone()
+    
+    if exists:
+        # Update existing logo
+        cursor.execute('''
+            UPDATE logos
+            SET name = ?, filename = ?, url = ?, active = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (
+            logo_data.get('name'),
+            logo_data.get('filename'),
+            logo_data.get('url'),
+            logo_data.get('active', False),
+            logo_data['id']
+        ))
+    else:
+        # Insert new logo
+        cursor.execute('''
+            INSERT INTO logos (id, name, filename, url, active)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (
+            logo_data['id'],
+            logo_data.get('name'),
+            logo_data.get('filename'),
+            logo_data.get('url'),
+            logo_data.get('active', False)
+        ))
+    
+    conn.commit()
+    conn.close()
+    return True
+
+def set_active_logo_in_db(logo_id):
+    """Set a logo as active (and deactivate all others)"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Set all to inactive
+    cursor.execute('UPDATE logos SET active = 0')
+    
+    # Set the selected one to active
+    cursor.execute('UPDATE logos SET active = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', (logo_id,))
+    
+    conn.commit()
+    conn.close()
+    return True
+
+def delete_logo_from_db(logo_id):
+    """Delete a logo from the database"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM logos WHERE id = ?', (logo_id,))
+    conn.commit()
+    deleted = cursor.rowcount > 0
+    conn.close()
+    return deleted
 
 # Initialize database on import
 if __name__ == '__main__':
