@@ -27,6 +27,9 @@ RUN apt-get update && apt-get install -y \
 # Copy Python dependencies from builder
 COPY --from=builder /root/.local /root/.local
 
+# Verify key dependencies are installed
+RUN /root/.local/bin/pip list | grep -E "(flask|gunicorn|flask-limiter)" || pip install --user flask gunicorn flask-limiter
+
 # Copy application code
 COPY web/ ./web/
 COPY scripts/ ./scripts/
