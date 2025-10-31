@@ -24,11 +24,10 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Python dependencies from builder
-COPY --from=builder /root/.local /root/.local
-
-# Re-install all requirements to ensure everything is available
+# Copy requirements first
 COPY requirements.txt .
+
+# Install all Python dependencies directly (don't rely on builder copy)
 RUN pip install --user --no-cache-dir -r requirements.txt
 
 # Copy application code
