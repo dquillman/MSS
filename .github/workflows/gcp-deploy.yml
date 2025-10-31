@@ -78,25 +78,30 @@ jobs:
           echo "Waiting for service to be ready..."
           sleep 30
           
-          # Retry health check up to 3 times
+          # Try both /health and /healthz endpoints
+          HEALTH_ENDPOINTS="/health /healthz"
           MAX_RETRIES=3
           RETRY_DELAY=10
+          
           for i in $(seq 1 $MAX_RETRIES); do
             echo "Health check attempt $i/$MAX_RETRIES"
-            if curl -f -s "$SERVICE_URL/healthz"; then
-              echo "✅ Health check passed!"
-              exit 0
-            else
-              echo "❌ Health check failed, waiting ${RETRY_DELAY}s before retry..."
-              if [ $i -lt $MAX_RETRIES ]; then
-                sleep $RETRY_DELAY
+            for endpoint in $HEALTH_ENDPOINTS; do
+              echo "Trying: $SERVICE_URL$endpoint"
+              if curl -f -s "$SERVICE_URL$endpoint" > /dev/null 2>&1; then
+                echo "✅ Health check passed on $endpoint!"
+                curl -s "$SERVICE_URL$endpoint" | jq '.' || curl -s "$SERVICE_URL$endpoint"
+                exit 0
               fi
+            done
+            
+            if [ $i -lt $MAX_RETRIES ]; then
+              echo "❌ Health check failed, waiting ${RETRY_DELAY}s before retry..."
+              sleep $RETRY_DELAY
             fi
           done
           
-          echo "⚠️ Health check failed after $MAX_RETRIES attempts"
-          echo "Service URL was: $SERVICE_URL"
-          echo "Trying alternative endpoint: $SERVICE_URL/health"
-          curl -v "$SERVICE_URL/health" || true
+          echo "⚠️ Health check failed after $MAX_RETRIES attempts on all endpoints"
+          echo "Testing with verbose output:"
+          curl -v "$SERVICE_URL/health"
           exit 1
 
