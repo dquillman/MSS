@@ -68,7 +68,18 @@ jobs:
       - name: Get service URL
         run: |
           SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)')
-          echo "Service deployed at: $SERVICE_URL"
+          echo "=========================================="
+          echo "🚀 SERVICE DEPLOYED SUCCESSFULLY!"
+          echo "=========================================="
+          echo ""
+          echo "📍 Service URL: $SERVICE_URL"
+          echo ""
+          echo "🔗 Quick Links:"
+          echo "   Health: $SERVICE_URL/health"
+          echo "   Auth:   $SERVICE_URL/auth"
+          echo "   Studio: $SERVICE_URL/studio"
+          echo ""
+          echo "=========================================="
           echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_ENV
 
       - name: Health check
@@ -104,4 +115,27 @@ jobs:
           echo "Testing with verbose output:"
           curl -v "$SERVICE_URL/health"
           exit 1
+
+      - name: Deployment Summary
+        run: |
+          SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)')
+          echo ""
+          echo "=========================================="
+          echo "✅ DEPLOYMENT COMPLETE!"
+          echo "=========================================="
+          echo ""
+          echo "🌐 Your MSS Service URL:"
+          echo "   $SERVICE_URL"
+          echo ""
+          echo "🔗 Direct Links:"
+          echo "   Health Check: $SERVICE_URL/health"
+          echo "   Authentication: $SERVICE_URL/auth"
+          echo "   Studio: $SERVICE_URL/studio"
+          echo "   Dashboard: $SERVICE_URL/dashboard"
+          echo ""
+          echo "=========================================="
+          echo ""
+          echo "💡 To get this URL later, run:"
+          echo "   gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)'"
+          echo ""
 
