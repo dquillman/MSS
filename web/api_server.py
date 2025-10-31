@@ -861,6 +861,21 @@ def serve_workflow():
     """Serve Video Creation Workflow Page"""
     return send_from_directory('topic-picker-standalone', 'workflow.html')
 
+@app.route('/health')
+@app.route('/healthz')
+def _health():
+    """Health check endpoint for Cloud Run - MUST be before catch-all route"""
+    return jsonify({
+        'status': 'ok',
+        'service': 'MSS API',
+        'version': '5.5.7',
+        'endpoints': [
+            '/studio', '/topics', '/post-process-video',
+            '/get-avatar-library', '/get-logo-library', '/api/logo-files',
+            '/api/usage', '/youtube-categories', '/out/<file>', '/logos/<file>'
+        ]
+    })
+
 @app.route('/<path:filename>')
 def serve_frontend_file(filename):
     """Serve CSS, JS, and other frontend static files"""
@@ -878,21 +893,6 @@ def serve_frontend_file(filename):
             pass
     from flask import abort
     abort(404)
-
-@app.route('/health')
-@app.route('/healthz')
-def _health():
-    """Health check endpoint for Cloud Run"""
-    return jsonify({
-        'status': 'ok',
-        'service': 'MSS API',
-        'version': '5.5.7',
-        'endpoints': [
-            '/studio', '/topics', '/post-process-video',
-            '/get-avatar-library', '/get-logo-library', '/api/logo-files',
-            '/api/usage', '/youtube-categories', '/out/<file>', '/logos/<file>'
-        ]
-    })
 
 @app.route('/get-selected-topic', methods=['GET'])
 def get_selected_topic():
