@@ -33,6 +33,16 @@ class UpdateVideoRequest(BaseModel):
     tags: Optional[List[str]] = Field(None, max_items=50, description="Video tags")
 
 
+class PostProcessRequest(BaseModel):
+    """Request model for video post-processing"""
+    video_filename: Optional[str] = Field(None, description="Video filename (if using existing file)")
+    intro_text: Optional[str] = Field(None, description="Custom intro text")
+    outro_text: Optional[str] = Field(None, description="Custom outro text")
+    use_did: Optional[bool] = Field(True, description="Use D-ID for talking avatar")
+    avatar_id: Optional[str] = Field(None, description="Specific avatar ID to use")
+    include_logo: Optional[bool] = Field(True, description="Include logo overlay")
+
+
 class PlatformPublishRequest(BaseModel):
     """Request model for platform publishing"""
     video_filename: str = Field(..., min_length=1, description="Video filename")

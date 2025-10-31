@@ -5,15 +5,17 @@ from web.models.requests import (
     LoginRequest,
     SignupRequest,
     CreateVideoRequest,
+    UpdateVideoRequest,
     PostProcessRequest,
-    PublishRequest
+    PlatformPublishRequest
 )
 
 __all__ = [
     'LoginRequest',
     'SignupRequest', 
     'CreateVideoRequest',
+    'UpdateVideoRequest',
     'PostProcessRequest',
-    'PublishRequest'
+    'PlatformPublishRequest'
 ]
 
