@@ -455,7 +455,7 @@ def _convert_item_to_standard(item: dict, which: str) -> dict:
 
     # Update item
     from urllib.parse import urljoin
-    base = 'http://127.0.0.1:5000/'
+    base = f"{request.scheme}://{request.host}/"
     item['videoUrl'] = urljoin(base, f"intro_outro/{out_name}")
     item['itemType'] = 'video'
     return item
@@ -645,7 +645,7 @@ def upload_intro_outro_file():
             return jsonify({'success': False, 'error': 'Failed to save file'}), 500
         
         from urllib.parse import urljoin
-        base = request.host_url if hasattr(request, 'host_url') else 'http://127.0.0.1:5000/'
+        base = f"{request.scheme}://{request.host}/"
         url = urljoin(base, f"intro_outro/{fname}")
         return jsonify({'success': True, 'file': fname, 'url': url})
     except FileUploadError as e:
@@ -738,7 +738,7 @@ def preview_tts():
             mp3_data = bytes([0xFF, 0xFB, 0x90, 0x00] * 5000)
             out.write_bytes(mp3_data)
         from urllib.parse import urljoin
-        base = request.host_url if hasattr(request, 'host_url') else 'http://127.0.0.1:5000/'
+        base = f"{request.scheme}://{request.host}/"
         url = urljoin(base, f"intro_outro/{out.name}")
         return jsonify({'success': True, 'audio_url': url})
     except Exception as e:
@@ -846,7 +846,7 @@ def _health():
     return jsonify({
         'status': 'ok',
         'service': 'MSS API',
-        'version': '5.6.1',
+        'version': '5.6.2',
         'endpoints': [
             '/studio', '/topics', '/post-process-video',
             '/get-avatar-library', '/get-logo-library', '/api/logo-files',
@@ -919,6 +919,19 @@ def get_avatar_library():
                 avatars.sort(key=lambda a: (avatars_dir / (a.get('id', '') + '.png')).stat().st_mtime if (avatars_dir / (a.get('id', '') + '.png')).exists() else 0, reverse=True)
             except Exception:
                 pass
+        
+        # Fix hardcoded localhost URLs in loaded avatars to use current request origin
+        if avatars:
+            base_url = f"{request.scheme}://{request.host}"
+            for avatar in avatars:
+                if avatar.get('image_url'):
+                    # Replace hardcoded localhost/127.0.0.1 URLs with current origin
+                    old_url = avatar['image_url']
+                    if 'localhost:5000' in old_url or '127.0.0.1:5000' in old_url:
+                        # Extract just the filename and reconstruct URL
+                        filename = old_url.split('/')[-1]
+                        avatar['image_url'] = f"{base_url}/avatars/{filename}"
+        
         return jsonify({'success': True, 'avatars': avatars})
     except Exception as e:
         # Still return 200 so UI can proceed
@@ -1364,7 +1377,7 @@ def generate_meme_bg():
                     break
 
         from urllib.parse import urljoin
-        base = request.host_url if hasattr(request, 'host_url') else 'http://127.0.0.1:5000/'
+        base = f"{request.scheme}://{request.host}/"
         url = urljoin(base, f"thumbnails/{img_path.name}") if '://' not in str(img_path) else str(img_path)
         return jsonify({'success': True, 'file': img_path.name, 'url': url, 'source': source})
     except Exception as e:
@@ -1670,7 +1683,7 @@ def generate_clean_bg():
                     break
 
         from urllib.parse import urljoin
-        base = request.host_url if hasattr(request, 'host_url') else 'http://127.0.0.1:5000/'
+        base = f"{request.scheme}://{request.host}/"
         url = urljoin(base, f"thumbnails/{img_path.name}")
         return jsonify({'success': True, 'file': img_path.name, 'url': url, 'source': source})
     except Exception as e:
@@ -2356,7 +2369,7 @@ def generate_ai_thumbnail():
 
         # Build absolute URLs for client consumption
         from urllib.parse import urljoin
-        base = request.host_url if hasattr(request, 'host_url') else 'http://127.0.0.1:5000/'
+        base = f"{request.scheme}://{request.host}/"
         thumbs = []
         for idx, path in enumerate(variants, start=1):
             thumbs.append({
@@ -4578,7 +4591,7 @@ def api_list_thumbnails():
     """Return a JSON listing of generated thumbnails/backgrounds."""
     try:
         from urllib.parse import urljoin
-        base = request.host_url if hasattr(request, 'host_url') else 'http://127.0.0.1:5000/'
+        base = f"{request.scheme}://{request.host}/"
         thumbnails_dir = Path('thumbnails').absolute()
         items = []
         if thumbnails_dir.exists():
@@ -4606,7 +4619,7 @@ def browse_thumbnails():
     """Simple HTML index to browse thumbnails/backgrounds."""
     try:
         from urllib.parse import urljoin
-        base = request.host_url if hasattr(request, 'host_url') else 'http://127.0.0.1:5000/'
+        base = f"{request.scheme}://{request.host}/"
         thumbnails_dir = Path('thumbnails').absolute()
         rows = []
         if thumbnails_dir.exists():
@@ -4773,7 +4786,7 @@ def api_logo_files():
                     try:
                         items.append({
                             'filename': f.name,
-                            'url': f"http://127.0.0.1:5000/logos/{f.name}",
+                            'url': f"{request.scheme}://{request.host}/logos/{f.name}",
                             'size': f.stat().st_size,
                         })
                     except Exception:
@@ -4822,7 +4835,9 @@ def get_logo_library_route():
                 exists = any((d / fname).exists() for d in dirs)
                 if not exists:
                     continue
-                normalized_url = f"http://127.0.0.1:5000/logos/{fname}"
+                # Use current request origin instead of hardcoded localhost
+                base_url = f"{request.scheme}://{request.host}"
+                normalized_url = f"{base_url}/logos/{fname}"
                 name = (item.get('name') or '').strip() or fname
                 uniq[fname] = {
                     'id': item.get('id') or fname,
@@ -4940,7 +4955,7 @@ def upload_logo_to_library():
         if not dest.exists() or dest.stat().st_size == 0:
             return jsonify({'success': False, 'error': 'Failed to save file'}), 500
         
-        url = f"http://127.0.0.1:5000/logos/{dest.name}"
+        url = f"{request.scheme}://{request.host}/logos/{dest.name}"
         lib_path = Path('logo_library.json')
         library = {'logos': []}
         if lib_path.exists():
