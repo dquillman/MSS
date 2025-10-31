@@ -805,6 +805,9 @@ def api_signup():
         email = req.email
         password = req.password
         username = req.username
+        # Get remember_me from request if provided
+        data = request.get_json() or {}
+        remember_me = data.get('remember_me', False)
 
         res = database.create_user(email, password, username=username)
         if not res.get('success'):
