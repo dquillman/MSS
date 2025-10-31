@@ -13,7 +13,22 @@ from flask import Flask, request, jsonify, send_from_directory, Response, redire
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_compress import Compress
+
+logging.basicConfig(
+    level=logging.INFO if os.getenv('FLASK_ENV') != 'development' else logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Optional: flask-compress for response compression
+try:
+    from flask_compress import Compress
+    COMPRESS_AVAILABLE = True
+except ImportError:
+    Compress = None
+    COMPRESS_AVAILABLE = False
+    logger.warning("[PERF] flask-compress not installed - response compression disabled")
+
 from PIL import Image, ImageDraw, ImageFont
 import io
 import requests
@@ -25,12 +40,6 @@ from web.exceptions import (
     MSSException, VideoGenerationError, APIError,
     AuthenticationError, DatabaseError, FileUploadError
 )
-
-logging.basicConfig(
-    level=logging.INFO if os.getenv('FLASK_ENV') != 'development' else logging.DEBUG,
-    format='%(asctime)s [%(levelname)s] %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 # Database access (robust import regardless of how app is launched)
 try:
@@ -238,8 +247,12 @@ limiter = Limiter(
     storage_uri=os.getenv('REDIS_URL', 'memory://')
 )
 
-# Performance: Enable response compression
-Compress(app)
+# Performance: Enable response compression (optional)
+if COMPRESS_AVAILABLE and Compress:
+    Compress(app)
+    logger.info("[PERF] Response compression enabled")
+else:
+    logger.debug("[PERF] Response compression disabled (flask-compress not available)")
 
 # Initialize database on startup
 try:
