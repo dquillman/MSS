@@ -24,14 +24,19 @@ fi
 
 # Quick check if key packages are missing, install only if needed (faster)
 echo "[ENTRYPOINT] Checking critical dependencies..."
-python -c "from flask_limiter import Limiter; import stripe; import gunicorn; print('[ENTRYPOINT] All dependencies OK')" 2>/dev/null || {
+# Use python -m site --user-site to get user site-packages path and add it explicitly
+python -c "import site; import sys; sys.path.insert(0, site.USER_SITE); from flask_limiter import Limiter; import stripe; import gunicorn; print('[ENTRYPOINT] All dependencies OK')" 2>/dev/null || {
     echo "[ENTRYPOINT] Missing dependencies, installing from requirements.txt..."
     if [ -f requirements.txt ]; then
         pip install --user --no-cache-dir -r requirements.txt
         echo "[ENTRYPOINT] Rechecking after install..."
-        python -c "from flask_limiter import Limiter; import stripe; import gunicorn" || {
+        # After install, explicitly add user site-packages to path
+        python -c "import site; import sys; sys.path.insert(0, site.USER_SITE); from flask_limiter import Limiter; import stripe; import gunicorn; print('[ENTRYPOINT] All dependencies OK after install')" || {
             echo "[ENTRYPOINT] ERROR: Critical packages still missing after install!"
-            pip list | grep -E "(flask|stripe|gunicorn)"
+            echo "[ENTRYPOINT] Checking user site-packages location..."
+            python -c "import site; print(f'USER_SITE: {site.USER_SITE}')"
+            pip list --user | grep -E "(flask|stripe|gunicorn)" || pip list | grep -E "(flask|stripe|gunicorn)"
+            python -c "import sys; print('\\n'.join(sys.path))"
             exit 1
         }
     else
