@@ -5086,6 +5086,9 @@ def export_calendar_entry_ics(entry_id):
         description = entry.get('description', entry.get('topic', ''))
         if entry.get('reason'):
             description += f"\\n\\n{entry['reason']}"
+        
+        # Replace newlines before using in f-string (can't use backslash in f-string expressions)
+        description_escaped = description.replace(chr(10), '\\n')
 
         ics_content = f"""BEGIN:VCALENDAR
 VERSION:2.0
@@ -5098,7 +5101,7 @@ DTSTAMP:{dtstamp}
 DTSTART:{dtstart}
 DTEND:{dtend}
 SUMMARY:{title}
-DESCRIPTION:{description.replace(chr(10), '\\n')}
+DESCRIPTION:{description_escaped}
 LOCATION:MSS Studio
 STATUS:CONFIRMED
 SEQUENCE:0
