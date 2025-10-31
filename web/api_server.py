@@ -204,8 +204,20 @@ def add_security_headers(response):
     # XSS protection (legacy, but still useful)
     response.headers['X-XSS-Protection'] = '1; mode=block'
     
-    # Content Security Policy (basic)
-    csp = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;"
+    # Content Security Policy (environment-aware)
+    # Detect if we're in production (Cloud Run)
+    is_production = (
+        os.getenv('FLASK_ENV') == 'production' or 
+        os.getenv('K_SERVICE') is not None  # Cloud Run sets this env var
+    )
+    
+    if is_production:
+        # Production (Cloud Run): same origin only, allow Google Fonts
+        csp = "default-src 'self'; connect-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com;"
+    else:
+        # Development: allow localhost connections and Google Fonts
+        csp = "default-src 'self'; connect-src 'self' http://localhost:5000 http://localhost:3000 http://127.0.0.1:5000 http://127.0.0.1:3000 ws://localhost:* wss://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: http://localhost:5000 http://127.0.0.1:5000; font-src 'self' data: https://fonts.gstatic.com;"
+    
     response.headers['Content-Security-Policy'] = csp
     
     # Referrer Policy
@@ -834,7 +846,7 @@ def _health():
     return jsonify({
         'status': 'ok',
         'service': 'MSS API',
-        'version': '5.5.9',
+        'version': '5.6.0',
         'endpoints': [
             '/studio', '/topics', '/post-process-video',
             '/get-avatar-library', '/get-logo-library', '/api/logo-files',
@@ -891,13 +903,15 @@ def get_avatar_library():
         # Fallback: scan avatars directory if library is missing/empty
         if (not avatars) and avatars_dir.exists():
             allowed_ext = ('.png', '.jpg', '.jpeg', '.webp')
+            # Use request origin for URL generation (works in dev and production)
+            base_url = f"{request.scheme}://{request.host}"
             for f in avatars_dir.iterdir():
                 if f.is_file() and f.suffix.lower() in allowed_ext:
                     stem = f.stem
                     avatars.append({
                         'id': stem,
                         'name': stem.replace('_', ' ').title(),
-                        'image_url': f"http://127.0.0.1:5000/avatars/{f.name}",
+                        'image_url': f"{base_url}/avatars/{f.name}",
                         'active': False,
                     })
             # Sort newest first where possible
