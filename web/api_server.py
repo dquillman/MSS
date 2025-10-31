@@ -221,8 +221,20 @@ def add_security_headers(response):
     # XSS protection (legacy, but still useful)
     response.headers['X-XSS-Protection'] = '1; mode=block'
     
-    # Content Security Policy (basic)
-    csp = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;"
+    # Content Security Policy - always explicitly set connect-src
+    # Detect if we're in production by checking if we're on Cloud Run (has .run.app domain) or FLASK_ENV
+    is_production = (
+        os.getenv('FLASK_ENV') == 'production' or 
+        os.getenv('K_SERVICE') or 
+        (hasattr(request, 'host') and 'run.app' in request.host)
+    )
+    
+    if is_production:
+        # Production (Cloud Run): same origin only
+        csp = "default-src 'self'; connect-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;"
+    else:
+        # Development: allow localhost connections on common ports
+        csp = "default-src 'self'; connect-src 'self' http://localhost:5000 http://localhost:3000 http://127.0.0.1:5000 http://127.0.0.1:3000 ws://localhost:* wss://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;"
     response.headers['Content-Security-Policy'] = csp
     
     # Referrer Policy
