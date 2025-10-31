@@ -1,11 +1,17 @@
 #!/bin/bash
+# Enable verbose logging
+set -x
 # Don't exit on error for dependency checks - allow fallback installs
 set +e
 
+echo "[ENTRYPOINT] ========================================"
 echo "[ENTRYPOINT] Starting MSS Flask application..."
 echo "[ENTRYPOINT] PORT=${PORT:-8080}"
 echo "[ENTRYPOINT] PYTHONPATH=${PYTHONPATH}"
 echo "[ENTRYPOINT] PATH=${PATH}"
+echo "[ENTRYPOINT] Working directory: $(pwd)"
+echo "[ENTRYPOINT] Python: $(which python)"
+echo "[ENTRYPOINT] Python version: $(python --version 2>&1)"
 
 # Wait for Cloud SQL proxy if DB_URL contains cloudsql
 if [ -n "$DB_URL" ] && [[ "$DB_URL" == *"cloudsql"* ]]; then
@@ -44,13 +50,24 @@ which gunicorn || /root/.local/bin/gunicorn --version || { echo "[ENTRYPOINT] ER
 # Now enable strict error checking
 set -e
 
-# Verify app can be imported
+# Verify app can be imported - with detailed error output
+echo "[ENTRYPOINT] ========================================"
 echo "[ENTRYPOINT] Verifying app import..."
-python -c "from web import api_server; print('[ENTRYPOINT] App imported successfully')" 2>&1 || { 
+IMPORT_OUTPUT=$(python -c "from web import api_server; print('[ENTRYPOINT] App imported successfully')" 2>&1)
+IMPORT_EXIT=$?
+if [ $IMPORT_EXIT -ne 0 ]; then
     echo "[ENTRYPOINT] ERROR: Failed to import app!"
-    python -c "from web import api_server" 2>&1 | head -20
+    echo "[ENTRYPOINT] Import error output:"
+    echo "$IMPORT_OUTPUT"
+    echo "[ENTRYPOINT] Trying to get full traceback..."
+    python -c "from web import api_server" 2>&1
+    echo "[ENTRYPOINT] Checking installed packages..."
+    pip list | head -30
+    echo "[ENTRYPOINT] Checking Python path..."
+    python -c "import sys; print('\\n'.join(sys.path))"
     exit 1
-}
+fi
+echo "$IMPORT_OUTPUT"
 
 echo "[ENTRYPOINT] Starting gunicorn on 0.0.0.0:${PORT:-8080}..."
 
