@@ -846,7 +846,7 @@ def _health():
     return jsonify({
         'status': 'ok',
         'service': 'MSS API',
-        'version': '5.6.2',
+        'version': '5.6.4',
         'endpoints': [
             '/studio', '/topics', '/post-process-video',
             '/get-avatar-library', '/get-logo-library', '/api/logo-files',
@@ -866,6 +866,55 @@ def get_selected_topic():
         else:
             return jsonify({'success': False, 'error': 'No topic saved yet'}), 404
     except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/upload-avatar-file', methods=['POST'])
+def upload_avatar_file():
+    """Upload avatar image/video file"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'No file uploaded'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'No file selected'}), 400
+        
+        # Validate file type
+        allowed_types = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'video/mp4', 'video/webm']
+        if file.content_type not in allowed_types:
+            return jsonify({'success': False, 'error': f'Invalid file type. Allowed: {", ".join(allowed_types)}'}), 400
+        
+        # Validate file size (max 50MB)
+        MAX_SIZE = 50 * 1024 * 1024
+        file.seek(0, 2)  # Seek to end
+        file_size = file.tell()
+        file.seek(0)  # Reset to start
+        if file_size > MAX_SIZE:
+            return jsonify({'success': False, 'error': f'File too large (max {MAX_SIZE // (1024*1024)}MB)'}), 400
+        
+        # Sanitize filename
+        original_filename = file.filename
+        safe_filename = Path(original_filename).stem
+        ext = Path(original_filename).suffix or ('.png' if file.content_type.startswith('image/') else '.mp4')
+        unique = f"avatar_{int(time.time())}_{uuid.uuid4().hex[:8]}{ext}"
+        
+        avatars_dir = Path(__file__).parent.parent / 'avatars'
+        avatars_dir.mkdir(exist_ok=True)
+        dest = avatars_dir / unique
+        
+        # Save file
+        file.save(str(dest))
+        
+        # Verify file was saved
+        if not dest.exists() or dest.stat().st_size == 0:
+            return jsonify({'success': False, 'error': 'Failed to save file'}), 500
+        
+        # Return URL using current request origin
+        url = f"{request.scheme}://{request.host}/avatars/{dest.name}"
+        return jsonify({'success': True, 'url': url, 'filename': dest.name})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/<path:filename>')
