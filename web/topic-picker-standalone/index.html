@@ -81,7 +81,7 @@
     // Force fresh load
     (function(){ if ('caches' in window) { try { caches.keys().then(keys=>keys.forEach(k=>caches.delete(k))); } catch(e){} } })();
 
-    const API = 'http://127.0.0.1:5000';
+    const API = window.location.origin;
     const $s = document.getElementById('status');
     const $wrap = document.getElementById('topics');
     const $bar = document.getElementById('loadingBar');

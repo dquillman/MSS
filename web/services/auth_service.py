@@ -99,3 +99,4 @@ class AuthService:
         result = database.get_session(session_id)
         return result.get('success', False)
 
+

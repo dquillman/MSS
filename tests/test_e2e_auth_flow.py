@@ -92,3 +92,4 @@ def test_session_expiry(client, test_db, test_user):
     result = database.get_session(session_id)
     assert result['success'] is False
 
+

@@ -77,3 +77,4 @@ def parse_pagination_params(request) -> tuple[int, int]:
     
     return page, per_page
 
+

@@ -92,3 +92,4 @@ def test_cache_stats():
     # Stats may show enabled=False if Redis unavailable
     # That's okay - just verify it doesn't crash
 
+

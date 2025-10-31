@@ -54,3 +54,4 @@ celery_app.conf.beat_schedule = {
 
 print(f"[CELERY] Celery app configured. Broker: {redis_url}")
 
+

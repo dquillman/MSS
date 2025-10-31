@@ -12,7 +12,7 @@ function el(tag, attrs = {}, children = []) {
 }
 
 async function main() {
-  const API_BASE = 'http://localhost:5000';
+  const API_BASE = window.location.origin;
   const GEN_KEY = 'mss_tp_topics';
   const PROMPT_KEY = 'mss_tp_prompt';
   const DEFAULT_PROMPT = `Generate 5 timely, SEO-friendly YouTube video topics for the brand "{{brand}}".

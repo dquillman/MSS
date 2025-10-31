@@ -40,3 +40,4 @@ EXPOSE 8080
 # Use entrypoint script
 ENTRYPOINT ["/entrypoint.sh"]
 
+

@@ -846,13 +846,27 @@ def _health():
     return jsonify({
         'status': 'ok',
         'service': 'MSS API',
-        'version': '5.6.0',
+        'version': '5.6.1',
         'endpoints': [
             '/studio', '/topics', '/post-process-video',
             '/get-avatar-library', '/get-logo-library', '/api/logo-files',
             '/api/usage', '/youtube-categories', '/out/<file>', '/logos/<file>'
         ]
     })
+
+@app.route('/get-selected-topic', methods=['GET'])
+def get_selected_topic():
+    """Return the most recently saved topic (out/topic_selected.json) if available."""
+    try:
+        outdir = Path('out')
+        path = outdir / 'topic_selected.json'
+        if path.exists():
+            data = json.loads(path.read_text(encoding='utf-8'))
+            return jsonify({'success': True, 'topic': data})
+        else:
+            return jsonify({'success': False, 'error': 'No topic saved yet'}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/<path:filename>')
 def serve_frontend_file(filename):
@@ -871,20 +885,6 @@ def serve_frontend_file(filename):
             pass
     from flask import abort
     abort(404)
-
-@app.route('/get-selected-topic', methods=['GET'])
-def get_selected_topic():
-    """Return the most recently saved topic (out/topic_selected.json) if available."""
-    try:
-        outdir = Path('out')
-        path = outdir / 'topic_selected.json'
-        if path.exists():
-            data = json.loads(path.read_text(encoding='utf-8'))
-            return jsonify({'success': True, 'topic': data})
-        else:
-            return jsonify({'success': False, 'error': 'No topic saved yet'}), 404
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/get-avatar-library', methods=['GET'])

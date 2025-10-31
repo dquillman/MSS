@@ -137,3 +137,4 @@ def test_cors_restriction():
     # In production, explicit origins required
     assert True  # CORS configuration verified in setup
 
+

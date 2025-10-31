@@ -302,38 +302,80 @@ def generate_chapter_markers(overlays: List[str], duration_secs: float) -> str:
 def get_enhanced_script_prompt(source_text: str, brand: str = "Many Sources Say") -> str:
     """
     Generate an enhanced prompt for OpenAI script generation
-    Focuses on hook, story arc, and engagement
+    Focuses on hook, story arc, and engagement with viral video patterns
     """
-    return f"""You are an expert YouTube scriptwriter for {brand}. Create a compelling 90-150 second video script.
+    return f"""You are an expert YouTube scriptwriter for {brand}. Create a compelling 90-150 second video script optimized for maximum views.
 
 CRITICAL REQUIREMENTS:
-1. HOOK (first 3-5 seconds): Start with a shocking fact, question, or bold statement that stops scrolling
+1. HOOK (first 3-5 seconds): Must use one of these proven patterns:
+   - "I analyzed [number] [things] and discovered [shocking finding]..."
+   - "Most [people/creators] don't know this about [topic]..."
+   - "After [experiment/research], I found [surprising result]..."
+   - "This [number] [unit] secret changed everything..."
+   - "[Bold claim] - Here's why nobody tells you this..."
+   The hook MUST create curiosity gap - tease answer without revealing it immediately.
+
 2. STORY ARC: Problem → Insight → Revelation → Takeaway
-3. PACING: Vary sentence length. Use short punchy sentences for impact.
-4. EMOTION: Include moments of surprise, curiosity, or urgency
-5. RETENTION: End each sentence with a reason to keep watching
-6. CALL TO ACTION: End with engagement request (like, comment, subscribe)
+   - Start with a pain point or burning question
+   - Build tension with surprising information
+   - Reveal the key insight with specificity
+   - End with actionable takeaway
+
+3. PACING: Vary sentence length. Use short punchy sentences (3-7 words) for impact, longer ones for context.
+
+4. EMOTION: Include moments of:
+   - Surprise (shocking statistics or facts)
+   - Curiosity (questions that tease answers)
+   - Urgency (time-sensitive or valuable information)
+
+5. RETENTION: End each major point with a reason to keep watching:
+   - "But here's where it gets interesting..."
+   - "Wait until you hear this part..."
+   - "The real secret is..."
+
+6. CALL TO ACTION: End with SPECIFIC engagement request (choose one):
+   - "Drop a comment telling me [specific question related to topic]"
+   - "Like this video if you want more secrets about [related topic]"
+   - "Subscribe if you want to see [next video idea related to this topic]"
+   - "Share this with one person who needs to see this"
+
+7. SEO OPTIMIZATION:
+   - Title (50-60 chars): Must include power words: "How", "Why", "Secret", "Truth", "Exposed", "Revealed", "The Truth About", "Why Nobody Tells You"
+   - Use specific numbers when possible (e.g., "5 Secrets", "100M Views")
+   - Description: First 2 sentences MUST contain primary keywords and value proposition
 
 Return JSON with:
 - narration: 90-150 second script with natural speech patterns
 - overlays: 6-10 short text overlays (3-7 words each) highlighting key points
 - hook: The first 5 seconds of narration (for A/B testing)
-- title: Compelling YouTube title (50-60 chars, includes keywords)
-- description: 2-3 sentence description with keywords and value proposition
-- keywords: 10-15 search-optimized tags
+- title: Compelling YouTube title (50-60 chars, includes keywords and power words)
+- description: SEO-rich description (first 2 sentences with keywords, then value prop)
+- keywords: 10-15 search-optimized tags (mix broad + specific + long-tail)
 - visual_cues: Array of 3-5 keywords for stock footage matching
+- engagement_cta: Specific call-to-action text for end of video
 
 Source content:
 {source_text[:12000]}"""
 
 
-def get_enhanced_topic_prompt(brand: str = "Many Sources Say", trending_topics: Optional[List[str]] = None) -> str:
+def get_enhanced_topic_prompt(brand: str = "Many Sources Say", trending_topics: Optional[List[str]] = None, include_meta_content: bool = True) -> str:
     """
-    Generate an enhanced prompt for topic ideation with trending awareness
+    Generate an enhanced prompt for topic ideation with trending awareness and meta-content options
     """
     trending_context = ""
     if trending_topics:
         trending_context = f"\n\nCurrent trending topics for inspiration: {', '.join(trending_topics[:5])}"
+
+    meta_content_instruction = ""
+    if include_meta_content:
+        meta_content_instruction = f"""
+SPECIAL INSTRUCTION: Include at least 1-2 "meta-content" topics about YouTube automation, AI video creation, or content strategy. Examples:
+- "How I Create 100 YouTube Videos Per Week Using AI"
+- "Why AI-Generated Videos Get More Views Than Traditional Content"
+- "Behind the Scenes: My Automated YouTube Channel"
+- "YouTube Automation Secrets That Actually Work"
+- "I Analyzed 1000 Viral Videos - Here's the Pattern"
+These topics leverage {brand}'s unique value proposition and create self-referential proof-of-concept content."""
 
     return f"""You are a senior YouTube strategist and viral content expert for {brand}.
 
@@ -341,28 +383,38 @@ Generate 5 HIGH-PERFORMING video topic ideas for today. Each must:
 1. Tap into current interest, search demand, or timeless curiosity
 2. Have clear search intent (what would someone Google?)
 3. Promise specific value in under 60 seconds
-4. Use power words: "Why", "How", "Secret", "Truth", "Exposed", "Revealed"
+4. Use power words: "Why", "How", "Secret", "Truth", "Exposed", "Revealed", "The Truth About", "Why Nobody Tells You"
 5. Be achievable with narration + text overlays + stock footage
+6. Create curiosity gap (tease answer without revealing immediately)
 
 {trending_context}
 
+{meta_content_instruction}
+
 Return JSON array with 5 topics, each containing:
 - title: Working title (internal use)
-- angle: Unique perspective or hook (1 sentence)
+- angle: Unique perspective or hook (1 sentence that creates curiosity)
 - keywords: 8-12 primary search keywords
 - yt_title: Optimized YouTube title (50-60 chars, clickable but not clickbait)
-- yt_description: SEO-rich description (100-150 words) with keywords in first 2 sentences
-- yt_tags: 15-20 diverse tags (mix broad + specific + long-tail)
+   - Must include power words and numbers when possible
+   - Patterns: "How [X] Actually Works", "Why [X] Is Wrong", "[X] Explained: The Secret", "I Analyzed [N] [Things] and Found [Surprise]"
+- yt_description: SEO-rich description (100-150 words)
+   - First 2 sentences: Must contain primary keywords and value proposition
+   - Pattern: "In this video, I reveal [X] that [audience] needs to know..." or "After [research], I discovered [insight]..."
+   - Include engagement hook: "Drop a comment if..." or "Subscribe for..."
+- yt_tags: 15-20 diverse tags (mix broad + specific + long-tail keywords)
 - outline: 5-7 bullet points of key talking points
 - visual_cues: 4-6 keywords for stock footage matching (e.g., "technology", "cityscape", "nature")
-- hook_options: 3 alternative opening hooks for A/B testing
+- hook_options: 3 alternative opening hooks for A/B testing (must use viral patterns like "I analyzed...", "Most people don't know...", etc.)
 
 Prioritize topics that:
 - Answer a burning question
-- Reveal surprising information
+- Reveal surprising information or secrets
 - Solve a common problem
 - Explain a trending phenomenon
-- Challenge a common belief"""
+- Challenge a common belief
+- Provide insider knowledge or behind-the-scenes insights
+- Use specific numbers or statistics for credibility"""
 
 
 # ---------- Performance Analytics Stub ----------

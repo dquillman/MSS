@@ -1,132 +1,99 @@
-# 🚀 Deploy MSS Now!
+# 🚀 Quick Deployment Guide
 
-## ✅ Steps 1-3 Complete!
+## Pre-Flight Check
 
-You've completed:
-- ✅ Step 1: Got JSON key from service account
-- ✅ Step 2: Added 4 GitHub secrets
-- ✅ Step 3: Created/checked Artifact Registry
+Before deploying, verify these are ready:
 
-**You're ready to deploy!**
+1. **Docker Desktop is running**
+   - Check system tray for Docker whale icon
+   - Or run: `docker ps` (should work without errors)
 
----
+2. **GCP Authentication**
+   - Run: `gcloud auth list`
+   - Should show an active account
 
-## Step 4: Trigger Deployment
+3. **Project ID is correct**
+   - Current project: `mss-tts`
+   - Verify: `gcloud config get-value project`
 
-You have **2 options**:
+## Deploy Now
 
-### Option A: Manual Trigger (Recommended - You Control It)
+### Step 1: Start Docker Desktop (if not running)
 
-1. **Go to GitHub Actions:**
-   - Open: https://github.com/dquillman/MSS/actions
+**Quick check:**
+```powershell
+.\check-docker.ps1
+```
 
-2. **Select the Workflow:**
-   - In left sidebar, click **"Build and Deploy to Google Cloud Run"**
+**If Docker is not running:**
+- Option A: Open Docker Desktop from Start Menu
+- Option B: Run: `.\start-docker.ps1` (if script exists)
 
-3. **Run Workflow:**
-   - Click **"Run workflow"** button (top right, purple button)
-   - **Branch:** Select **`master`**
-   - Click green **"Run workflow"** button
+### Step 2: Run Deployment Script
 
-4. **Watch Progress:**
-   - A new workflow run will appear (yellow circle = running)
-   - **Click on it** to see detailed progress
-   - Wait 5-10 minutes for completion
+```powershell
+.\deploy-to-cloud-run.ps1
+```
 
-5. **Get Your URL:**
-   - When workflow completes, scroll to **"Get service URL"** step
-   - You'll see: `Service deployed at: https://mss-api-XXXXX-uc.a.run.app`
-   - **Copy that URL!**
+The script will:
+1. ✅ Check gcloud CLI
+2. ✅ Check Docker (and verify it's running)
+3. ✅ Verify GCP authentication
+4. ✅ Set GCP project
+5. ✅ Configure Docker for Artifact Registry
+6. ✅ Build Docker image (~5-10 minutes)
+7. ✅ Push to Artifact Registry
+8. ✅ Deploy to Cloud Run (~2-3 minutes)
+9. ✅ Test health endpoint
 
----
+**Total time: ~10-15 minutes**
 
-### Option B: Auto-Trigger (I Can Push Code)
+## Troubleshooting
 
-I can push a commit to trigger the deployment automatically.
+### Docker Not Running
+```
+ERROR: error during connect: Head "http://%2F%2F.%2Fpipe%2FdockerDesktopLinuxEngine/_ping"
+```
+**Fix:** Start Docker Desktop and wait 30 seconds, then retry.
 
-**Tell me "yes" and I'll push to trigger it!**
+### Build Fails
+```
+ERROR: Docker build failed!
+```
+**Fix:** 
+- Make sure Docker Desktop is fully started
+- Check Docker has enough resources (Settings → Resources)
+- Try: `docker system prune -a` to free space
 
----
+### Push Fails
+```
+ERROR: Failed to push image
+```
+**Fix:** Run manually:
+```powershell
+gcloud auth configure-docker us-central1-docker.pkg.dev
+```
 
-## Step 5: Verify Deployment
+### Deployment Fails
+```
+ERROR: Deployment failed!
+```
+**Fix:** Check Cloud Run logs:
+```powershell
+gcloud run services logs read mss-api --region us-central1
+```
 
-Once deployment completes:
+## After Deployment
 
-### A. Test Health Endpoint
-1. Open: `https://YOUR-URL/healthz`
-2. Should see:
-   ```json
-   {
-     "status": "ok",
-     "service": "MSS API",
-     "version": "5.5.7"
-   }
+Your service will be available at:
+- **URL:** `https://mss-api-306798653079.us-central1.run.app`
+- **Health:** `https://mss-api-306798653079.us-central1.run.app/healthz`
+
+## Next Steps
+
+1. **Update frontend** to use new service URL (if changed)
+2. **Test authentication** at `/auth`
+3. **Verify secrets** are set in Cloud Run (if needed):
+   ```powershell
+   gcloud run services describe mss-api --region us-central1
    ```
-
-### B. Test Authentication
-1. Go to: `https://YOUR-URL/auth`
-2. Try creating a new account
-3. Try logging in
-
-### C. Test Studio
-1. Go to: `https://YOUR-URL/studio`
-2. Should load the MSS Studio interface
-
----
-
-## What to Expect
-
-### Workflow Steps (You'll See):
-1. ✅ Checkout code
-2. ✅ Set up Python
-3. ✅ Authenticate to Google Cloud
-4. ⏳ Build Docker image (3-5 minutes)
-5. ⏳ Push Docker image (1-2 minutes)
-6. ⏳ Deploy to Cloud Run (2-3 minutes)
-7. ✅ Get service URL
-8. ✅ Health check
-
-**Total time: 5-10 minutes**
-
----
-
-## If Deployment Fails
-
-### Common Issues:
-
-**"Failed to authenticate"**
-- Check `GCP_SA_KEY` secret - make sure JSON is complete
-- Verify service account email is correct
-
-**"Artifact Registry not found"**
-- Check repository `mss` exists in `us-central1`
-- Verify you're using the right project
-
-**"Cloud Run deployment failed"**
-- Check service account has "Cloud Run Admin" role
-- Verify project ID is correct
-
-**"Health check failed"**
-- Check logs in Cloud Run console
-- Verify `/healthz` endpoint exists (we verified this!)
-
----
-
-## 🎉 Success Indicators
-
-You'll know it worked when:
-- ✅ Workflow shows green checkmark
-- ✅ "Get service URL" step shows a URL
-- ✅ `/healthz` endpoint returns version 5.5.7
-- ✅ You can access `/auth` and `/studio` pages
-
----
-
-## Ready?
-
-**Choose your path:**
-- **Option A:** Go to GitHub Actions and click "Run workflow" (you control it)
-- **Option B:** Tell me to push code to trigger automatically
-
-Either way works! 🚀
-

@@ -29,3 +29,4 @@ def get_current_user():
     """Placeholder - will be implemented by Agent 2"""
     pass
 
+

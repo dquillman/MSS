@@ -84,3 +84,4 @@ Follow `SIMPLE_DEPLOYMENT_GUIDE.md` Step 1 as written.
 - `GCP_SERVICE_ACCOUNT_EMAIL` = `mss-tts@mss-tts.iam.gserviceaccount.com`
 - `GCP_ARTIFACT_REGISTRY` = `mss`
 
+

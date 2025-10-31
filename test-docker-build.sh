@@ -55,3 +55,4 @@ echo "To test manually:"
 echo "  curl http://localhost:8080/healthz"
 echo "  curl http://localhost:8080/health"
 
+

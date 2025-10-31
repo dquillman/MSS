@@ -91,16 +91,25 @@ def openai_generate(script_prompt: str, brand: str = "Many Sources Say") -> Dict
         data["visual_cues"] = data.get("keywords", [])[:5]
     if "hook" not in data:
         data["hook"] = data["narration"][:200]
+    if "engagement_cta" not in data:
+        data["engagement_cta"] = "Subscribe for more insights!"
+
+    # Append engagement CTA to narration if not already included
+    narration = data["narration"]
+    cta = data.get("engagement_cta", "")
+    if cta and cta not in narration:
+        data["narration"] = f"{narration} {cta}"
 
     return data
 
 
-def openai_generate_topics(brand: str = "Many Sources Say", seed: str = "") -> List[Dict[str, Any]]:
-    """Return a list of 5 topic ideas with SEO metadata.
-    Each item: {title, angle, keywords[], yt_title, yt_description, yt_tags[], outline}
+def openai_generate_topics(brand: str = "Many Sources Say", seed: str = "", include_meta_content: bool = True) -> List[Dict[str, Any]]:
+    """Return a list of 5 topic ideas with SEO metadata and viral optimization.
+    Each item: {title, angle, keywords[], yt_title, yt_description, yt_tags[], outline, hook_options[]}
     """
     from openai import OpenAI
     from datetime import datetime, timezone
+    from scripts.video_utils import get_enhanced_topic_prompt, get_youtube_trending_topics
 
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -109,12 +118,21 @@ def openai_generate_topics(brand: str = "Many Sources Say", seed: str = "") -> L
     # Get current date
     today = datetime.now(timezone.utc).strftime("%B %d, %Y")
 
+    # Get trending topics if API key available
+    trending_topics = None
+    if os.getenv("YOUTUBE_API_KEY"):
+        try:
+            trending_data = get_youtube_trending_topics(region="US", max_results=5)
+            trending_topics = [t.get("title", "") for t in trending_data[:5]]
+        except Exception as e:
+            print(f"Note: Could not fetch trending topics: {e}")
+
     client = OpenAI(api_key=api_key)
     system = (
-        "You are a senior research editor and SEO strategist."
+        "You are a senior YouTube strategist and viral content expert."
         f" Today's date is {today}."
-        " Identify 5 timely, factual video topics relevant to the current year and recent events."
-        " Optimize for YouTube SEO with clear search intent. Return JSON only."
+        " Generate 5 high-performing video topics optimized for maximum views and engagement."
+        " Use proven viral patterns and SEO optimization. Return JSON only."
     )
 
     # Add seed topic constraint if provided (strong enforcement)
@@ -126,16 +144,14 @@ def openai_generate_topics(brand: str = "Many Sources Say", seed: str = "") -> L
     # Add a nonce to reduce repetition across calls
     nonce = f"{int(time.time())}-{random.randint(1000,9999)}"
 
-    user = (
-        "Produce an array of 5 topic objects. For each include:"
-        " title, angle (1 sentence), keywords (6-10), yt_title (<= 65 chars),"
-        " yt_description (2-3 sentences with primary keywords), yt_tags (10-20),"
-        " outline (5-7 bullets). Keep language clear and neutral."
-        f" Brand/context: {brand}."
-        f"{seed_instruction}"
-        f" IMPORTANT: Today is {today}. Create topics relevant to 2025 and current events, NOT outdated topics from 2023 or earlier."
-        f" Nonce: {nonce}. Generate fresh, non-repetitive topics across runs."
+    # Use enhanced topic prompt
+    user = get_enhanced_topic_prompt(brand, trending_topics, include_meta_content)
+    user += (
+        f"\n\n{seed_instruction}"
+        f"\nIMPORTANT: Today is {today}. Create topics relevant to 2025 and current events, NOT outdated topics from 2023 or earlier."
+        f"\nNonce: {nonce}. Generate fresh, non-repetitive topics across runs."
     )
+
     temperature = float(os.getenv("OPENAI_SEO_TEMPERATURE", "0.85"))
     completion = client.chat.completions.create(
         model=os.getenv("OPENAI_MODEL_SEO", "gpt-4o-mini"),
@@ -162,21 +178,47 @@ def openai_generate_topics(brand: str = "Many Sources Say", seed: str = "") -> L
             "yt_description": t.get("yt_description") or "",
             "yt_tags": t.get("yt_tags", []),
             "outline": t.get("outline", []),
+            "visual_cues": t.get("visual_cues", []),
+            "hook_options": t.get("hook_options", []),
         })
     return norm
 
 
 def openai_draft_from_topic(topic: Dict[str, Any]) -> Dict[str, Any]:
-    """Use the chosen topic to produce narration + overlays + metadata."""
+    """Use the chosen topic to produce narration + overlays + metadata with viral patterns."""
     from openai import OpenAI
 
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    system = "You write tight, factual narration for 90â€“150 seconds. Return JSON only."
+    system = "You are an expert YouTube scriptwriter who creates viral, engaging content. Return JSON only."
     user = (
-        "Create a concise script. Use the SEO metadata but do not fluff.\n"
-        "Return JSON with keys: narration (90-150s), overlays (6-10 lines), yt_title, yt_description, yt_tags.\n\n"
+        "Create a compelling 90-150 second script optimized for maximum views and engagement.\n\n"
+        "CRITICAL REQUIREMENTS:\n"
+        "1. HOOK (first 3-5 seconds): Use viral patterns:\n"
+        "   - 'I analyzed [number] [things] and discovered [shocking finding]...'\n"
+        "   - 'Most [people] don't know this about [topic]...'\n"
+        "   - 'After [research], I found [surprise]...'\n"
+        "   The hook must create curiosity gap.\n\n"
+        "2. STORY ARC: Problem → Insight → Revelation → Takeaway\n"
+        "3. ENGAGEMENT: Include moments that make viewers want to keep watching:\n"
+        "   - 'But here's where it gets interesting...'\n"
+        "   - 'Wait until you hear this part...'\n"
+        "   - 'The real secret is...'\n\n"
+        "4. CALL TO ACTION: End with SPECIFIC engagement request:\n"
+        "   - 'Drop a comment telling me [specific question]'\n"
+        "   - 'Like this video if you want more secrets about [topic]'\n"
+        "   - 'Subscribe if you want to see [next video idea]'\n\n"
+        "5. Use short punchy sentences (3-7 words) for impact, longer ones for context.\n\n"
+        "Return JSON with keys:\n"
+        "- narration: 90-150 second script with natural speech patterns\n"
+        "- overlays: 6-10 short text overlays (3-7 words each)\n"
+        "- yt_title: Optimized title (use provided title or enhance it)\n"
+        "- yt_description: SEO-rich description (first 2 sentences with keywords)\n"
+        "- yt_tags: Search-optimized tags\n"
+        "- engagement_cta: Specific call-to-action text\n\n"
         f"Topic: {topic.get('title')}\nAngle: {topic.get('angle')}\nKeywords: {', '.join(topic.get('keywords', []))}\n"
         f"Outline: {topic.get('outline')}\nPreferred Title: {topic.get('yt_title')}\n"
+        f"Hook Options: {topic.get('hook_options', [])}\n"
+        "Use one of the hook options or create a new one following the viral patterns above."
     )
     completion = client.chat.completions.create(
         model=os.getenv("OPENAI_MODEL_SCRIPT", "gpt-4o-mini"),
@@ -184,20 +226,27 @@ def openai_draft_from_topic(topic: Dict[str, Any]) -> Dict[str, Any]:
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
-        temperature=0.5,
+        temperature=0.6,
         response_format={"type": "json_object"},
     )
     data = json.loads(completion.choices[0].message.content)
     for k in ["narration", "overlays", "yt_title", "yt_description", "yt_tags"]:
         if k not in data:
             raise RuntimeError(f"Draft-from-topic missing '{k}'")
+    # Append engagement CTA to narration if not already included
+    narration = data["narration"]
+    cta = data.get("engagement_cta", "Subscribe for more insights!")
+    if cta and cta not in narration:
+        narration = f"{narration} {cta}"
+
     # Map keys to the shape used later
     mapped = {
-        "narration": data["narration"],
+        "narration": narration,
         "overlays": data["overlays"],
         "title": data.get("yt_title", topic.get("yt_title", topic.get("title"))),
         "description": data.get("yt_description", ""),
         "keywords": data.get("yt_tags", []),
+        "engagement_cta": cta,
     }
     return mapped
 
