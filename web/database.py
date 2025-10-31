@@ -74,6 +74,14 @@ def init_db():
         )
     ''')
 
+    # Performance: Add indexes for faster queries
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_sessions_session_id ON sessions(session_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_video_history_user_id ON video_history(user_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_video_history_created ON video_history(created_at)')
+    
     conn.commit()
     conn.close()
     print(f"[DATABASE] Initialized at {DB_PATH}")
@@ -223,6 +231,13 @@ def get_session(session_id):
 
 def delete_session(session_id):
     """Delete a session (logout)"""
+    # Performance: Invalidate cached session
+    try:
+        from web.cache import invalidate_user_session
+        invalidate_user_session(session_id)
+    except Exception:
+        pass  # Cache unavailable, continue with DB deletion
+    
     conn = get_db()
     cursor = conn.cursor()
 

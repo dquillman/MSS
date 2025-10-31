@@ -1,43 +1,45 @@
 """
-OpenAPI/Swagger documentation for MSS API
+API Documentation with Swagger/OpenAPI
 """
-from flasgger import Swagger, swag_from
-import os
+from flasgger import Swagger
 
 swagger_config = {
     "headers": [],
     "specs": [
         {
             "endpoint": 'apispec',
-            "route": '/api/apispec.json',
+            "route": '/apispec.json',
             "rule_filter": lambda rule: True,
             "model_filter": lambda tag: True,
         }
     ],
     "static_url_path": "/flasgger_static",
     "swagger_ui": True,
-    "specs_route": "/api/docs"
+    "specs_route": "/api-docs"
 }
 
 swagger_template = {
     "swagger": "2.0",
     "info": {
         "title": "MSS API",
-        "description": "Many Sources Say - Video Automation Platform API Documentation",
-        "version": "1.0.0",
+        "description": "Many Sources Say - Video Creation Platform API",
+        "version": "5.5.7",
         "contact": {
-            "name": "MSS Support",
             "email": "support@mss.example.com"
+        },
+        "license": {
+            "name": "Proprietary"
         }
     },
-    "basePath": "/api",
+    "host": "localhost:5000",
+    "basePath": "/",
     "schemes": ["http", "https"],
     "securityDefinitions": {
-        "sessionAuth": {
+        "session_cookie": {
             "type": "apiKey",
             "name": "session_id",
             "in": "cookie",
-            "description": "Session ID cookie for authentication"
+            "description": "Session cookie authentication"
         }
     },
     "tags": [
@@ -50,28 +52,25 @@ swagger_template = {
             "description": "Video creation and management"
         },
         {
-            "name": "Platforms",
-            "description": "Multi-platform publishing"
-        },
-        {
             "name": "Analytics",
             "description": "Video analytics and metrics"
         },
         {
-            "name": "Assets",
-            "description": "Avatars, logos, thumbnails"
+            "name": "Platforms",
+            "description": "Multi-platform publishing"
+        },
+        {
+            "name": "Trends",
+            "description": "Trending topics and content calendar"
         }
     ]
 }
 
 
 def init_swagger(app):
-    """Initialize Swagger documentation"""
+    """Initialize Swagger documentation for Flask app"""
     try:
-        swagger = Swagger(app, config=swagger_config, template=swagger_template)
-        return swagger
+        Swagger(app, config=swagger_config, template=swagger_template)
+        print("[SWAGGER] API documentation initialized at /api-docs")
     except Exception as e:
-        import logging
-        logging.warning(f"[DOCS] Swagger initialization failed: {e}")
-        return None
-
+        print(f"[SWAGGER] Failed to initialize: {e}")

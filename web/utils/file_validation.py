@@ -94,6 +94,19 @@ def validate_image_file(file, max_size=MAX_IMAGE_SIZE):
         if img.format not in ['PNG', 'JPEG', 'GIF', 'WEBP']:
             raise FileUploadError(f"Unsupported image format: {img.format}")
     except Exception as e:
+        # Security: Log file upload violation
+        try:
+            from web.utils.security_logging import log_file_upload_violation
+            from flask import request
+            from flask_limiter.util import get_remote_address
+            log_file_upload_violation(
+                file.filename or 'unknown',
+                f"Invalid image: {str(e)}",
+                get_remote_address()
+            )
+        except Exception:
+            pass  # Don't fail if logging fails
+        
         raise FileUploadError(f"File is not a valid image: {str(e)}")
     
     return {'valid': True, 'size': file_size, 'format': img.format}
