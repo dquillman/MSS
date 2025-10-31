@@ -74,6 +74,29 @@ jobs:
       - name: Health check
         run: |
           SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)')
-          sleep 10
-          curl -f "$SERVICE_URL/healthz" || exit 1
+          echo "Service URL: $SERVICE_URL"
+          echo "Waiting for service to be ready..."
+          sleep 30
+          
+          # Retry health check up to 3 times
+          MAX_RETRIES=3
+          RETRY_DELAY=10
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Health check attempt $i/$MAX_RETRIES"
+            if curl -f -s "$SERVICE_URL/healthz"; then
+              echo "✅ Health check passed!"
+              exit 0
+            else
+              echo "❌ Health check failed, waiting ${RETRY_DELAY}s before retry..."
+              if [ $i -lt $MAX_RETRIES ]; then
+                sleep $RETRY_DELAY
+              fi
+            fi
+          done
+          
+          echo "⚠️ Health check failed after $MAX_RETRIES attempts"
+          echo "Service URL was: $SERVICE_URL"
+          echo "Trying alternative endpoint: $SERVICE_URL/health"
+          curl -v "$SERVICE_URL/health" || true
+          exit 1
 
