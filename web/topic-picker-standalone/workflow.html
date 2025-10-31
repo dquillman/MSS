@@ -100,16 +100,38 @@
       margin-top: 12px;
     }
 
-    .info-banner {
-      background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(17, 24, 39, 0.5));
-      border: 1px solid #8b5cf6;
-      border-radius: 12px;
-      padding: 20px;
-      margin: 0 auto 20px;
-      max-width: 900px;
-      display: flex;
-      align-items: start;
-      gap: 16px;
+    @media (max-width: 768px) {
+      .workflow-container {
+        padding: 16px;
+      }
+      .workflow-step {
+        padding: 16px;
+      }
+      .step-title {
+        font-size: 18px;
+      }
+      .step-actions {
+        flex-direction: column;
+      }
+      .step-actions .btn {
+        width: 100%;
+      }
+      .quick-links-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 480px) {
+      .workflow-step {
+        padding: 12px;
+      }
+      .step-title {
+        font-size: 16px;
+      }
+      .step-number {
+        width: 28px;
+        height: 28px;
+        font-size: 14px;
+      }
     }
   </style>
 </head>

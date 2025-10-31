@@ -120,6 +120,14 @@ class MultiPlatformPublisher:
                 VALUES (?, ?, ?, ?, ?, ?)
             ''', (platform, duration, aspect, size, resolution, desc))
 
+        # Add thumbnail_path column if it doesn't exist (migration)
+        try:
+            c.execute("ALTER TABLE publishing_queue ADD COLUMN thumbnail_path TEXT")
+            print("[MULTIPLATFORM] Added thumbnail_path column to publishing_queue")
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
+
         conn.commit()
         conn.close()
 
@@ -212,15 +220,15 @@ class MultiPlatformPublisher:
 
     def queue_publication(self, user_email: str, video_filename: str, platforms: List[str],
                          title: str, description: str = '', tags: List[str] = None,
-                         scheduled_time: Optional[str] = None) -> int:
+                         scheduled_time: Optional[str] = None, thumbnail_path: Optional[str] = None) -> int:
         """Add video to publishing queue"""
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
 
         c.execute('''
             INSERT INTO publishing_queue
-            (user_email, video_filename, platforms, title, description, tags, scheduled_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (user_email, video_filename, platforms, title, description, tags, scheduled_time, thumbnail_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             user_email,
             video_filename,
@@ -228,7 +236,8 @@ class MultiPlatformPublisher:
             title,
             description,
             json.dumps(tags or []),
-            scheduled_time
+            scheduled_time,
+            thumbnail_path
         ))
 
         queue_id = c.lastrowid

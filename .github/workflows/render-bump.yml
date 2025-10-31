@@ -6,8 +6,6 @@ on:
     paths:
       - version.json
       - render.yaml
-      - Dockerfile
-      - n8n/workflows/**
       - web/topic-picker/**
       - scripts/**
 

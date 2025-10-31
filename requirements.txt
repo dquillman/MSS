@@ -6,9 +6,15 @@ google-api-python-client
 google-auth
 google-auth-oauthlib
 google-cloud-texttospeech
+google-cloud-storage>=2.10.0
+stripe>=7.0.0
 python-dotenv
 tenacity>=8.0.0
 Pillow>=10.0.0
 flask>=3.0.0
 flask-cors>=4.0.0
+flask-limiter>=3.0.0
+gunicorn>=21.2.0
 imageio-ffmpeg
+pydantic>=2.0.0
+bcrypt>=4.0.0

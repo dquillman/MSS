@@ -178,6 +178,77 @@
     .hidden {
       display: none;
     }
+
+    @media (max-width: 768px) {
+      .auth-container {
+        flex-direction: column;
+        padding: 20px;
+      }
+
+      .auth-card {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        padding: 24px 16px;
+      }
+
+      .auth-tabs {
+        gap: 12px;
+      }
+
+      .auth-tab {
+        padding: 10px 16px;
+        font-size: 14px;
+      }
+
+      .form-group {
+        margin-bottom: 16px;
+      }
+
+      .form-group label {
+        font-size: 14px;
+        margin-bottom: 6px;
+      }
+
+      .form-group input {
+        font-size: 16px; /* Prevents zoom on iOS */
+        padding: 12px;
+      }
+
+      .btn-primary {
+        padding: 14px;
+        font-size: 16px;
+      }
+
+      .form-footer {
+        font-size: 12px;
+      }
+
+      .error-message, .success-message {
+        font-size: 13px;
+        padding: 10px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .auth-container {
+        padding: 16px;
+      }
+
+      .auth-card {
+        padding: 20px 12px;
+      }
+
+      .auth-tabs {
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .auth-tab {
+        width: 100%;
+        padding: 12px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -206,7 +277,11 @@
           <label>Password</label>
           <input type="password" id="loginPassword" required autocomplete="current-password">
         </div>
-        <div style="text-align:right; margin-bottom:16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer;">
+            <input type="checkbox" id="loginRememberMe" style="width: 18px; height: 18px; cursor: pointer;">
+            <span>Remember me (30 days)</span>
+          </label>
           <a href="/forgot-password" style="font-size:14px; color:#3b82f6; text-decoration:none;">Forgot password?</a>
         </div>
         <button type="submit" class="btn btn-primary" id="loginBtn">Sign In</button>
@@ -223,8 +298,14 @@
           <input type="email" id="signupEmail" required autocomplete="email">
         </div>
         <div class="form-group">
-          <label>Password (min 6 characters)</label>
-          <input type="password" id="signupPassword" required autocomplete="new-password" minlength="6">
+          <label>Password (min 8 characters)</label>
+          <input type="password" id="signupPassword" required autocomplete="new-password" minlength="8">
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer;">
+            <input type="checkbox" id="signupRememberMe" style="width: 18px; height: 18px; cursor: pointer;">
+            <span>Remember me (30 days)</span>
+          </label>
         </div>
         <button type="submit" class="btn btn-primary" id="signupBtn">Create Account</button>
       </form>
@@ -263,9 +344,34 @@
     // Message functions
     function showError(message) {
       const errorEl = document.getElementById('errorMessage');
-      errorEl.textContent = message;
+      // Map technical errors to user-friendly messages
+      const friendlyMessages = {
+        'Rate limit exceeded': 'Too many login attempts. Please wait a minute and try again.',
+        'Invalid credentials': 'Invalid email or password. Please check and try again.',
+        'Invalid email or password': 'Invalid email or password. Please check your credentials and try again. If you forgot your password, use "Forgot password?" below.',
+        'Email already registered': 'This email is already registered. Please try logging in instead, or use a different email address.',
+        'already registered': 'This email is already registered. Please try logging in instead, or use a different email address.',
+        'Database error': 'We\'re experiencing technical difficulties. Please try again in a moment.',
+        'Network error': 'Connection problem. Please check your internet and try again.',
+        'Invalid input': 'Please check your input and try again.',
+        'Rate limit exceeded. Please try again later.': 'Too many attempts. Please wait a moment.'
+      };
+      
+      // Replace technical messages with friendly ones
+      let friendlyMessage = message;
+      for (const [tech, friendly] of Object.entries(friendlyMessages)) {
+        if (message.includes(tech)) {
+          friendlyMessage = friendly;
+          break;
+        }
+      }
+      
+      errorEl.textContent = friendlyMessage;
       errorEl.style.display = 'block';
       document.getElementById('successMessage').style.display = 'none';
+      
+      // Log technical details to console for debugging
+      console.error('Error details:', message);
     }
 
     function showSuccess(message) {
@@ -285,19 +391,33 @@
       e.preventDefault();
       clearMessages();
 
-      const email = document.getElementById('loginEmail').value;
+      const email = document.getElementById('loginEmail').value.trim();
       const password = document.getElementById('loginPassword').value;
+      const rememberMe = document.getElementById('loginRememberMe').checked;
       const btn = document.getElementById('loginBtn');
+
+      // Client-side validation
+      if (!email || !password) {
+        showError('Please fill in all required fields');
+        return;
+      }
+
+      if (!email.includes('@') || !email.includes('.')) {
+        showError('Please enter a valid email address');
+        return;
+      }
 
       btn.disabled = true;
       btn.textContent = 'Signing in...';
+      btn.style.opacity = '0.7';
+      btn.style.cursor = 'not-allowed';
 
       try {
         const res = await fetch(`${API_BASE}/api/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ email, password })
+          body: JSON.stringify({ email, password, remember_me: rememberMe })
         });
 
         const data = await res.json();
@@ -311,12 +431,18 @@
           }, 1000);
         } else {
           showError(data.error || 'Login failed');
+          // If it's a validation error, show helpful message
+          if (data.details) {
+            console.error('Validation details:', data.details);
+          }
         }
       } catch (error) {
         showError('Network error. Please try again.');
       } finally {
         btn.disabled = false;
         btn.textContent = 'Sign In';
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
       }
     });
 
@@ -325,20 +451,39 @@
       e.preventDefault();
       clearMessages();
 
-      const username = document.getElementById('signupUsername').value;
-      const email = document.getElementById('signupEmail').value;
+      const username = document.getElementById('signupUsername').value.trim();
+      const email = document.getElementById('signupEmail').value.trim();
       const password = document.getElementById('signupPassword').value;
+      const rememberMe = document.getElementById('signupRememberMe').checked;
       const btn = document.getElementById('signupBtn');
+
+      // Client-side validation
+      if (!email || !password) {
+        showError('Please fill in all required fields');
+        return;
+      }
+
+      if (!email.includes('@') || !email.includes('.')) {
+        showError('Please enter a valid email address');
+        return;
+      }
+
+      if (password.length < 8) {
+        showError('Password must be at least 8 characters');
+        return;
+      }
 
       btn.disabled = true;
       btn.textContent = 'Creating account...';
+      btn.style.opacity = '0.7';
+      btn.style.cursor = 'not-allowed';
 
       try {
         const res = await fetch(`${API_BASE}/api/signup`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ email, password, username })
+          body: JSON.stringify({ email, password, username, remember_me: rememberMe })
         });
 
         const data = await res.json();
@@ -352,12 +497,18 @@
           }, 1000);
         } else {
           showError(data.error || 'Signup failed');
+          // If it's a validation error, show helpful message
+          if (data.details) {
+            console.error('Validation details:', data.details);
+          }
         }
       } catch (error) {
         showError('Network error. Please try again.');
       } finally {
         btn.disabled = false;
         btn.textContent = 'Create Account';
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
       }
     });
 

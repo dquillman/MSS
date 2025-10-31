@@ -1,9 +1,0 @@
-{
-  "name": "Version Endpoint",
-  "nodes": [
-    {"parameters":{"httpMethod":"GET","path":"version","responseMode":"lastNode","options":{"responseData":"json"}},"id":"Webhook","name":"Webhook","type":"n8n-nodes-base.webhook","typeVersion":1,"position":[200,200]},
-    {"parameters":{"functionCode":"return [{ json: { app: $env.APP_VERSION || 'unknown', website: $env.WEBSITE_VERSION || 'unknown', updated_at: $env.VERSION_UPDATED_AT || '' } }];"},"id":"Build","name":"Build JSON","type":"n8n-nodes-base.function","typeVersion":2,"position":[420,200]}
-  ],
-  "connections": {"Webhook": {"main": [[{"node": "Build JSON", "type": "main", "index": 0}]]}}
-}
-

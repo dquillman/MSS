@@ -201,6 +201,77 @@
       margin-bottom: 16px;
       opacity: 0.5;
     }
+
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: scale(1.02);
+        opacity: 0.8;
+      }
+    }
+
+    /* Make it clearer that subtopic buttons are clickable */
+    .subtopic-btn {
+      position: relative;
+    }
+
+    .subtopic-btn::before {
+      content: "👉 ";
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .trend-card:hover .subtopic-btn::before {
+      opacity: 1;
+    }
+
+    @media (max-width: 768px) {
+      .calendar-grid {
+        grid-template-columns: 1fr;
+      }
+      .trend-card {
+        padding: 16px;
+      }
+      .card {
+        padding: 16px;
+      }
+      .card h1, .card h2 {
+        font-size: 24px;
+      }
+      .card > div[style*="display:flex"] {
+        flex-direction: column;
+        gap: 10px;
+      }
+      .btn {
+        width: 100%;
+        padding: 12px;
+        font-size: 14px;
+      }
+      .tab-nav {
+        flex-wrap: wrap;
+      }
+      .trend-stats {
+        flex-direction: column;
+        gap: 12px;
+      }
+    }
+    @media (max-width: 480px) {
+      .trend-card {
+        padding: 12px;
+      }
+      .card {
+        padding: 12px;
+      }
+      .card h1, .card h2 {
+        font-size: 20px;
+      }
+      .trend-topic {
+        font-size: 16px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -363,7 +434,7 @@
                 ` : ''}
                 ${subtopics.length > 0 ? `
                   <div style="margin-top:12px;">
-                    <div style="font-size:11px; color:#A8B3CF; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Top Subtopics (click to use as Hook)</div>
+                    <div style="font-size:11px; color:#c084fc; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; font-weight:700;">⚡ Click a Subtopic to Create Video:</div>
                     <div style="display:flex; flex-direction:column; gap:6px;">
                       ${subtopics.map(st => `
                         <button class="subtopic-btn" data-subtopic="${st.replace(/"/g, '&quot;')}"
@@ -411,7 +482,7 @@
             });
           });
 
-          // Trend card handlers - navigate with first subtopic as hook
+          // Trend card handlers - REQUIRE selecting a subtopic
           document.querySelectorAll('.trend-card').forEach(card => {
             card.addEventListener('click', function(e) {
               // Don't trigger if clicking on a subtopic button (they handle their own clicks)
@@ -420,33 +491,22 @@
               }
 
               const topic = this.getAttribute('data-topic');
-              const keywordsAttr = this.getAttribute('data-keywords');
               const subtopicsAttr = this.getAttribute('data-subtopics');
-
-              console.log('[TRENDS] Clicked trend card (not subtopic):', topic);
-              console.log('[TRENDS] Keywords attr:', keywordsAttr);
-              console.log('[TRENDS] Subtopics attr:', subtopicsAttr);
-
-              const keywords = JSON.parse(keywordsAttr || '[]');
               const subtopics = JSON.parse(subtopicsAttr || '[]');
 
-              console.log('[TRENDS] Parsed keywords:', keywords);
-              console.log('[TRENDS] Parsed subtopics:', subtopics);
-
-              // Build URL with all trend data
-              const params = new URLSearchParams();
-              params.append('topic', topic);
-              if (keywords.length > 0) {
-                params.append('keywords', keywords.join(', '));
-              }
-              // Use first subtopic as hook if available
+              // Show message to select a specific subtopic
               if (subtopics.length > 0) {
-                params.append('hook', subtopics[0]);
-              }
+                // Flash the subtopics section to draw attention
+                const subtopicSection = this.querySelector('.subtopic-btn')?.closest('div').parentElement;
+                if (subtopicSection) {
+                  subtopicSection.style.animation = 'pulse 0.5s ease-in-out 2';
+                }
 
-              const url = `studio.html?${params.toString()}`;
-              console.log('[TRENDS] Card click navigating to:', url);
-              window.location.href = url;
+                alert(`📌 Please select a specific subtopic/hook for "${topic}"\n\nClick one of the purple subtopic buttons below to create a focused video.`);
+              } else {
+                // No subtopics available - show error
+                alert(`⚠️ No subtopics available for "${topic}"\n\nThis trend needs subtopics to create a video.`);
+              }
             });
           });
         }, 100);

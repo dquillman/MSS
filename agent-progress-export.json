@@ -1,0 +1,14 @@
+[
+  {"agent": "1", "phase": "1", "task": "1"},
+  {"agent": "1", "phase": "1", "task": "2"},
+  {"agent": "1", "phase": "2", "task": "1"},
+  {"agent": "1", "phase": "2", "task": "2"},
+  {"agent": "1", "phase": "3", "task": "1"},
+  {"agent": "1", "phase": "3", "task": "2"},
+  {"agent": "3", "phase": "1", "task": "1"},
+  {"agent": "3", "phase": "1", "task": "2"},
+  {"agent": "3", "phase": "1", "task": "3"},
+  {"agent": "3", "phase": "1", "task": "4"},
+  {"agent": "3", "phase": "1", "task": "5"}
+]
+

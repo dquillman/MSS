@@ -1,7 +1,7 @@
 {
   "selectedVariation": 1,
   "template": "bold",
-  "logoUrl": "http://localhost:5000/logos/logo_1759975888.png",
+  "logoUrl": "http://127.0.0.1:5000/logos/logo_1759621216.png",
   "logoPosition": "bottom-left",
   "thumbnailPrompt": "Create a vibrant, eye-catching YouTube thumbnail for a video titled: {{title}}\n\nStyle: Bold, high-contrast, professional\nElements: Large readable text, dramatic visuals, bright colors\nEmotion: Exciting, curiosity-inducing, click-worthy\nFormat: 1280x720 pixels, 16:9 aspect ratio\n\nMake it stand out in search results and suggested videos.",
   "persistentText": "",

@@ -8,6 +8,33 @@
   <!-- Silence favicon requests by using a blank data URI -->
   <link rel="icon" href="data:,">
   <script src="version.js" defer></script>
+  <style>
+    @media (max-width: 768px) {
+      .card {
+        padding: 16px;
+      }
+      .card h1 {
+        font-size: 24px;
+      }
+      .card > div[style*="display:flex"] {
+        flex-direction: column;
+        gap: 10px;
+      }
+      .btn {
+        width: 100%;
+        padding: 12px;
+        font-size: 14px;
+      }
+    }
+    @media (max-width: 480px) {
+      .card {
+        padding: 12px;
+      }
+      .card h1 {
+        font-size: 20px;
+      }
+    }
+  </style>
 </head>
 <body>
   <div id="loadingBar" class="loading-bar"></div>
@@ -206,7 +233,7 @@ Keywords:
 {{Keywords}}
 
 YouTube Description:
-{{YouTube_Description}}`;
+`;
 
     const CONDENSED_TEMPLATE = `Analyze {{Title}} from the perspective of {{Angle}}. Discuss the key themes and insights related to {{Keywords}}, providing a comprehensive overview that educates and informs viewers.`;
 
@@ -422,15 +449,15 @@ YouTube Description:
           credentials: 'include'
         });
 
-        if (!res.ok || res.status === 401) {
-          // Not authenticated, redirect to auth page
+        if (!res.ok) {
+          // Request failed, redirect to auth page
           window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
           return;
         }
 
         const data = await res.json();
         if (!data.success) {
-          // Session invalid, redirect to auth
+          // Not authenticated or session invalid, redirect to auth
           window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
           return;
         }

@@ -1,0 +1,16 @@
+AUTH FAILED - Quick Fix:
+
+1. Go to GitHub: https://github.com/dquillman/MSS/settings/secrets/actions
+2. Find GCP_SA_KEY secret
+3. Delete it (click it, then delete)
+4. Get NEW JSON key:
+   - Google Cloud Console → Service Accounts
+   - mss-tts@mss-tts.iam.gserviceaccount.com
+   - KEYS tab → ADD KEY → Create new key → JSON
+5. Open JSON file → Copy ALL content (Ctrl+A, Ctrl+C)
+6. Create new GCP_SA_KEY secret → Paste entire JSON
+7. Save
+8. Run workflow again
+
+The JSON must be complete - from { to }
+

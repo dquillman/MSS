@@ -337,8 +337,14 @@ class PlatformAPIManager:
 
     def upload_to_youtube(self, user_email: str, video_path: str, title: str,
                          description: str = '', tags: list = None,
-                         category_id: str = '22', privacy: str = 'public') -> Dict[str, Any]:
-        """Upload video to YouTube"""
+                         category_id: str = '22', privacy: str = 'public',
+                         thumbnail_path: str = None, publish_at: str = None) -> Dict[str, Any]:
+        """Upload video to YouTube with optional thumbnail and scheduled publishing
+
+        Args:
+            publish_at: ISO 8601 datetime string (e.g., '2024-01-15T10:00:00Z') for scheduled publishing.
+                       If provided, video will be set to 'private' and scheduled to publish at this time.
+        """
         if not GOOGLE_AVAILABLE:
             return {'success': False, 'error': 'YouTube API not available'}
 
@@ -378,6 +384,13 @@ class PlatformAPIManager:
                 }
             }
 
+            # Add scheduled publishing if publish_at is provided
+            if publish_at:
+                # For scheduled publishing, video must be private initially
+                body['status']['privacyStatus'] = 'private'
+                body['status']['publishAt'] = publish_at
+                print(f"[YOUTUBE] Scheduling video to publish at: {publish_at}")
+
             # Upload video
             media = MediaFileUpload(video_path, chunksize=-1, resumable=True)
 
@@ -397,6 +410,19 @@ class PlatformAPIManager:
             video_url = f"https://www.youtube.com/watch?v={video_id}"
 
             print(f"[YOUTUBE] Upload successful: {video_url}")
+
+            # Upload thumbnail if provided
+            if thumbnail_path and os.path.exists(thumbnail_path):
+                try:
+                    print(f"[YOUTUBE] Uploading thumbnail: {thumbnail_path}")
+                    youtube.thumbnails().set(
+                        videoId=video_id,
+                        media_body=MediaFileUpload(thumbnail_path)
+                    ).execute()
+                    print("[YOUTUBE] Thumbnail uploaded successfully!")
+                except Exception as e:
+                    print(f"[YOUTUBE] Thumbnail upload failed: {e}")
+                    # Don't fail the entire upload if thumbnail fails
 
             return {
                 'success': True,
@@ -1129,3 +1155,96 @@ class PlatformAPIManager:
         except Exception as e:
             print(f"[YOUTUBE] Error storing channel: {e}")
             return channel_info  # Return info even if storage fails
+
+    # ==================== GOOGLE CALENDAR OAUTH ====================
+
+    def get_google_calendar_auth_url(self, user_email: str, redirect_uri: str) -> Optional[str]:
+        """Generate Google Calendar OAuth URL (reuses YouTube client secrets)"""
+        if not GOOGLE_AVAILABLE:
+            return None
+
+        # Use same client secrets as YouTube (already has calendar scope)
+        client_secrets_file = self.credentials_dir / "youtube_client_secrets.json"
+        if not client_secrets_file.exists():
+            print("[GOOGLE-CAL] Client secrets file not found. YouTube connection required.")
+            return None
+
+        try:
+            from google_auth_oauthlib.flow import Flow
+
+            flow = Flow.from_client_secrets_file(
+                str(client_secrets_file),
+                scopes=['https://www.googleapis.com/auth/calendar.events'],
+                redirect_uri=redirect_uri
+            )
+
+            auth_url, state = flow.authorization_url(
+                access_type='offline',
+                include_granted_scopes='true',
+                prompt='consent'
+            )
+
+            self._store_oauth_state(user_email, 'google_calendar', state)
+            print(f"[GOOGLE-CAL] Generated auth URL for user: {user_email}")
+
+            return auth_url
+
+        except Exception as e:
+            print(f"[GOOGLE-CAL] Error generating auth URL: {e}")
+            return None
+
+    def handle_google_calendar_callback(self, user_email: str, code: str, state: str, redirect_uri: str) -> bool:
+        """Handle Google Calendar OAuth callback"""
+        print(f"[GOOGLE-CAL] Callback handler called for user: {user_email}")
+
+        if not GOOGLE_AVAILABLE:
+            return False
+
+        # Verify state
+        stored_state = self._get_oauth_state(user_email, 'google_calendar')
+        if not stored_state or stored_state != state:
+            print(f"[GOOGLE-CAL] State verification failed")
+            return False
+
+        client_secrets_file = self.credentials_dir / "youtube_client_secrets.json"
+
+        try:
+            from google_auth_oauthlib.flow import Flow
+
+            # Use all scopes since Google may return all previously granted scopes
+            flow = Flow.from_client_secrets_file(
+                str(client_secrets_file),
+                scopes=[
+                    'https://www.googleapis.com/auth/calendar.events',
+                    'https://www.googleapis.com/auth/youtube.upload',
+                    'https://www.googleapis.com/auth/youtube',
+                    'https://www.googleapis.com/auth/youtube.force-ssl'
+                ],
+                redirect_uri=redirect_uri
+            )
+
+            flow.fetch_token(code=code)
+            credentials = flow.credentials
+
+            # Store credentials in platform_connections
+            self._store_platform_credentials(
+                user_email,
+                'google_calendar',
+                {
+                    'token': credentials.token,
+                    'refresh_token': credentials.refresh_token,
+                    'token_uri': credentials.token_uri,
+                    'client_id': credentials.client_id,
+                    'client_secret': credentials.client_secret,
+                    'scopes': credentials.scopes
+                }
+            )
+
+            print(f"[GOOGLE-CAL] Successfully stored credentials for user: {user_email}")
+            return True
+
+        except Exception as e:
+            print(f"[GOOGLE-CAL] Error handling callback: {e}")
+            import traceback
+            traceback.print_exc()
+            return False

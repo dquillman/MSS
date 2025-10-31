@@ -1,0 +1,24 @@
+FIX ARTIFACT REGISTRY PERMISSION:
+
+The service account needs "Artifact Registry Writer" role.
+
+DO THIS:
+
+1. Go to: https://console.cloud.google.com/iam-admin/iam?project=mss-tts
+
+2. Find: mss-tts@mss-tts.iam.gserviceaccount.com
+
+3. Click the pencil icon (edit) next to it
+
+4. Click "+ ADD ANOTHER ROLE"
+
+5. Select: "Artifact Registry Writer"
+
+6. Click "SAVE"
+
+7. Wait 30 seconds for permissions to propagate
+
+8. Re-run the GitHub Actions workflow
+
+That's it! The service account will then have permission to push Docker images.
+

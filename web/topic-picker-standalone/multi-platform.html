@@ -230,6 +230,44 @@
       border-color: #8b5cf6;
       background: rgba(139, 92, 246, 0.1);
     }
+
+    @media (max-width: 768px) {
+      .platform-grid {
+        grid-template-columns: 1fr;
+      }
+      .platform-card {
+        padding: 16px;
+      }
+      .card {
+        padding: 16px;
+      }
+      .card h1 {
+        font-size: 24px;
+      }
+      .card > div[style*="display:flex"] {
+        flex-direction: column;
+        gap: 10px;
+      }
+      .btn {
+        width: 100%;
+        padding: 12px;
+        font-size: 14px;
+      }
+      .form-section {
+        padding: 16px;
+      }
+    }
+    @media (max-width: 480px) {
+      .platform-card {
+        padding: 12px;
+      }
+      .card {
+        padding: 12px;
+      }
+      .card h1 {
+        font-size: 20px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -273,11 +311,12 @@
         <h3 style="margin-top:0;">1. Select Video</h3>
         <div class="form-group">
           <label>Video File</label>
-          <input type="file" id="videoFile" accept="video/*">
-          <div class="hint">Or select from recent videos below</div>
+          <input type="file" id="videoFile" accept="video/*" onchange="handleVideoUpload()">
+          <div class="hint">Upload a video file - it will appear in the list below</div>
+          <div id="uploadStatus" style="margin-top:8px;"></div>
         </div>
         <div id="recentVideos">
-          <div style="text-align:center; padding:20px; color:#A8B3CF;">Recent videos will appear here</div>
+          <div style="text-align:center; padding:20px; color:#A8B3CF;">Loading videos...</div>
         </div>
       </div>
 
@@ -291,7 +330,10 @@
 
       <!-- Step 3: Video Details -->
       <div class="form-section">
-        <h3 style="margin-top:0;">3. Video Details</h3>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="margin:0;">3. Video Details</h3>
+          <button class="btn" onclick="autoFillVideoDetails()" type="button" style="background:#22c55e; border-color:#22c55e; padding:8px 16px;">✨ Auto-Fill Details</button>
+        </div>
         <div class="form-group">
           <label>Title</label>
           <input type="text" id="publishTitle" placeholder="Enter video title" maxlength="100">
@@ -305,6 +347,20 @@
           <label>Tags (comma-separated)</label>
           <input type="text" id="publishTags" placeholder="e.g., ai, automation, technology">
         </div>
+        <div class="form-group">
+          <label>Schedule Publishing (Optional)</label>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input type="datetime-local" id="scheduledTime" style="flex:1;">
+            <button class="btn" onclick="setOptimalTime()" type="button" style="background:#22c55e; border-color:#22c55e; padding:8px 12px; font-size:12px; white-space:nowrap;">📅 Tomorrow 10 AM</button>
+          </div>
+          <div class="hint">Leave empty to publish immediately. For best engagement, research suggests 10 AM on weekdays.</div>
+        </div>
+      </div>
+
+      <!-- Thumbnail Info -->
+      <div id="thumbnailInfo" style="padding:12px; background:rgba(139,92,246,0.1); border:1px solid #8b5cf6; border-radius:8px; margin-bottom:20px; display:none;">
+        <div style="font-size:14px; color:#a78bfa; font-weight:600; margin-bottom:4px;">📷 Thumbnail Set</div>
+        <div style="font-size:12px; color:#A8B3CF;">A custom thumbnail will be uploaded with this video</div>
       </div>
 
       <!-- Action Buttons -->
@@ -347,6 +403,8 @@
     const API_BASE = window.location.origin;
     let selectedVideo = null;
     let selectedPlatforms = [];
+    let uploadedThumbnailPath = null;
+    let videoThumbnails = {}; // Store thumbnails for each video filename
 
     // Tab switching
     function switchTab(tabName) {
@@ -506,14 +564,22 @@
       const title = document.getElementById('publishTitle').value.trim();
       const description = document.getElementById('publishDescription').value.trim();
       const tags = document.getElementById('publishTags').value.split(',').map(t => t.trim()).filter(t => t);
+      const scheduledTime = document.getElementById('scheduledTime').value;
 
       if (!title) {
         status.innerHTML = '<span style="color:#ef4444;">Please enter a title</span>';
         return;
       }
 
+      // Convert scheduled time to ISO format if provided
+      let scheduledTimeISO = null;
+      if (scheduledTime) {
+        const localDate = new Date(scheduledTime);
+        scheduledTimeISO = localDate.toISOString();
+      }
+
       // Mock video filename - in production, this would be the uploaded/selected video
-      const videoFilename = `video_${Date.now()}.mp4`;
+      const videoFilename = selectedVideo || `video_${Date.now()}.mp4`;
 
       try {
         const res = await fetch(`${API_BASE}/api/platforms/queue`, {
@@ -525,7 +591,9 @@
             platforms: selectedPlatforms,
             title: title,
             description: description,
-            tags: tags
+            tags: tags,
+            thumbnail_path: uploadedThumbnailPath,
+            scheduled_time: scheduledTimeISO
           })
         });
 
@@ -543,13 +611,338 @@
       }
     }
 
+    // Generate smart SEO tags based on video title
+    function generateSEOTags(title) {
+      const titleLower = title.toLowerCase();
+      const year = new Date().getFullYear();
+
+      // Category detection with relevant tags
+      const categoryTags = {
+        crypto: ['cryptocurrency', 'bitcoin', 'ethereum', 'blockchain', 'crypto investing', 'crypto news', 'defi'],
+        ai: ['artificial intelligence', 'machine learning', 'chatgpt', 'ai tools', 'automation', 'tech'],
+        politics: ['politics', 'election', 'government', 'policy', 'news', 'current events'],
+        business: ['business', 'entrepreneur', 'startup', 'marketing', 'finance', 'money'],
+        tech: ['technology', 'software', 'programming', 'coding', 'tech news', 'innovation'],
+        health: ['health', 'fitness', 'wellness', 'nutrition', 'exercise', 'healthy living'],
+        finance: ['finance', 'investing', 'stocks', 'trading', 'money', 'wealth'],
+        education: ['education', 'learning', 'study', 'school', 'university', 'online course'],
+        travel: ['travel', 'vacation', 'tourism', 'adventure', 'destinations', 'travel tips'],
+        gaming: ['gaming', 'video games', 'gameplay', 'esports', 'game review'],
+        food: ['cooking', 'recipe', 'food', 'cuisine', 'baking', 'chef']
+      };
+
+      // Detect category
+      let detectedCategory = [];
+      for (const [category, keywords] of Object.entries(categoryTags)) {
+        if (keywords.some(keyword => titleLower.includes(keyword))) {
+          detectedCategory = keywords.slice(0, 3);
+          break;
+        }
+      }
+
+      // Extract keywords from title
+      const commonWords = ['the', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or', 'but', 'how', 'what', 'why', 'when', 'where'];
+      const titleKeywords = title.toLowerCase()
+        .split(' ')
+        .filter(word => word.length > 2 && !commonWords.includes(word))
+        .slice(0, 5);
+
+      // Universal SEO power tags
+      const powerTags = [
+        'tutorial',
+        'guide',
+        'explained',
+        'how to',
+        year.toString(),
+        'tips',
+        'complete guide',
+        'beginner friendly'
+      ];
+
+      // Combine all tags
+      const allTags = [
+        ...titleKeywords,
+        ...detectedCategory,
+        ...powerTags.slice(0, 6)
+      ];
+
+      // Remove duplicates and limit to 15 tags (YouTube recommendation)
+      const uniqueTags = [...new Set(allTags)].slice(0, 15);
+
+      return uniqueTags.join(', ');
+    }
+
+    // Auto-fill video details from selected video
+    async function autoFillVideoDetails() {
+      if (!selectedVideo) {
+        alert('Please select a video first!');
+        return;
+      }
+
+      const titleInput = document.getElementById('publishTitle');
+      const descInput = document.getElementById('publishDescription');
+      const tagsInput = document.getElementById('publishTags');
+
+      let title = '';
+      let description = '';
+      let tags = '';
+      let foundInDatabase = false;
+      let bestMatch = null; // Store best trend match for use in description
+      let videoTopicData = null; // Store topic data from video (includes hook/subtopic)
+
+      // Step 1: Try to get metadata from video database
+      try {
+        const res = await fetch(`${API_BASE}/api/video/metadata/${encodeURIComponent(selectedVideo)}`, {
+          credentials: 'include'
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.metadata) {
+            title = data.metadata.title || '';
+            description = data.metadata.description || '';
+            tags = data.metadata.tags || '';
+            videoTopicData = data.metadata.topic_data;
+            foundInDatabase = true;
+            console.log('[AUTO-FILL] Video found in database');
+            if (videoTopicData) {
+              console.log('[AUTO-FILL] Topic data:', videoTopicData);
+            }
+          }
+        }
+      } catch (error) {
+        console.log('No video metadata found');
+      }
+
+      // Step 2: If no title yet, generate from filename
+      if (!title) {
+        const filename = selectedVideo.replace(/\.[^/.]+$/, '');
+        title = filename
+          .replace(/_\d{10,}$/g, '')
+          .replace(/_final_with_intro_outro/g, '')
+          .replace(/_with_avatar/g, '')
+          .replace(/_video_with_logo/g, '')
+          .replace(/uploaded_video/g, '')
+          .replace(/_/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        title = title.split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ')
+          .substring(0, 100);
+      }
+
+      // Step 3: Try to get keywords from video topic data or trending topics
+      if (!tags) {
+        // Priority 1: Use keywords from video's topic data
+        if (videoTopicData && (videoTopicData.keywords || videoTopicData.yt_tags)) {
+          const videoKeywords = videoTopicData.keywords || videoTopicData.yt_tags || [];
+          if (videoKeywords.length > 0) {
+            tags = Array.isArray(videoKeywords) ? videoKeywords.join(', ') : videoKeywords;
+            console.log('✓ Tags from video topic data:', videoKeywords.slice(0, 5).join(', '));
+          }
+        }
+
+        // Priority 2: If no video keywords, try to match with trending topics
+        if (!tags) {
+          try {
+            const trendsRes = await fetch(`${API_BASE}/api/trends`, {
+              credentials: 'include'
+            });
+
+            if (trendsRes.ok) {
+              const trendsData = await trendsRes.json();
+              if (trendsData.success && trendsData.trends) {
+                // Try to match title to a trend topic (case-insensitive, flexible matching)
+                const normalizeText = (text) => text.toLowerCase().trim().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ');
+                const normalizedTitle = normalizeText(title);
+
+                let bestMatchScore = 0;
+
+                // Find best matching trend
+                for (const trend of trendsData.trends) {
+                  const normalizedTopic = normalizeText(trend.topic);
+
+                  // Calculate match score
+                  let score = 0;
+
+                  // Exact match
+                  if (normalizedTitle === normalizedTopic) {
+                    score = 100;
+                  }
+                  // Contains full topic
+                  else if (normalizedTitle.includes(normalizedTopic) || normalizedTopic.includes(normalizedTitle)) {
+                    score = 80;
+                  }
+                  // Word overlap
+                  else {
+                    const titleWords = normalizedTitle.split(' ').filter(w => w.length > 3);
+                    const topicWords = normalizedTopic.split(' ').filter(w => w.length > 3);
+                    const commonWords = titleWords.filter(w => topicWords.includes(w)).length;
+                    const totalWords = Math.max(titleWords.length, topicWords.length);
+                    if (totalWords > 0) {
+                      score = (commonWords / totalWords) * 60;
+                    }
+                  }
+
+                  if (score > bestMatchScore) {
+                    bestMatchScore = score;
+                    bestMatch = trend;
+                  }
+                }
+
+                // If we found a good match (>40% confidence), use its keywords
+                if (bestMatch && bestMatchScore > 40) {
+                  const keywords = bestMatch.keywords || [];
+                  if (keywords.length > 0) {
+                    tags = keywords.join(', ');
+                    console.log(`✓ Tags from trending topic: "${bestMatch.topic}" (${Math.round(bestMatchScore)}% match)`);
+                    console.log(`✓ Keywords: ${keywords.slice(0, 5).join(', ')}...`);
+                  }
+                } else {
+                  console.log('No matching trend found, will generate generic tags');
+                }
+              }
+            }
+          } catch (error) {
+            console.log('Could not fetch trends, will generate generic tags');
+          }
+        }
+      }
+
+      // Step 4: Generate AI-powered SEO description if still empty
+      if (!description) {
+        // Extract hook and keywords from video topic data or trend match
+        let hook = '';
+        let keywords = [];
+        let mainTopic = '';
+
+        if (videoTopicData) {
+          hook = videoTopicData.hook || videoTopicData.angle || '';
+          keywords = videoTopicData.keywords || videoTopicData.yt_tags || [];
+          mainTopic = videoTopicData.title || videoTopicData.yt_title || '';
+        } else if (bestMatch) {
+          // Fallback to trend match if no video topic data
+          keywords = bestMatch.keywords || [];
+          mainTopic = bestMatch.topic || '';
+        }
+
+        // If we have a main topic but no hook, check if the title is actually the subtopic
+        if (!hook && mainTopic && title.toLowerCase() !== mainTopic.toLowerCase()) {
+          hook = title;
+          console.log(`[AUTO-FILL] Using video title as hook: "${hook}"`);
+        }
+
+        // Generate AI description using ChatGPT
+        try {
+          console.log('[AUTO-FILL] Generating AI description...');
+          const descRes = await fetch(`${API_BASE}/api/generate-description`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: title,
+              hook: hook,
+              keywords: Array.isArray(keywords) ? keywords : (keywords ? keywords.split(',').map(k => k.trim()) : []),
+              main_topic: mainTopic
+            })
+          });
+
+          if (descRes.ok) {
+            const descData = await descRes.json();
+            if (descData.success && descData.description) {
+              description = descData.description;
+              console.log('[AUTO-FILL] ✓ AI description generated!');
+            } else {
+              throw new Error('AI generation failed');
+            }
+          } else {
+            throw new Error('API request failed');
+          }
+        } catch (error) {
+          console.log('[AUTO-FILL] AI generation failed, using fallback template');
+          // Fallback to simple template if AI fails
+          const year = new Date().getFullYear();
+          description = `${title}${hook ? ': ' + hook : ''}
+
+${hook ? `Discover everything you need to know about ${hook.toLowerCase()}.` : `In this video, we break down everything about ${title.toLowerCase()}.`}
+
+🎯 WHAT'S COVERED:
+✓ Complete overview and latest insights
+✓ Key analysis and perspectives
+✓ What you need to know
+✓ Future implications
+
+⏰ TIMESTAMPS:
+0:00 - Introduction
+0:30 - Main content
+[Add your timestamps]
+
+📌 KEY TAKEAWAYS:
+Stay informed with comprehensive coverage of ${title.toLowerCase()}.
+
+🔔 SUBSCRIBE | 👍 LIKE | 💬 COMMENT | 📢 SHARE
+
+#${title.replace(/\s+/g, '')} ${hook ? '#' + hook.replace(/\s+/g, '') : ''} #${year}`;
+        }
+      }
+
+      // Step 5: Generate smart SEO tags if still empty
+      if (!tags) {
+        tags = generateSEOTags(title);
+      }
+
+      // Fill all fields
+      titleInput.value = title;
+      descInput.value = description;
+      tagsInput.value = tags;
+
+      // Show appropriate success message
+      let successMsg = '';
+      if (videoTopicData && videoTopicData.hook) {
+        successMsg = `✨ Auto-filled with AI-generated content!\n\nTopic: "${title}"\nSubtopic/Hook: "${videoTopicData.hook}"\n\n✅ Using original trend keywords\n✅ AI-generated SEO description\n\nReview and customize as needed.`;
+      } else if (foundInDatabase) {
+        successMsg = '✓ Auto-filled from video database with AI-enhanced description!';
+      } else if (bestMatch) {
+        successMsg = `✨ Auto-filled with AI-generated content!\n\nMatched trend: "${bestMatch.topic}"\n\n✅ Using real trend keywords\n✅ AI-generated SEO description\n\nReview and customize as needed.`;
+      } else {
+        successMsg = '✨ Auto-filled with AI-generated SEO content!\n\nNo matching trend found, using smart keyword generation.\n\nReview and customize as needed.';
+      }
+      alert(successMsg);
+    }
+
+    // Set optimal publishing time (Tomorrow at 10 AM)
+    function setOptimalTime() {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(10, 0, 0, 0); // 10:00 AM
+
+      // Format for datetime-local input: YYYY-MM-DDTHH:MM
+      const year = tomorrow.getFullYear();
+      const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+      const day = String(tomorrow.getDate()).padStart(2, '0');
+      const hours = String(tomorrow.getHours()).padStart(2, '0');
+      const minutes = String(tomorrow.getMinutes()).padStart(2, '0');
+
+      const datetimeLocal = `${year}-${month}-${day}T${hours}:${minutes}`;
+      document.getElementById('scheduledTime').value = datetimeLocal;
+    }
+
     function clearForm() {
       document.getElementById('publishTitle').value = '';
       document.getElementById('publishDescription').value = '';
       document.getElementById('publishTags').value = '';
+      document.getElementById('scheduledTime').value = '';
       selectedPlatforms = [];
       document.querySelectorAll('.platform-checkbox input').forEach(cb => cb.checked = false);
       document.getElementById('publishStatus').innerHTML = '';
+      document.getElementById('thumbnailInfo').style.display = 'none';
+
+      // Clear video selection
+      selectedVideo = null;
+      uploadedThumbnailPath = null;
+      document.querySelectorAll('.video-select').forEach(el => el.classList.remove('selected'));
     }
 
     // Load queue
@@ -585,6 +978,17 @@
           const hoursSince = Math.floor((now - createdDate) / (1000 * 60 * 60));
           const ageDisplay = hoursSince < 24 ? `${hoursSince}h ago` : `${Math.floor(hoursSince / 24)}d ago`;
 
+          // Show scheduled time if present
+          let scheduledDisplay = '';
+          if (item.scheduled_time) {
+            const scheduledDate = new Date(item.scheduled_time);
+            scheduledDisplay = `
+              <div style="margin-top:8px; padding:8px; background:rgba(34,197,94,0.1); border:1px solid #22c55e; border-radius:6px; font-size:12px; color:#22c55e;">
+                📅 Scheduled: ${scheduledDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </div>
+            `;
+          }
+
           return `
             <div class="queue-item ${item.status}">
               <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:12px; gap:12px;">
@@ -603,6 +1007,7 @@
               <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
                 ${platforms.map(p => `<span style="padding:4px 10px; background:rgba(139,92,246,0.2); border-radius:12px; font-size:11px; color:#a78bfa;">${formatPlatformName(p)}</span>`).join('')}
               </div>
+              ${scheduledDisplay}
               ${item.error_message ? `<div style="margin-top:12px; padding:12px; background:rgba(239,68,68,0.1); border:1px solid #ef4444; border-radius:6px; color:#ef4444; font-size:12px;">${item.error_message}</div>` : ''}
             </div>
           `;
@@ -768,6 +1173,96 @@
       }
     }
 
+    // Handle video file upload
+    async function handleVideoUpload() {
+      const fileInput = document.getElementById('videoFile');
+      const statusDiv = document.getElementById('uploadStatus');
+      const file = fileInput.files[0];
+
+      if (!file) return;
+
+      // Validate file type
+      const allowedTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska'];
+      if (!allowedTypes.includes(file.type) && !file.name.match(/\.(mp4|mov|avi|mkv)$/i)) {
+        statusDiv.innerHTML = '<span style="color:#ef4444;">Please select a valid video file (MP4, MOV, AVI, MKV)</span>';
+        fileInput.value = '';
+        return;
+      }
+
+      statusDiv.innerHTML = '<span style="color:#3b82f6;">⏳ Uploading video...</span>';
+
+      try {
+        const formData = new FormData();
+        formData.append('video', file);
+
+        const res = await fetch(`${API_BASE}/api/upload/video`, {
+          method: 'POST',
+          credentials: 'include',
+          body: formData
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          statusDiv.innerHTML = '<span style="color:#22c55e;">✓ Video uploaded successfully!</span>';
+          setTimeout(() => { statusDiv.innerHTML = ''; }, 3000);
+
+          // Clear the file input
+          fileInput.value = '';
+
+          // Reload the video list
+          await loadRecentVideos();
+
+          // Auto-select the uploaded video
+          if (data.video_path) {
+            setTimeout(() => {
+              const videoTitle = file.name.replace(/\.[^/.]+$/, '');
+              selectVideo(data.video_path, videoTitle);
+            }, 500);
+          }
+        } else {
+          throw new Error(data.error || 'Upload failed');
+        }
+      } catch (error) {
+        console.error('Error uploading video:', error);
+        statusDiv.innerHTML = `<span style="color:#ef4444;">Upload failed: ${error.message}</span>`;
+      }
+    }
+
+    // Delete video from list
+    async function deleteVideo(videoFilename) {
+      if (!confirm(`Delete "${videoFilename}"?\n\nThe video will be moved to trash.`)) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/video/delete/${encodeURIComponent(videoFilename)}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          // Remove from thumbnail storage
+          delete videoThumbnails[videoFilename];
+
+          // Clear selection if this was the selected video
+          if (selectedVideo === videoFilename) {
+            selectedVideo = null;
+            uploadedThumbnailPath = null;
+            document.getElementById('thumbnailInfo').style.display = 'none';
+          }
+
+          // Reload the video list
+          await loadRecentVideos();
+        } else {
+          alert('Failed to delete video: ' + (data.error || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Error deleting video:', error);
+        alert('Error deleting video: ' + error.message);
+      }
+    }
+
     // Load recent videos
     async function loadRecentVideos() {
       const container = document.getElementById('recentVideos');
@@ -812,28 +1307,26 @@
           videoTitle = videoTitle.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
           return `
-            <div class="video-select" data-filename="${video.path}" data-title="${videoTitle.replace(/"/g, '&quot;')}" style="cursor:pointer;">
+            <div class="video-select" data-filename="${video.path}" data-title="${videoTitle.replace(/"/g, '&quot;')}">
               <div style="display:flex; gap:12px; align-items:center;">
-                <video src="${API_BASE}/out/${video.path}" style="width:120px; height:68px; object-fit:cover; border-radius:6px; background:#000;"></video>
-                <div style="flex:1;">
+                <video src="${API_BASE}/out/${video.path}" style="width:120px; height:68px; object-fit:cover; border-radius:6px; background:#000;" onclick="event.stopPropagation(); selectVideo('${video.path}', '${videoTitle.replace(/'/g, "\\'")}');"></video>
+                <div style="flex:1;" onclick="selectVideo('${video.path}', '${videoTitle.replace(/'/g, "\\'")}');">
                   <div style="font-weight:600; margin-bottom:4px;">${videoTitle}</div>
                   <div style="font-size:12px; color:#A8B3CF;">${date} • ${sizeMB} MB</div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+                  <input type="file" id="thumb_${video.path.replace(/[^a-zA-Z0-9]/g, '_')}" accept="image/*" style="display:none;" onchange="handleVideoThumbnail('${video.path}', this)">
+                  <div id="thumb_buttons_${video.path.replace(/[^a-zA-Z0-9]/g, '_')}" style="display:flex; gap:4px;">
+                    <button class="btn" onclick="event.stopPropagation(); document.getElementById('thumb_${video.path.replace(/[^a-zA-Z0-9]/g, '_')}').click();" style="background:#8b5cf6; border-color:#8b5cf6; padding:4px 12px; font-size:12px; white-space:nowrap;">📷 Add Thumbnail</button>
+                    <button class="btn" onclick="event.stopPropagation(); deleteVideo('${video.path}');" style="background:#ef4444; border-color:#ef4444; padding:4px 8px; font-size:12px;">🗑️</button>
+                  </div>
+                  <div id="thumb_preview_${video.path.replace(/[^a-zA-Z0-9]/g, '_')}" style="font-size:11px; color:#22c55e;"></div>
                 </div>
               </div>
             </div>
           `;
         }).join('');
 
-        // Add click event listeners to video cards
-        setTimeout(() => {
-          document.querySelectorAll('.video-select').forEach(card => {
-            card.addEventListener('click', function() {
-              const filename = this.getAttribute('data-filename');
-              const title = this.getAttribute('data-title');
-              selectVideo(filename, title);
-            });
-          });
-        }, 100);
 
       } catch (error) {
         console.error('Error loading videos:', error);
@@ -843,6 +1336,17 @@
 
     async function selectVideo(filename, title) {
       selectedVideo = filename;
+
+      // Set the thumbnail path if this video has one
+      uploadedThumbnailPath = videoThumbnails[filename] || null;
+
+      // Show/hide thumbnail info
+      const thumbnailInfo = document.getElementById('thumbnailInfo');
+      if (uploadedThumbnailPath) {
+        thumbnailInfo.style.display = 'block';
+      } else {
+        thumbnailInfo.style.display = 'none';
+      }
 
       // Update visual selection
       document.querySelectorAll('.video-select').forEach(el => {
@@ -888,6 +1392,139 @@
 
       status.innerHTML = `<span style="color:#f59e0b;">⚠ Selected: ${filename} (no metadata found, fields cleared)</span>`;
       setTimeout(() => { status.innerHTML = ''; }, 3000);
+    }
+
+    // Handle thumbnail upload for a specific video
+    async function handleVideoThumbnail(videoFilename, inputElement) {
+      const file = inputElement.files[0];
+      if (!file) return;
+
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        inputElement.value = '';
+        return;
+      }
+
+      const previewId = 'thumb_preview_' + videoFilename.replace(/[^a-zA-Z0-9]/g, '_');
+      const previewDiv = document.getElementById(previewId);
+
+      previewDiv.innerHTML = '<span style="color:#f59e0b;">Uploading...</span>';
+
+      // Upload thumbnail to server
+      try {
+        const formData = new FormData();
+        formData.append('thumbnail', file);
+
+        const res = await fetch(`${API_BASE}/api/upload/thumbnail`, {
+          method: 'POST',
+          credentials: 'include',
+          body: formData
+        });
+
+        const data = await res.json();
+
+        if (data.success && data.thumbnail_path) {
+          // Store thumbnail path for this video
+          videoThumbnails[videoFilename] = data.thumbnail_path;
+
+          previewDiv.innerHTML = '✓ Thumbnail set';
+
+          // Update the video card to show thumbnail preview
+          updateVideoCardWithThumbnail(videoFilename, data.thumbnail_path);
+
+          // If this is the currently selected video, update the thumbnail info banner
+          if (selectedVideo === videoFilename) {
+            uploadedThumbnailPath = data.thumbnail_path;
+            document.getElementById('thumbnailInfo').style.display = 'block';
+          }
+
+          console.log(`Thumbnail set for ${videoFilename}:`, data.thumbnail_path);
+        } else {
+          throw new Error(data.error || 'Upload failed');
+        }
+      } catch (error) {
+        console.error('Error uploading thumbnail:', error);
+        previewDiv.innerHTML = '<span style="color:#ef4444;">Upload failed</span>';
+        alert('Thumbnail upload failed: ' + error.message);
+      }
+    }
+
+    // Update video card to show thumbnail preview
+    function updateVideoCardWithThumbnail(videoFilename, thumbnailPath) {
+      const safeId = videoFilename.replace(/[^a-zA-Z0-9]/g, '_');
+      const card = document.querySelector(`[data-filename="${videoFilename}"]`);
+
+      if (card) {
+        const videoElement = card.querySelector('video');
+        const imgElement = card.querySelector('img');
+
+        if (thumbnailPath) {
+          // Replace video preview with thumbnail image
+          if (videoElement && !imgElement) {
+            const thumbnailImg = document.createElement('img');
+            thumbnailImg.src = `${API_BASE}/${thumbnailPath}`;
+            thumbnailImg.style.cssText = 'width:120px; height:68px; object-fit:cover; border-radius:6px; border:2px solid #8b5cf6; background:#000;';
+            thumbnailImg.onclick = videoElement.onclick;
+            videoElement.parentNode.replaceChild(thumbnailImg, videoElement);
+          } else if (imgElement) {
+            // Update existing thumbnail
+            imgElement.src = `${API_BASE}/${thumbnailPath}`;
+          }
+
+          // Update buttons: Show "Change" and "Remove" buttons
+          const buttonsDiv = document.getElementById(`thumb_buttons_${safeId}`);
+          if (buttonsDiv) {
+            buttonsDiv.innerHTML = `
+              <button class="btn" onclick="event.stopPropagation(); document.getElementById('thumb_${safeId}').click();" style="background:#f59e0b; border-color:#f59e0b; padding:4px 12px; font-size:12px; white-space:nowrap;">🔄 Change</button>
+              <button class="btn" onclick="event.stopPropagation(); removeThumbnail('${videoFilename}');" style="background:#ef4444; border-color:#ef4444; padding:4px 12px; font-size:12px; white-space:nowrap;">✕ Remove</button>
+            `;
+          }
+        }
+      }
+    }
+
+    // Remove thumbnail from video
+    function removeThumbnail(videoFilename) {
+      const safeId = videoFilename.replace(/[^a-zA-Z0-9]/g, '_');
+      const card = document.querySelector(`[data-filename="${videoFilename}"]`);
+
+      if (!card) return;
+
+      // Clear from storage
+      delete videoThumbnails[videoFilename];
+
+      // If this is the selected video, clear the thumbnail path
+      if (selectedVideo === videoFilename) {
+        uploadedThumbnailPath = null;
+        document.getElementById('thumbnailInfo').style.display = 'none';
+      }
+
+      // Replace thumbnail image back to video preview
+      const imgElement = card.querySelector('img');
+      if (imgElement) {
+        const videoElement = document.createElement('video');
+        videoElement.src = `${API_BASE}/out/${videoFilename}`;
+        videoElement.style.cssText = 'width:120px; height:68px; object-fit:cover; border-radius:6px; background:#000;';
+        videoElement.onclick = imgElement.onclick;
+        imgElement.parentNode.replaceChild(videoElement, imgElement);
+      }
+
+      // Reset buttons to "Add Thumbnail"
+      const buttonsDiv = document.getElementById(`thumb_buttons_${safeId}`);
+      if (buttonsDiv) {
+        buttonsDiv.innerHTML = `
+          <button class="btn" onclick="event.stopPropagation(); document.getElementById('thumb_${safeId}').click();" style="background:#8b5cf6; border-color:#8b5cf6; padding:4px 12px; font-size:12px; white-space:nowrap;">📷 Add Thumbnail</button>
+        `;
+      }
+
+      // Clear preview status
+      const previewDiv = document.getElementById(`thumb_preview_${safeId}`);
+      if (previewDiv) {
+        previewDiv.innerHTML = '';
+      }
+
+      console.log(`Thumbnail removed for ${videoFilename}`);
     }
 
     // Load platforms on page load

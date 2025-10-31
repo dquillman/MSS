@@ -143,6 +143,9 @@
     <button class="platform-tab" onclick="switchPlatform('facebook')" data-platform="facebook" style="padding:12px 24px; background:transparent; border:none; color:#A8B3CF; font-weight:600; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; transition:all 0.2s;">
       👥 Facebook
     </button>
+    <button class="platform-tab" onclick="switchPlatform('google_calendar')" data-platform="google_calendar" style="padding:12px 24px; background:transparent; border:none; color:#A8B3CF; font-weight:600; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; transition:all 0.2s;">
+      📅 Google Calendar
+    </button>
   </div>
 
   <!-- Channels List -->
@@ -238,6 +241,23 @@
             <strong>Status:</strong> Facebook integration coming soon. OAuth endpoints need to be configured.
           </p>
         `
+      },
+      google_calendar: {
+        name: 'Google Calendar',
+        icon: '📅',
+        color: '#4285F4',
+        oauth: '/api/oauth/google-calendar/authorize',
+        instructions: `
+          <ol style="color:#A8B3CF; line-height:1.8;">
+            <li>Click "<strong>+ Connect Google Calendar</strong>" above</li>
+            <li>Sign in with your Google account</li>
+            <li>Grant calendar permissions to MSS</li>
+            <li>Your calendar will be connected for automatic event creation</li>
+          </ol>
+          <p style="color:#A8B3CF; margin-top:16px;">
+            <strong>Benefits:</strong> Automatically add video schedule events to your Google Calendar when using the Content Calendar feature.
+          </p>
+        `
       }
     };
 
@@ -272,6 +292,54 @@
       const container = document.getElementById('channelsList');
       const config = platformConfig[currentPlatform];
       container.innerHTML = '<div style="text-align:center; padding:40px; color:#A8B3CF;">Loading accounts...</div>';
+
+      // Special handling for Google Calendar (uses platform_connections, not channels)
+      if (currentPlatform === 'google_calendar') {
+        try {
+          const res = await fetch(`${API_BASE}/api/platform/connections`, { credentials: 'include' });
+          const data = await res.json();
+
+          if (data.success) {
+            const connected = data.platforms?.find(p => p.platform === 'google_calendar');
+
+            if (connected) {
+              container.innerHTML = `
+                <div class="channel-card default" style="border-color:#22c55e;">
+                  <div style="width:80px; height:80px; border-radius:50%; background:linear-gradient(135deg, #4285F4, #34A853); display:flex; align-items:center; justify-content:center; font-size:40px;">
+                    📅
+                  </div>
+                  <div class="channel-info">
+                    <span class="default-badge">✓ Connected</span>
+                    <div class="channel-name">Google Calendar</div>
+                    <div style="font-size:13px; color:#A8B3CF; margin-top:8px;">
+                      Connected: ${formatDate(connected.connected_at)}
+                    </div>
+                    <div style="font-size:12px; color:#22c55e; margin-top:4px;">
+                      ✓ Calendar events will be automatically synced
+                    </div>
+                  </div>
+                  <div class="channel-actions">
+                    <button class="btn btn-small" onclick="disconnectGoogleCalendar()" style="background:#ef4444; border-color:#ef4444;">
+                      Disconnect
+                    </button>
+                  </div>
+                </div>
+              `;
+            } else {
+              container.innerHTML = `
+                <div class="empty-state">
+                  <div class="empty-state-icon">📅</div>
+                  <div>Google Calendar not connected yet</div>
+                  <div style="font-size:14px; margin-top:8px;">Click "+ Connect Google Calendar" above to enable automatic calendar sync</div>
+                </div>
+              `;
+            }
+          }
+        } catch (error) {
+          container.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444;">Error: ${error.message}</div>`;
+        }
+        return;
+      }
 
       try {
         const res = await fetch(`${API_BASE}/api/channels/list?platform=${currentPlatform}`, {
@@ -391,6 +459,19 @@
         }
       } catch (error) {
         alert('Error: ' + error.message);
+      }
+    }
+
+    async function disconnectGoogleCalendar() {
+      if (!confirm('Disconnect Google Calendar?\n\nCalendar events will no longer be automatically synced.')) {
+        return;
+      }
+
+      try {
+        // For now, we'll need to add a disconnect endpoint
+        alert('Disconnect feature coming soon. For now, you can revoke access from your Google Account settings.');
+      } catch (error) {
+        alert('Error disconnecting: ' + error.message);
       }
     }
 

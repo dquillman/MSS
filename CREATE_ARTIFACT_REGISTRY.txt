@@ -1,0 +1,22 @@
+CREATE ARTIFACT REGISTRY REPOSITORY:
+
+Repository "mss" not found. Create it:
+
+1. Go to: https://console.cloud.google.com/artifacts?project=mss-tts
+
+2. Click "+ CREATE REPOSITORY" button
+
+3. Fill in:
+   - Repository name: mss
+   - Format: Docker (select from dropdown)
+   - Mode: Standard (select from dropdown)
+   - Location: us-central1 (select from dropdown)
+
+4. Click "CREATE"
+
+5. Wait 30 seconds for it to be ready
+
+6. Re-run the GitHub Actions workflow
+
+That's it! The repository will then exist and the workflow can push Docker images to it.
+

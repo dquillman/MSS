@@ -4,7 +4,7 @@ import subprocess
 import imageio_ffmpeg
 
 
-def overlay(video_path: str, logo_path: str, position: str = 'bottom-left', opacity: float = 0.6, scale_h: int = 100) -> Path:
+def overlay(video_path: str, logo_path: str, position: str = 'bottom-left', opacity: float = 1.0, scale_h: int = 110) -> Path:
     """
     Overlay a PNG logo onto a video using ffmpeg.
 
@@ -36,7 +36,7 @@ def overlay(video_path: str, logo_path: str, position: str = 'bottom-left', opac
 
     out = video.with_name(video.stem + '_logo.mp4')
     filter_complex = (
-        f"[1:v]scale=-1:{scale_h},format=yuva420p,colorchannelmixer=aa={opacity}[logo];"
+        f"[1:v]scale=-1:{scale_h},scale=iw*1.25:ih,format=rgba,geq=a='if(gt(a,0),255,0)'[logo];"
         f"[0:v][logo]overlay={pos}"
     )
     cmd = [

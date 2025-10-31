@@ -1326,7 +1326,7 @@ def render_video(
                                 'center': '(W-w)/2:(H-h)/2'
                             }
                             pos = pos_map.get(logo_position, '20:H-h-20')
-                            filter_complex = f"[1:v]scale=-1:100,format=yuva420p,colorchannelmixer=aa=0.3[logo];[0:v][logo]overlay={pos}"
+                            filter_complex = f"[1:v]scale=-1:110,scale=iw*1.25:ih,format=rgba,geq=a='if(gt(a,0),255,0)'[logo];[0:v][logo]overlay={pos}"
                             out_with_logo = Path(output_path).with_name(Path(output_path).stem + '_logo.mp4')
                             cmd = [
                                 ffmpeg_bin,

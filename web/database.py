@@ -184,7 +184,17 @@ def create_session(user_id, duration_days=7, remember_me=False):
     return session_id
 
 def get_session(session_id):
-    """Get user from session"""
+    """Get user from session with Redis caching for performance"""
+    # Performance: Check cache first
+    try:
+        from web.cache import get_cached_user_session, cache_user_session
+        cached = get_cached_user_session(session_id)
+        if cached:
+            return {'success': True, 'user': cached}
+    except Exception:
+        pass  # Cache unavailable, fall back to database
+    
+    # Database lookup
     conn = get_db()
     cursor = conn.cursor()
 
@@ -198,7 +208,16 @@ def get_session(session_id):
     conn.close()
 
     if user:
-        return {'success': True, 'user': dict(user)}
+        user_dict = dict(user)
+        # Performance: Cache the session for faster future lookups
+        try:
+            from web.cache import cache_user_session
+            # Cache for remaining session duration (default 7 days)
+            cache_user_session(session_id, user_dict, ttl=604800)
+        except Exception:
+            pass  # Cache unavailable
+        
+        return {'success': True, 'user': user_dict}
     else:
         return {'success': False, 'error': 'Invalid or expired session'}
 

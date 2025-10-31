@@ -126,6 +126,25 @@ Note: The provided workflow uses ElevenLabs+S3 by default; you can swap to Googl
   - `RENDER_SERVICE_ID`: ID of the `mss-n8n` service.
 - Adjust as needed if Render's env var API changes.
 
+**Deploy to Google Cloud Run (Recommended for Production)**
+- Complete guide: See `GCP_DEPLOYMENT.md`
+- Runbook: See `GCP_RUNBOOK.md` for operations
+- Automatic deployment: GitHub Actions workflow `.github/workflows/gcp-deploy.yml`
+  - Builds Docker image and pushes to Artifact Registry
+  - Deploys to Cloud Run on push to `main`/`master`
+  - Required GitHub secrets:
+    - `GCP_PROJECT_ID`: Your GCP project ID
+    - `GCP_SA_KEY`: Service account JSON key for CI/CD
+    - `GCP_ARTIFACT_REGISTRY`: Artifact Registry repository name
+    - `GCP_SERVICE_ACCOUNT_EMAIL`: Cloud Run service account email
+- Manual deployment: See `GCP_DEPLOYMENT.md` for step-by-step setup
+- Features:
+  - Auto-scaling from 0 to 10 instances
+  - Secrets management via Google Secret Manager
+  - Persistent media storage via Cloud Storage
+  - Health checks at `/healthz` endpoint
+  - Estimated cost: ~$10-30/month for small-medium usage
+
 ---
 
 ## 🚀 NEW: Advanced Features & Enhancements

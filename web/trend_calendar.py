@@ -210,12 +210,13 @@ class TrendCalendarManager:
         return trends
 
     def _fetch_youtube_trending(self, user_email: str, niche: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Fetch trending videos from YouTube Data API v3"""
+        """Fetch trending videos from YouTube Data API v3 and generate topic themes"""
         try:
             # Import YouTube API
             from googleapiclient.discovery import build
             from google.oauth2.credentials import Credentials
             import os
+            from openai import OpenAI
 
             # Get API key or credentials
             api_key = os.getenv('YOUTUBE_API_KEY')
@@ -282,8 +283,8 @@ class TrendCalendarManager:
 
             response = {'items': all_trends}
 
-            # Process videos into trends format
-            trends = []
+            # Collect video data for AI analysis
+            video_data = []
             for video in response.get('items', []):
                 snippet = video['snippet']
 
@@ -319,16 +320,7 @@ class TrendCalendarManager:
                     continue
 
                 stats = video['statistics']
-
                 views = int(stats.get('viewCount', 0))
-                likes = int(stats.get('likeCount', 0))
-                comments = int(stats.get('commentCount', 0))
-
-                # Calculate engagement rate
-                engagement_rate = ((likes + comments) / views * 100) if views > 0 else 0
-
-                # Estimate growth (simplified - in production, compare with historical data)
-                growth_estimate = f"+{int(engagement_rate * 10)}%"
 
                 # Map category ID to niche name
                 category_id = snippet.get('categoryId', '0')
@@ -341,52 +333,91 @@ class TrendCalendarManager:
                 }
                 niche_name = category_to_niche.get(category_id, 'general')
 
-                # Determine difficulty based on competition
-                if views > 1000000:
-                    difficulty = 'high'
-                elif views > 100000:
-                    difficulty = 'medium'
-                else:
-                    difficulty = 'low'
+                # Collect video info for AI analysis
+                video_data.append({
+                    'title': title,
+                    'description': snippet.get('description', '')[:200],  # First 200 chars
+                    'views': views,
+                    'category': niche_name
+                })
 
-                # Extract keywords from title and description
-                title = snippet['title']
-                description = snippet.get('description', '')
-                keywords = self._extract_keywords(title, description)
+            # If no videos collected, return empty
+            if len(video_data) == 0:
+                print(f"[TRENDS] No videos passed category filter")
+                return []
 
-                # Generate subtopics based on title
-                subtopics = self._generate_subtopics(title, keywords)
+            # Use AI to generate broader topic themes from trending videos
+            print(f"[TRENDS] Analyzing {len(video_data)} videos to generate topic themes...")
+            trends = self._generate_topic_themes(video_data)
 
-                trend = {
-                    'topic': title,
-                    'views': f"{views // 1000}K" if views < 1000000 else f"{views // 1000000}.{(views % 1000000) // 100000}M",
-                    'growth': growth_estimate,
-                    'niche': niche_name,
-                    'difficulty': difficulty,
-                    'keywords': keywords[:10],
-                    'subtopics': subtopics,
-                    'video_id': video['id'],
-                    'channel_title': snippet.get('channelTitle', ''),
-                    'published_at': snippet.get('publishedAt', '')
-                }
-
-                trends.append(trend)
-
-                # Stop if we have enough trends
-                if len(trends) >= 15:
-                    break
-
-            # If we got some trends but not many, that's OK - return what we have
-            if len(trends) > 0:
-                print(f"[TRENDS] Successfully fetched {len(trends)} trending topics (after filtering)")
+            if trends and len(trends) > 0:
+                print(f"[TRENDS] Successfully generated {len(trends)} trending topics")
                 return trends
 
-            # If we got zero trends, return empty list (will trigger fallback)
-            print(f"[TRENDS] No videos passed category filter")
+            # If AI generation failed, return empty
+            print(f"[TRENDS] AI topic generation failed")
             return []
 
         except Exception as e:
             print(f"[TRENDS] Error in _fetch_youtube_trending: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+
+    def _generate_topic_themes(self, video_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Use AI to analyze trending videos and generate broader topic themes"""
+        try:
+            from openai import OpenAI
+            from dotenv import load_dotenv
+            load_dotenv()
+
+            api_key = os.getenv('OPENAI_API_KEY')
+            if not api_key:
+                print("[TRENDS] OPENAI_API_KEY not found")
+                return []
+
+            client = OpenAI(api_key=api_key)
+
+            # Prepare video summaries for AI
+            video_summaries = []
+            for v in video_data[:30]:  # Limit to 30 videos
+                video_summaries.append(f"Title: {v['title']}\nCategory: {v['category']}\nViews: {v['views']:,}")
+
+            prompt = f"""Analyze these trending YouTube videos and generate 8-12 broader TOPIC THEMES (not individual video topics).
+
+Trending Videos:
+{chr(10).join(video_summaries)}
+
+Generate creative, engaging topic themes that:
+1. Are broader than individual videos (e.g., "AI in Healthcare 2025" not specific video titles)
+2. Focus on AI, technology, science, health, or world issues
+3. Are suitable for creating educational/informative content
+4. Include realistic view counts and growth estimates
+
+Return ONLY valid JSON (no markdown, no code blocks) in this EXACT format:
+[{{"topic":"Topic Name","views":"2.5M","growth":"+125%","niche":"technology","difficulty":"medium","keywords":["keyword1","keyword2","keyword3","keyword4","keyword5"],"subtopics":["Subtopic 1","Subtopic 2","Subtopic 3"]}}]"""
+
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=2000
+            )
+
+            result_text = response.choices[0].message.content.strip()
+
+            # Remove markdown code blocks if present
+            if result_text.startswith('```'):
+                result_text = result_text.split('```')[1]
+                if result_text.startswith('json'):
+                    result_text = result_text[4:]
+                result_text = result_text.strip()
+
+            trends = json.loads(result_text)
+            return trends[:12]  # Limit to 12 topics
+
+        except Exception as e:
+            print(f"[TRENDS] Error generating topic themes: {e}")
             import traceback
             traceback.print_exc()
             return []

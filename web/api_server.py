@@ -154,7 +154,73 @@ except Exception as _e:
 # Initialize Flask app
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1 GB upload cap
-CORS(app, supports_credentials=True)  # Enable CORS with credentials for authentication
+
+# CORS Configuration - Security: Restrict to allowed origins only
+ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', '').split(',') if os.getenv('ALLOWED_ORIGINS') else []
+# Remove empty strings and add common dev origins if not in production
+if not ALLOWED_ORIGINS or ALLOWED_ORIGINS == ['']:
+    if os.getenv('FLASK_ENV') == 'development':
+        ALLOWED_ORIGINS = ['http://localhost:5000', 'http://localhost:3000', 'http://127.0.0.1:5000']
+    else:
+        # Production: require explicit ALLOWED_ORIGINS env var
+        ALLOWED_ORIGINS = []  # Fail safe - no origins allowed unless explicitly set
+
+CORS(app, 
+     origins=ALLOWED_ORIGINS,
+     supports_credentials=True,
+     allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+     expose_headers=['Content-Range', 'X-Content-Range'])
+
+# Security: HTTPS Enforcement (production only)
+@app.before_request
+def force_https():
+    """Redirect HTTP to HTTPS in production"""
+    if os.getenv('FLASK_ENV') == 'production':
+        # Check if request is secure or forwarded as HTTPS (Cloud Run, etc.)
+        if not request.is_secure:
+            # Check for X-Forwarded-Proto header (used by load balancers/proxies)
+            forwarded_proto = request.headers.get('X-Forwarded-Proto', '')
+            if forwarded_proto != 'https':
+                # Redirect to HTTPS
+                if request.url.startswith('http://'):
+                    url = request.url.replace('http://', 'https://', 1)
+                    return redirect(url, code=301)
+
+# Security: Add security headers to all responses
+@app.after_request
+def add_security_headers(response):
+    """Add security headers to all responses"""
+    # HSTS: Force HTTPS for 1 year
+    if os.getenv('FLASK_ENV') == 'production':
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    
+    # Prevent MIME type sniffing
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    
+    # Prevent clickjacking
+    response.headers['X-Frame-Options'] = 'DENY'
+    
+    # XSS protection (legacy, but still useful)
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    
+    # Content Security Policy (basic)
+    csp = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;"
+    response.headers['Content-Security-Policy'] = csp
+    
+    # Referrer Policy
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    
+    # Permissions Policy (previously Feature-Policy)
+    response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+    
+    return response
+
+# Security: Configure secure cookies
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('FLASK_ENV') == 'production'  # HTTPS only in production
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
+app.config['SESSION_COOKIE_PATH'] = '/'
 
 # Initialize database on startup
 try:
@@ -268,13 +334,24 @@ def favicon_silence():
 # -------------------- Auth API --------------------
 @app.route('/api/login', methods=['POST'])
 def api_login():
+    """User login endpoint with input validation"""
     try:
-        data = request.get_json(force=True) or {}
-        email = (data.get('email') or '').strip()
-        password = (data.get('password') or '').strip()
+        # Security: Validate input with Pydantic model
+        from web.models.requests import LoginRequest
+        try:
+            req = LoginRequest(**request.get_json() or {})
+        except PydanticValidationError as e:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid input',
+                'details': e.errors()
+            }), 400
+        
+        email = req.email
+        password = req.password
+        # Get remember_me from request if provided
+        data = request.get_json() or {}
         remember_me = data.get('remember_me', False)
-        if not email or not password:
-            return jsonify({'success': False, 'error': 'Email and password required'}), 400
 
         result = database.verify_user(email, password)
         if not result.get('success'):
@@ -514,22 +591,56 @@ def get_intro_outro_library():
 
 @app.route('/upload-intro-outro-file', methods=['POST'])
 def upload_intro_outro_file():
+    """Upload intro/outro file with security validation"""
     try:
+        from web.utils.file_validation import (
+            validate_video_file, validate_audio_file, sanitize_filename, 
+            MAX_VIDEO_SIZE, MAX_AUDIO_SIZE, validate_file_size
+        )
+        
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'No file uploaded'}), 400
+        
         f = request.files['file']
         if not f.filename:
             return jsonify({'success': False, 'error': 'Empty filename'}), 400
-        ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else 'bin'
-        fname = f"io_{int(time.time())}_{uuid.uuid4().hex[:8]}.{ext}"
+        
+        # Security: Sanitize filename
+        safe_filename = sanitize_filename(f.filename)
+        ext = Path(safe_filename).suffix.lower() if '.' in safe_filename else '.bin'
+        
+        # Validate based on file type
+        try:
+            # Try to validate as video first (most common for intro/outro)
+            if ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']:
+                validate_video_file(f, max_size=MAX_VIDEO_SIZE)
+            elif ext in ['.mp3', '.wav', '.ogg', '.m4a']:
+                validate_audio_file(f, MAX_AUDIO_SIZE)
+            else:
+                return jsonify({'success': False, 'error': f'Unsupported file type: {ext}'}), 400
+        except FileUploadError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        # Generate unique filename
+        fname = f"io_{int(time.time())}_{uuid.uuid4().hex[:8]}{ext}"
         path = LIB_DIR / fname
+        
+        # Save file
         f.save(str(path))
+        
+        # Verify file was saved
+        if not path.exists() or path.stat().st_size == 0:
+            return jsonify({'success': False, 'error': 'Failed to save file'}), 500
+        
         from urllib.parse import urljoin
         base = request.host_url if hasattr(request, 'host_url') else 'http://127.0.0.1:5000/'
         url = urljoin(base, f"intro_outro/{fname}")
         return jsonify({'success': True, 'file': fname, 'url': url})
+    except FileUploadError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[UPLOAD-INTRO-OUTRO] Error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Upload failed'}), 500
 
 @app.route('/save-intro-outro', methods=['POST'])
 def save_intro_outro():
@@ -666,14 +777,22 @@ def api_me():
 
 @app.route('/api/signup', methods=['POST'])
 def api_signup():
+    """User signup endpoint with input validation"""
     try:
-        data = request.get_json(force=True) or {}
-        email = (data.get('email') or '').strip()
-        password = (data.get('password') or '').strip()
-        username = (data.get('username') or '').strip() or None
-        remember_me = data.get('remember_me', False)
-        if not email or not password:
-            return jsonify({'success': False, 'error': 'Email and password required'}), 400
+        # Security: Validate input with Pydantic model
+        from web.models.requests import SignupRequest
+        try:
+            req = SignupRequest(**request.get_json() or {})
+        except PydanticValidationError as e:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid input',
+                'details': e.errors()
+            }), 400
+        
+        email = req.email
+        password = req.password
+        username = req.username
 
         res = database.create_user(email, password, username=username)
         if not res.get('success'):
@@ -2240,12 +2359,21 @@ def generate_ai_thumbnail():
 @app.route('/generate-topics', methods=['GET', 'POST'])
 def generate_topics():
     """Generate AI-powered video topics.
-
+    
+    Performance: Results are cached for 5 minutes to reduce API calls.
+    
     Body JSON: { brand, seed, limit, prompt? }
     If 'prompt' is provided, it will be used to guide generation; otherwise
     falls back to the default implementation in scripts.make_video.
     """
     try:
+        # Performance: Check cache first
+        from web.cache import get_cached, set_cached, cache_key
+        cache_key_str = cache_key("topics", request.method, request.get_json(silent=True) or request.args.to_dict())
+        cached_topics = get_cached(cache_key_str)
+        if cached_topics is not None:
+            logger.info("[CACHE] Topic generation cache hit")
+            return jsonify(cached_topics)
         if request.method == 'GET':
             brand = (request.args.get('brand') or 'Many Sources Say').strip()
             seed = (request.args.get('seed') or '').strip()
@@ -2293,6 +2421,13 @@ def generate_topics():
             'limit': limit,
             'time': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
         }
+        
+        # Performance: Cache results for 5 minutes (300 seconds)
+        from web.cache import set_cached, cache_key
+        cache_key_str = cache_key("topics", request.method, request.get_json(silent=True) or request.args.to_dict())
+        set_cached(cache_key_str, payload, ttl=300)
+        logger.info(f"[CACHE] Topic generation results cached: {cache_key_str}")
+        
         resp = jsonify(payload)
         try:
             resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
@@ -2532,16 +2667,33 @@ def preview_script():
 
 @app.route('/create-video-enhanced', methods=['POST'])
 def create_video_enhanced():
-    """Create video with custom prompts and AI thumbnail"""
+    """Create video with custom prompts and AI thumbnail
+    
+    Security: Input validated with Pydantic models
+    """
     print("\n" + "="*70)
     print("[VIDEO] CREATE-VIDEO-ENHANCED ENDPOINT CALLED")
     print("="*70)
     try:
-        data = request.get_json()
-        topic = data.get('topic')
-
-        if not topic:
-            return jsonify({'success': False, 'error': 'No topic provided'}), 400
+        # Security: Validate input with Pydantic model
+        from web.models.requests import CreateVideoRequest
+        try:
+            # Topic is a nested object, so we validate it separately
+            data = request.get_json() or {}
+            topic = data.get('topic')
+            
+            if not topic:
+                return jsonify({'success': False, 'error': 'No topic provided'}), 400
+            
+            # Validate other fields if provided
+            if 'duration' in data:
+                duration_req = CreateVideoRequest(topic=topic.get('title', ''), duration=data.get('duration'))
+        except PydanticValidationError as e:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid input',
+                'details': e.errors()
+            }), 400
 
         print(f"Creating enhanced video for: {topic.get('title')}")
 
@@ -4741,17 +4893,39 @@ def delete_logo():
 
 @app.route('/upload-logo-to-library', methods=['POST'])
 def upload_logo_to_library():
+    """Upload logo file with security validation"""
     try:
+        from web.utils.file_validation import validate_image_file, sanitize_filename, MAX_LOGO_SIZE
+        
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'No file uploaded'}), 400
+        
         file = request.files['file']
-        name = request.form.get('name', file.filename)
+        
+        # Security: Validate file before processing
+        try:
+            validation = validate_image_file(file, max_size=MAX_LOGO_SIZE)
+        except FileUploadError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        # Security: Sanitize filename
+        original_filename = file.filename
+        safe_filename = sanitize_filename(original_filename)
+        
+        name = request.form.get('name', safe_filename)
         logos_dir = Path(__file__).parent.parent / 'logos'
         logos_dir.mkdir(exist_ok=True)
-        ext = Path(file.filename).suffix or '.png'
-        unique = f"logo_{int(time.time())}{ext}"
+        ext = Path(safe_filename).suffix or '.png'
+        unique = f"logo_{int(time.time())}_{uuid.uuid4().hex[:8]}{ext}"
         dest = logos_dir / unique
+        
+        # Save file
         file.save(str(dest))
+        
+        # Verify file was saved and is valid
+        if not dest.exists() or dest.stat().st_size == 0:
+            return jsonify({'success': False, 'error': 'Failed to save file'}), 500
+        
         url = f"http://127.0.0.1:5000/logos/{dest.name}"
         lib_path = Path('logo_library.json')
         library = {'logos': []}
@@ -4769,8 +4943,11 @@ def upload_logo_to_library():
         library.setdefault('logos', []).append(entry)
         lib_path.write_text(json.dumps(library, indent=2), encoding='utf-8')
         return jsonify({'success': True, 'url': url, 'logo': entry})
+    except FileUploadError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[UPLOAD-LOGO] Error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Upload failed'}), 500
 
 
 # ===========================================
@@ -5324,84 +5501,108 @@ def optimize_video():
 
 @app.route('/api/upload/video', methods=['POST'])
 def upload_video():
-    """Upload video file to out/ directory"""
+    """Upload video file to out/ directory with security validation"""
     user_email, error_response, error_code = _get_user_from_session()
     if error_response:
         return error_response, error_code
 
-    if 'video' not in request.files:
-        return jsonify({'success': False, 'error': 'No video file provided'}), 400
-
-    video_file = request.files['video']
-
-    if video_file.filename == '':
-        return jsonify({'success': False, 'error': 'No file selected'}), 400
-
-    # Validate file extension
-    allowed_extensions = {'mp4', 'mov', 'avi', 'mkv'}
-    file_ext = video_file.filename.rsplit('.', 1)[1].lower() if '.' in video_file.filename else ''
-
-    if file_ext not in allowed_extensions:
-        return jsonify({'success': False, 'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'}), 400
-
     try:
+        from web.utils.file_validation import validate_video_file, sanitize_filename, MAX_VIDEO_SIZE
+        
+        if 'video' not in request.files:
+            return jsonify({'success': False, 'error': 'No video file provided'}), 400
+
+        video_file = request.files['video']
+
+        if video_file.filename == '':
+            return jsonify({'success': False, 'error': 'No file selected'}), 400
+
+        # Security: Validate video file
+        try:
+            validation = validate_video_file(video_file, max_size=MAX_VIDEO_SIZE)
+        except FileUploadError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+
+        # Security: Sanitize filename
+        original_filename = video_file.filename
+        safe_filename = sanitize_filename(original_filename)
+        
         # Generate unique filename
         timestamp = int(time.time())
-        # Use original filename but make it safe
-        original_name = video_file.filename.rsplit('.', 1)[0]
-        safe_name = ''.join(c if c.isalnum() or c in ('-', '_') else '_' for c in original_name)
-        safe_filename = f"{safe_name}_{timestamp}.{file_ext}"
-        video_path = os.path.join('out', safe_filename)
+        name_base = Path(safe_filename).stem
+        file_ext = Path(safe_filename).suffix or '.mp4'
+        unique_filename = f"{name_base}_{timestamp}_{uuid.uuid4().hex[:8]}{file_ext}"
+        
+        video_path = os.path.join('out', unique_filename)
 
         # Save the file
         video_file.save(video_path)
 
-        print(f"[UPLOAD] Video uploaded: {video_path}")
+        # Verify file was saved
+        if not os.path.exists(video_path) or os.path.getsize(video_path) == 0:
+            return jsonify({'success': False, 'error': 'Failed to save file'}), 500
+
+        logger.info(f"[UPLOAD] Video uploaded: {video_path}")
 
         return jsonify({
             'success': True,
-            'video_path': safe_filename,
+            'video_path': unique_filename,
             'message': 'Video uploaded successfully'
         })
 
+    except FileUploadError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
-        print(f"[UPLOAD] Video upload error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[UPLOAD-VIDEO] Error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Upload failed'}), 500
 
 @app.route('/api/upload/thumbnail', methods=['POST'])
 def upload_thumbnail():
-    """Upload thumbnail image for video publishing"""
+    """Upload thumbnail image for video publishing with security validation"""
     user_email, error_response, error_code = _get_user_from_session()
     if error_response:
         return error_response, error_code
 
-    if 'thumbnail' not in request.files:
-        return jsonify({'success': False, 'error': 'No thumbnail file provided'}), 400
-
-    thumbnail_file = request.files['thumbnail']
-
-    if thumbnail_file.filename == '':
-        return jsonify({'success': False, 'error': 'No file selected'}), 400
-
-    # Validate file extension
-    allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
-    file_ext = thumbnail_file.filename.rsplit('.', 1)[1].lower() if '.' in thumbnail_file.filename else ''
-
-    if file_ext not in allowed_extensions:
-        return jsonify({'success': False, 'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'}), 400
-
     try:
+        from web.utils.file_validation import validate_image_file, sanitize_filename, MAX_THUMBNAIL_SIZE
+        
+        if 'thumbnail' not in request.files:
+            return jsonify({'success': False, 'error': 'No thumbnail file provided'}), 400
+
+        thumbnail_file = request.files['thumbnail']
+
+        if thumbnail_file.filename == '':
+            return jsonify({'success': False, 'error': 'No file selected'}), 400
+
+        # Security: Validate image file
+        try:
+            validation = validate_image_file(thumbnail_file, max_size=MAX_THUMBNAIL_SIZE)
+        except FileUploadError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+
+        # Security: Sanitize filename
+        original_filename = thumbnail_file.filename
+        safe_filename = sanitize_filename(original_filename)
+        
         # Create thumbnails directory if it doesn't exist
         thumbnails_dir = os.path.join('out', 'thumbnails')
         os.makedirs(thumbnails_dir, exist_ok=True)
 
         # Generate unique filename
         timestamp = int(time.time())
-        safe_filename = f"thumbnail_{timestamp}.{file_ext}"
-        thumbnail_path = os.path.join(thumbnails_dir, safe_filename)
+        name_base = Path(safe_filename).stem
+        file_ext = Path(safe_filename).suffix or '.png'
+        unique_filename = f"thumbnail_{timestamp}_{uuid.uuid4().hex[:8]}{file_ext}"
+        thumbnail_path = os.path.join(thumbnails_dir, unique_filename)
 
         # Save the file
         thumbnail_file.save(thumbnail_path)
+
+        # Verify file was saved
+        if not os.path.exists(thumbnail_path) or os.path.getsize(thumbnail_path) == 0:
+            return jsonify({'success': False, 'error': 'Failed to save file'}), 500
+
+        logger.info(f"[UPLOAD] Thumbnail uploaded: {thumbnail_path}")
 
         return jsonify({
             'success': True,
@@ -5409,9 +5610,11 @@ def upload_thumbnail():
             'message': 'Thumbnail uploaded successfully'
         })
 
+    except FileUploadError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
-        print(f"[UPLOAD] Thumbnail upload error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[UPLOAD-THUMBNAIL] Error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Upload failed'}), 500
 
 @app.route('/api/video/delete/<path:filename>', methods=['DELETE'])
 def delete_video_file(filename):
