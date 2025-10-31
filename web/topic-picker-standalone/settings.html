@@ -68,8 +68,8 @@
     <div class="row" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
       <div>
         <label>API Server URL</label>
-        <input id="apiServerUrl" type="text" value="http://127.0.0.1:5000" placeholder="http://127.0.0.1:5000" style="width:100%;">
-        <div class="help-text">Change if running API server on different host/port</div>
+        <input id="apiServerUrl" type="text" placeholder="Auto-detected from current origin" style="width:100%;">
+        <div class="help-text">Usually auto-detected. Change only if API server is on different host/port</div>
       </div>
       <div>
         <label>Default Start Page</label>
@@ -231,8 +231,15 @@
     function loadSettings() {
       const settings = JSON.parse(localStorage.getItem('mss_settings') || '{}');
 
-      // General
-      if (settings.apiServerUrl) document.getElementById('apiServerUrl').value = settings.apiServerUrl;
+      // General - Default API URL to current origin if not set
+      const apiUrlInput = document.getElementById('apiServerUrl');
+      if (settings.apiServerUrl) {
+        apiUrlInput.value = settings.apiServerUrl;
+      } else {
+        // Auto-detect: use current origin (works for both localhost and production)
+        apiUrlInput.value = window.location.origin;
+      }
+      
       if (settings.defaultStartPage) document.getElementById('defaultStartPage').value = settings.defaultStartPage;
 
       // YouTube
@@ -300,7 +307,7 @@
       localStorage.removeItem('mss_settings');
 
       // Reset UI to defaults
-      document.getElementById('apiServerUrl').value = 'http://127.0.0.1:5000';
+      document.getElementById('apiServerUrl').value = window.location.origin; // Auto-detect from current origin
       document.getElementById('defaultStartPage').value = 'landing.html';
       document.getElementById('ytDefaultPrivacy').value = 'private';
       document.getElementById('ytDefaultCategory').value = '22';
