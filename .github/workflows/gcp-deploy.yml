@@ -63,7 +63,7 @@ jobs:
             --timeout 300 \
             --max-instances 10 \
             --min-instances 0 \
-            --update-env-vars "" \
+            --clear-env-vars \
             --service-account ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
       - name: Get service URL
