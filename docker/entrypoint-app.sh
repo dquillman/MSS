@@ -24,7 +24,11 @@ which gunicorn || /root/.local/bin/gunicorn --version || { echo "[ENTRYPOINT] ER
 
 # Verify app can be imported
 echo "[ENTRYPOINT] Verifying app import..."
-python -c "from web import api_server; print('[ENTRYPOINT] App imported successfully')" || { echo "[ENTRYPOINT] ERROR: Failed to import app!"; exit 1; }
+python -c "from web import api_server; print('[ENTRYPOINT] App imported successfully')" 2>&1 || { 
+    echo "[ENTRYPOINT] ERROR: Failed to import app!"
+    python -c "from web import api_server" 2>&1 | head -20
+    exit 1
+}
 
 echo "[ENTRYPOINT] Starting gunicorn on 0.0.0.0:${PORT:-8080}..."
 
