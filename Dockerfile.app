@@ -30,7 +30,10 @@ COPY --from=builder /root/.local /root/.local
 # Copy application code
 COPY web/ ./web/
 COPY scripts/ ./scripts/
-COPY avatar_library.json intro_outro_library.json logo_library.json ./
+# Copy library files
+COPY avatar_library.json ./
+COPY intro_outro_library.json ./
+COPY logo_library.json ./
 COPY thumbnail_settings.json ./
 
 # Create necessary directories

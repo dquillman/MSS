@@ -21,7 +21,7 @@ web/platform_credentials/
 # Outputs
 out/
 public_audio/
-intro_outro_library.json
+# intro_outro_library.json - needed for Docker build, don't ignore
 
 # Temp & backups
 tmp/
