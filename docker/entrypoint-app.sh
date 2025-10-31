@@ -15,18 +15,21 @@ fi
 # Run migrations if needed (future: when using Cloud SQL)
 # python -m web.database migrate
 
+# Install ALL dependencies FIRST before checking anything
+echo "[ENTRYPOINT] Installing all dependencies..."
+if [ -f requirements.txt ]; then
+    pip install --user --no-cache-dir -r requirements.txt
+    echo "[ENTRYPOINT] Dependencies installed"
+else
+    echo "[ENTRYPOINT] WARNING: requirements.txt not found!"
+fi
+
 # Verify Python and gunicorn are available
 echo "[ENTRYPOINT] Verifying dependencies..."
 python --version
 echo "[ENTRYPOINT] PATH=${PATH}"
 echo "[ENTRYPOINT] Looking for gunicorn..."
 which gunicorn || /root/.local/bin/gunicorn --version || { echo "[ENTRYPOINT] ERROR: gunicorn not found!"; exit 1; }
-
-# Install any missing dependencies from requirements.txt
-echo "[ENTRYPOINT] Ensuring all dependencies are installed..."
-if [ -f requirements.txt ]; then
-    pip install --user --no-cache-dir -r requirements.txt
-fi
 
 # Verify app can be imported
 echo "[ENTRYPOINT] Verifying app import..."
