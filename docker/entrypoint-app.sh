@@ -18,10 +18,19 @@ fi
 
 # Quick check if key packages are missing, install only if needed (faster)
 echo "[ENTRYPOINT] Checking critical dependencies..."
-python -c "import flask_limiter, stripe, gunicorn" 2>/dev/null || {
+python -c "from flask_limiter import Limiter; import stripe; import gunicorn; print('[ENTRYPOINT] All dependencies OK')" 2>/dev/null || {
     echo "[ENTRYPOINT] Missing dependencies, installing from requirements.txt..."
     if [ -f requirements.txt ]; then
         pip install --user --no-cache-dir -r requirements.txt
+        echo "[ENTRYPOINT] Rechecking after install..."
+        python -c "from flask_limiter import Limiter; import stripe; import gunicorn" || {
+            echo "[ENTRYPOINT] ERROR: Critical packages still missing after install!"
+            pip list | grep -E "(flask|stripe|gunicorn)"
+            exit 1
+        }
+    else
+        echo "[ENTRYPOINT] ERROR: requirements.txt not found!"
+        exit 1
     fi
 }
 
