@@ -14,7 +14,14 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements and install Python dependencies - VERIFY ALL ARE INSTALLED
 COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
-RUN python -c "import flask; import flask_cors; import flask_limiter; import stripe; import gunicorn; import bcrypt; print('All critical packages verified')"
+# Verify imports work (flask-limiter package imports as flask_limiter)
+RUN python -c "import flask; print('flask OK')" && \
+    python -c "import flask_cors; print('flask_cors OK')" && \
+    python -c "from flask_limiter import Limiter; print('flask_limiter OK')" && \
+    python -c "import stripe; print('stripe OK')" && \
+    python -c "import gunicorn; print('gunicorn OK')" && \
+    python -c "import bcrypt; print('bcrypt OK')" && \
+    echo "All critical packages verified"
 
 # Copy application code (copy requirements again so entrypoint can use it)
 COPY web/ ./web/
