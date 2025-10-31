@@ -26,23 +26,28 @@ fi
 echo "[ENTRYPOINT] Checking critical dependencies..."
 # Use python -m site --user-site to get user site-packages path and add it explicitly
 python -c "import site; import sys; sys.path.insert(0, site.USER_SITE); from flask_limiter import Limiter; import stripe; import gunicorn; print('[ENTRYPOINT] All dependencies OK')" 2>/dev/null || {
-    echo "[ENTRYPOINT] Missing dependencies, installing from requirements.txt..."
-    if [ -f requirements.txt ]; then
-        pip install --user --no-cache-dir -r requirements.txt
-        echo "[ENTRYPOINT] Rechecking after install..."
-        # After install, explicitly add user site-packages to path
-        python -c "import site; import sys; sys.path.insert(0, site.USER_SITE); from flask_limiter import Limiter; import stripe; import gunicorn; print('[ENTRYPOINT] All dependencies OK after install')" || {
-            echo "[ENTRYPOINT] ERROR: Critical packages still missing after install!"
-            echo "[ENTRYPOINT] Checking user site-packages location..."
-            python -c "import site; print(f'USER_SITE: {site.USER_SITE}')"
-            pip list --user | grep -E "(flask|stripe|gunicorn)" || pip list | grep -E "(flask|stripe|gunicorn)"
-            python -c "import sys; print('\\n'.join(sys.path))"
-            exit 1
-        }
-    else
-        echo "[ENTRYPOINT] ERROR: requirements.txt not found!"
+    echo "[ENTRYPOINT] Missing dependencies, checking what's installed..."
+    pip list | grep -i flask || echo "[ENTRYPOINT] No flask packages found"
+    echo "[ENTRYPOINT] Installing flask-limiter explicitly..."
+    pip install --user --no-cache-dir flask-limiter>=3.0.0 stripe gunicorn || {
+        echo "[ENTRYPOINT] Direct install failed, trying full requirements.txt..."
+        if [ -f requirements.txt ]; then
+            pip install --user --no-cache-dir -r requirements.txt --force-reinstall --no-deps flask-limiter || pip install --user --no-cache-dir flask-limiter
+        fi
+    }
+    echo "[ENTRYPOINT] Rechecking after install..."
+    # After install, explicitly add user site-packages to path
+    python -c "import site; import sys; sys.path.insert(0, site.USER_SITE); from flask_limiter import Limiter; import stripe; import gunicorn; print('[ENTRYPOINT] All dependencies OK after install')" || {
+        echo "[ENTRYPOINT] ERROR: Critical packages still missing after install!"
+        echo "[ENTRYPOINT] Checking user site-packages location..."
+        python -c "import site; print(f'USER_SITE: {site.USER_SITE}')"
+        echo "[ENTRYPOINT] Installed packages:"
+        pip list | grep -iE "(flask|stripe|gunicorn|limiter)" || echo "[ENTRYPOINT] No matching packages found"
+        python -c "import sys; print('Python path:'); print('\\n'.join(sys.path))"
+        echo "[ENTRYPOINT] Trying to import directly..."
+        python -c "import sys; sys.path.insert(0, '/root/.local/lib/python3.11/site-packages'); from flask_limiter import Limiter; print('SUCCESS')" || echo "[ENTRYPOINT] Direct path import also failed"
         exit 1
-    fi
+    }
 }
 
 # Verify Python and gunicorn are available
