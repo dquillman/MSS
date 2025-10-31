@@ -37,6 +37,8 @@ RUN chmod +x /entrypoint.sh
 # Set Python path and ensure PATH is set correctly
 ENV PATH=/root/.local/bin:$PATH
 ENV PYTHONPATH=/app
+# Ensure Python can find user-installed packages
+ENV PYTHONUSERBASE=/root/.local
 
 # Verify gunicorn is installed
 RUN /root/.local/bin/gunicorn --version || pip install --user gunicorn
