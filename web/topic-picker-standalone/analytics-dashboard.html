@@ -485,6 +485,37 @@
           credentials: 'include'
         });
 
+        // Check for authentication errors before parsing JSON
+        if (res.status === 401 || res.status === 403) {
+          alert('❌ Authentication required\n\nPlease log in to sync YouTube metrics.');
+          btn.disabled = false;
+          btn.textContent = originalText;
+          return;
+        }
+
+        // Check response status before parsing
+        if (!res.ok) {
+          // For 400 errors, try to get error message
+          let errorMessage = `HTTP ${res.status}: Sync failed`;
+          try {
+            const errorData = await res.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch {
+            // If JSON parsing fails, use status text
+            errorMessage = res.statusText || errorMessage;
+          }
+          
+          // Check if it's a "not connected" error
+          if (res.status === 400 && (errorMessage.toLowerCase().includes('not connected') || errorMessage.toLowerCase().includes('credentials'))) {
+            alert('❌ YouTube not connected\n\nPlease connect your YouTube account first in the Channel Manager.');
+          } else {
+            throw new Error(errorMessage);
+          }
+          btn.disabled = false;
+          btn.textContent = originalText;
+          return;
+        }
+
         const data = await res.json();
 
         if (!data.success) {
@@ -494,9 +525,13 @@
         alert(`✓ YouTube Sync Complete!\n\n${data.message}\n\nTotal Videos: ${data.total}\nNew Videos: ${data.synced}\nUpdated: ${data.updated}`);
         loadDashboard(); // Refresh dashboard
       } catch (error) {
-        console.error('YouTube sync error:', error);
+        // Don't log handled errors (not connected, auth errors)
+        if (!error.message.includes('not connected') && !error.message.includes('Authentication required')) {
+          console.error('YouTube sync error:', error);
+        }
+        
         if (error.message.includes('not connected') || error.message.includes('credentials')) {
-          alert('❌ YouTube not connected\n\nPlease connect your YouTube account first in the Multi-Platform Publisher.');
+          // Already handled above
         } else {
           alert(`❌ Sync failed: ${error.message}`);
         }

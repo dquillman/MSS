@@ -6517,7 +6517,10 @@ def youtube_sync_metrics():
         channel_info = platform_api.get_and_store_youtube_channel(user_email, analytics_manager)
 
         if not channel_info.get('success'):
-            return jsonify(channel_info), 500
+            error_msg = channel_info.get('error', 'Unknown error')
+            # Return 400 (Bad Request) for "not connected" errors instead of 500
+            status_code = 400 if 'not connected' in error_msg.lower() or 'credentials' in error_msg.lower() else 500
+            return jsonify(channel_info), status_code
 
         channel_account_id = channel_info.get('channel_account_id')
 
