@@ -22,12 +22,11 @@ echo "[ENTRYPOINT] PATH=${PATH}"
 echo "[ENTRYPOINT] Looking for gunicorn..."
 which gunicorn || /root/.local/bin/gunicorn --version || { echo "[ENTRYPOINT] ERROR: gunicorn not found!"; exit 1; }
 
-# Check if flask_limiter is available
-echo "[ENTRYPOINT] Checking flask_limiter..."
-python -c "import flask_limiter; print('[ENTRYPOINT] flask_limiter available')" || {
-    echo "[ENTRYPOINT] WARNING: flask_limiter not found, installing..."
-    pip install --user flask-limiter
-}
+# Install any missing dependencies from requirements.txt
+echo "[ENTRYPOINT] Ensuring all dependencies are installed..."
+if [ -f requirements.txt ]; then
+    pip install --user --no-cache-dir -r requirements.txt
+fi
 
 # Verify app can be imported
 echo "[ENTRYPOINT] Verifying app import..."

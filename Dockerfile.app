@@ -17,9 +17,10 @@ RUN pip install --no-cache-dir --user -r requirements.txt && \
     python -c "import flask_limiter; print('flask-limiter installed')" || \
     (pip install --no-cache-dir --user flask-limiter && python -c "import flask_limiter; print('flask-limiter verified')")
 
-# Copy application code
+# Copy application code (copy requirements again so entrypoint can use it)
 COPY web/ ./web/
 COPY scripts/ ./scripts/
+COPY requirements.txt ./requirements.txt
 # Copy library files
 COPY avatar_library.json ./
 COPY intro_outro_library.json ./
