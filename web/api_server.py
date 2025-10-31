@@ -13,6 +13,7 @@ from flask import Flask, request, jsonify, send_from_directory, Response, redire
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_compress import Compress
 from PIL import Image, ImageDraw, ImageFont
 import io
 import requests
@@ -155,6 +156,13 @@ except Exception as _e:
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1 GB upload cap
 
+# Initialize API documentation (Swagger)
+try:
+    from web.api.docs import init_swagger
+    init_swagger(app)
+except Exception as e:
+    logger.warning(f"[DOCS] Swagger initialization failed: {e}")
+
 # CORS Configuration - Security: Restrict to allowed origins only
 ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', '').split(',') if os.getenv('ALLOWED_ORIGINS') else []
 # Remove empty strings and add common dev origins if not in production
@@ -221,6 +229,17 @@ app.config['SESSION_COOKIE_SECURE'] = os.getenv('FLASK_ENV') == 'production'  # 
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
 app.config['SESSION_COOKIE_PATH'] = '/'
+
+# Initialize rate limiter
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri=os.getenv('REDIS_URL', 'memory://')
+)
+
+# Performance: Enable response compression
+Compress(app)
 
 # Initialize database on startup
 try:
@@ -355,9 +374,24 @@ def api_login():
 
         result = database.verify_user(email, password)
         if not result.get('success'):
+            # Security: Log failed login attempt
+            try:
+                from web.utils.security_logging import log_failed_login
+                log_failed_login(email, get_remote_address(), result.get('error', 'Invalid credentials'))
+            except Exception:
+                pass  # Don't fail if logging fails
+            
             return jsonify({'success': False, 'error': result.get('error', 'Invalid credentials')}), 401
 
         user = result['user']
+        
+        # Security: Log successful login
+        try:
+            from web.utils.security_logging import log_successful_login
+            log_successful_login(email, get_remote_address(), user['id'])
+        except Exception:
+            pass  # Don't fail if logging fails
+        
         session_id = database.create_session(user['id'], remember_me=remember_me)
         resp = jsonify({'success': True, 'user': {'id': user['id'], 'email': user['email']}})
         resp.set_cookie('session_id', session_id, httponly=True, samesite='Lax', secure=False, path='/')
@@ -2667,9 +2701,46 @@ def preview_script():
 
 @app.route('/create-video-enhanced', methods=['POST'])
 def create_video_enhanced():
-    """Create video with custom prompts and AI thumbnail
-    
+    """
+    Create video with custom prompts and AI thumbnail
+     
     Security: Input validated with Pydantic models
+    
+    ---
+    tags:
+      - Videos
+    summary: Create enhanced video
+    description: Generate video with AI thumbnail and custom prompts
+    consumes:
+      - application/json
+    produces:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        description: Video creation parameters
+        required: true
+        schema:
+          type: object
+          required:
+            - topic
+          properties:
+            topic:
+              type: object
+              description: Topic data with title, description, etc.
+            duration:
+              type: integer
+              minimum: 1
+              maximum: 600
+            generate_ai_thumbnail:
+              type: boolean
+    responses:
+      200:
+        description: Video created successfully
+      400:
+        description: Invalid input
+      500:
+        description: Video generation failed
     """
     print("\n" + "="*70)
     print("[VIDEO] CREATE-VIDEO-ENHANCED ENDPOINT CALLED")
@@ -4367,11 +4438,18 @@ def post_process_video():
 
 @app.route('/get-recent-videos', methods=['GET'])
 def get_recent_videos():
-    """Get list of recent video files from out directory"""
+    """Get list of recent video files from out directory with pagination"""
     try:
+        from web.utils.pagination import parse_pagination_params
+        
+        # Performance: Parse pagination parameters
+        page, per_page = parse_pagination_params(request)
+        
         outdir = Path("out")
         if not outdir.exists():
-            return jsonify({'success': True, 'videos': []})
+            return jsonify({'success': True, 'videos': [], 'pagination': {
+                'page': page, 'per_page': per_page, 'total': 0, 'pages': 0, 'has_next': False, 'has_prev': False
+            }})
 
         # Get all video files
         video_files = []
@@ -4387,9 +4465,15 @@ def get_recent_videos():
         # Sort by modification time (most recent first)
         processed_videos.sort(key=lambda f: f.stat().st_mtime, reverse=True)
 
-        # Return top 10 most recent
+        # Performance: Apply pagination
+        from math import ceil
+        total = len(processed_videos)
+        offset = (page - 1) * per_page
+        paginated_videos = processed_videos[offset:offset + per_page]
+        pages = ceil(total / per_page) if total > 0 else 1
+        
         videos = []
-        for video_file in processed_videos[:10]:
+        for video_file in paginated_videos:
             stat = video_file.stat()
             size_mb = stat.st_size / (1024 * 1024)
             mtime = stat.st_mtime
@@ -4411,7 +4495,19 @@ def get_recent_videos():
                 'path': str(video_file)
             })
 
-        return jsonify({'success': True, 'videos': videos})
+        # Performance: Add pagination metadata
+        return jsonify({
+            'success': True,
+            'videos': videos,
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total': total,
+                'pages': pages,
+                'has_next': page < pages,
+                'has_prev': page > 1
+            }
+        })
 
     except Exception as e:
         print(f"Error getting recent videos: {e}")
@@ -5370,7 +5466,10 @@ def save_user_preferences():
 
 @app.route('/api/analytics/dashboard', methods=['GET'])
 def get_analytics_dashboard():
-    """Get comprehensive analytics dashboard data"""
+    """Get comprehensive analytics dashboard data
+    
+    Performance: Results cached for 15 minutes to reduce database load
+    """
     if not analytics_manager:
         return jsonify({'success': False, 'error': 'Analytics not available'}), 500
 
@@ -5379,10 +5478,23 @@ def get_analytics_dashboard():
         return error_response, error_code
 
     days = request.args.get('days', 30, type=int)
+    
+    # Performance: Check cache first
+    from web.cache import get_cached, set_cached, cache_key
+    cache_key_str = cache_key("analytics_dashboard", user_email, days)
+    cached_stats = get_cached(cache_key_str)
+    if cached_stats is not None:
+        logger.info("[CACHE] Analytics dashboard cache hit")
+        return jsonify({'success': True, 'stats': cached_stats, 'cached': True})
 
     try:
         stats = analytics_manager.get_dashboard_stats(user_email, days)
-        return jsonify({'success': True, 'stats': stats})
+        
+        # Performance: Cache results for 15 minutes
+        set_cached(cache_key_str, stats, ttl=900)
+        logger.info(f"[CACHE] Analytics dashboard cached: {cache_key_str}")
+        
+        return jsonify({'success': True, 'stats': stats, 'cached': False})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
