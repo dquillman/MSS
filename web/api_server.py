@@ -204,20 +204,8 @@ def add_security_headers(response):
     # XSS protection (legacy, but still useful)
     response.headers['X-XSS-Protection'] = '1; mode=block'
     
-    # Content Security Policy - environment-aware
-    # Detect if we're in production (Cloud Run)
-    is_production = (
-        os.getenv('FLASK_ENV') == 'production' or 
-        os.getenv('K_SERVICE') is not None  # Cloud Run sets this env var
-    )
-    
-    if is_production:
-        # Production (Cloud Run): same origin only, allow Google Fonts
-        csp = "default-src 'self'; connect-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com;"
-    else:
-        # Development: allow localhost connections and Google Fonts
-        csp = "default-src 'self'; connect-src 'self' http://localhost:5000 http://localhost:3000 http://127.0.0.1:5000 http://127.0.0.1:3000 ws://localhost:* wss://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: http://localhost:5000 http://127.0.0.1:5000; font-src 'self' data: https://fonts.gstatic.com;"
-    
+    # Content Security Policy (basic)
+    csp = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;"
     response.headers['Content-Security-Policy'] = csp
     
     # Referrer Policy
@@ -805,9 +793,6 @@ def api_signup():
         email = req.email
         password = req.password
         username = req.username
-        # Get remember_me from request if provided
-        data = request.get_json() or {}
-        remember_me = data.get('remember_me', False)
 
         res = database.create_user(email, password, username=username)
         if not res.get('success'):
@@ -842,24 +827,6 @@ def serve_workflow():
     """Serve Video Creation Workflow Page"""
     return send_from_directory('topic-picker-standalone', 'workflow.html')
 
-@app.route('/<path:filename>')
-def serve_frontend_file(filename):
-    """Serve CSS, JS, and other frontend static files"""
-    # Skip if it looks like an API endpoint
-    api_prefixes = ['api', 'get-', 'set-', 'upload-', 'delete-', 'create-', 'generate-', 'post-process', 'save-', 'test-', 'health']
-    if any(filename.startswith(prefix) for prefix in api_prefixes):
-        from flask import abort
-        abort(404)
-
-    # Only serve static file types
-    if filename.endswith(('.css', '.js', '.svg', '.png', '.jpg', '.ico', '.html')):
-        try:
-            return send_from_directory('topic-picker-standalone', filename)
-        except:
-            pass
-    from flask import abort
-    abort(404)
-
 @app.route('/health')
 @app.route('/healthz')
 def _health():
@@ -874,6 +841,24 @@ def _health():
             '/api/usage', '/youtube-categories', '/out/<file>', '/logos/<file>'
         ]
     })
+
+@app.route('/<path:filename>')
+def serve_frontend_file(filename):
+    """Serve CSS, JS, and other frontend static files"""
+    # Skip if it looks like an API endpoint
+    api_prefixes = ['api', 'get-', 'set-', 'upload-', 'delete-', 'create-', 'generate-', 'post-process', 'save-', 'test-']
+    if any(filename.startswith(prefix) for prefix in api_prefixes):
+        from flask import abort
+        abort(404)
+
+    # Only serve static file types
+    if filename.endswith(('.css', '.js', '.svg', '.png', '.jpg', '.ico', '.html')):
+        try:
+            return send_from_directory('topic-picker-standalone', filename)
+        except:
+            pass
+    from flask import abort
+    abort(404)
 
 @app.route('/get-selected-topic', methods=['GET'])
 def get_selected_topic():
@@ -905,19 +890,16 @@ def get_avatar_library():
                 avatars = []
         # Fallback: scan avatars directory if library is missing/empty
         if (not avatars) and avatars_dir.exists():
-                allowed_ext = ('.png', '.jpg', '.jpeg', '.webp')
-                # Use request origin for URL generation (works in dev and production)
-                base_url = f"{request.scheme}://{request.host}"
-                for f in avatars_dir.iterdir():
-                    if f.is_file() and f.suffix.lower() in allowed_ext:
-                        stem = f.stem
-                        avatars.append({
-                            'id': stem,
-                            'name': stem.replace('_', ' ').title(),
-                            'image_url': f"{base_url}/avatars/{f.name}",
-                            'filename': f.name,
-                            'active': False,
-                        })
+            allowed_ext = ('.png', '.jpg', '.jpeg', '.webp')
+            for f in avatars_dir.iterdir():
+                if f.is_file() and f.suffix.lower() in allowed_ext:
+                    stem = f.stem
+                    avatars.append({
+                        'id': stem,
+                        'name': stem.replace('_', ' ').title(),
+                        'image_url': f"http://127.0.0.1:5000/avatars/{f.name}",
+                        'active': False,
+                    })
             # Sort newest first where possible
             try:
                 avatars.sort(key=lambda a: (avatars_dir / (a.get('id', '') + '.png')).stat().st_mtime if (avatars_dir / (a.get('id', '') + '.png')).exists() else 0, reverse=True)
@@ -4944,38 +4926,23 @@ def upload_logo_to_library():
         if not dest.exists() or dest.stat().st_size == 0:
             return jsonify({'success': False, 'error': 'Failed to save file'}), 500
         
-        # Use request origin for URL generation (works in dev and production)
-        base_url = f"{request.scheme}://{request.host}"
-        url = f"{base_url}/logos/{dest.name}"
-        
-        # Generate unique ID
-        logo_id = f"{int(time.time()*1000)}_logo_{uuid.uuid4().hex[:8]}"
-        
+        url = f"http://127.0.0.1:5000/logos/{dest.name}"
+        lib_path = Path('logo_library.json')
+        library = {'logos': []}
+        if lib_path.exists():
+            try: library = json.loads(lib_path.read_text(encoding='utf-8') or '{}')
+            except Exception: library = {'logos': []}
         entry = {
-            'id': logo_id,
+            'id': str(int(time.time()*1000)),
             'name': name,
             'url': url,
             'filename': dest.name,
             'active': False,
+            'uploadedAt': time.strftime('%Y-%m-%d %H:%M:%S')
         }
-        
-        # Try database first
-        try:
-            from web.database import save_logo_to_db
-            save_logo_to_db(entry)
-            return jsonify({'success': True, 'url': url, 'logo': entry})
-        except Exception as e:
-            logger.warning(f"[LOGO] Database save failed, falling back to JSON: {e}")
-            # Fallback to JSON (backward compatibility)
-            lib_path = Path('logo_library.json')
-            library = {'logos': []}
-            if lib_path.exists():
-                try: library = json.loads(lib_path.read_text(encoding='utf-8') or '{}')
-                except Exception: library = {'logos': []}
-            entry['uploadedAt'] = time.strftime('%Y-%m-%d %H:%M:%S')
-            library.setdefault('logos', []).append(entry)
-            lib_path.write_text(json.dumps(library, indent=2), encoding='utf-8')
-            return jsonify({'success': True, 'url': url, 'logo': entry})
+        library.setdefault('logos', []).append(entry)
+        lib_path.write_text(json.dumps(library, indent=2), encoding='utf-8')
+        return jsonify({'success': True, 'url': url, 'logo': entry})
     except FileUploadError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
@@ -6520,10 +6487,7 @@ def youtube_sync_metrics():
         channel_info = platform_api.get_and_store_youtube_channel(user_email, analytics_manager)
 
         if not channel_info.get('success'):
-            error_msg = channel_info.get('error', 'Unknown error')
-            # Return 400 (Bad Request) for "not connected" errors instead of 500
-            status_code = 400 if 'not connected' in error_msg.lower() or 'credentials' in error_msg.lower() else 500
-            return jsonify(channel_info), status_code
+            return jsonify(channel_info), 500
 
         channel_account_id = channel_info.get('channel_account_id')
 
