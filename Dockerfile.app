@@ -1,24 +1,9 @@
-# Multi-stage build for MSS Flask application
-FROM python:3.11-slim as builder
-
-WORKDIR /build
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
-
-# Production stage
+# Simple single-stage build for MSS Flask application
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install runtime and build dependencies (needed for some Python packages)
+# Install all dependencies at once (simpler and more reliable)
 RUN apt-get update && apt-get install -y \
     curl \
     ffmpeg \
@@ -26,11 +11,11 @@ RUN apt-get update && apt-get install -y \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first
+# Copy requirements and install Python dependencies
 COPY requirements.txt .
-
-# Install all Python dependencies directly (with build tools available)
-RUN pip install --user --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --user -r requirements.txt && \
+    python -c "import flask_limiter; print('flask-limiter installed')" || \
+    (pip install --no-cache-dir --user flask-limiter && python -c "import flask_limiter; print('flask-limiter verified')")
 
 # Copy application code
 COPY web/ ./web/
