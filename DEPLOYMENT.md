@@ -50,12 +50,6 @@ railway variables
 # Look for DATABASE_URL
 ```
 
-#### Render
-1. Go to https://render.com
-2. Create new PostgreSQL database
-3. Copy the External Database URL
-4. Use this as your DATABASE_URL
-
 #### Heroku
 ```bash
 # Add PostgreSQL addon
@@ -260,27 +254,6 @@ railway variables set STRIPE_WEBHOOK_SECRET=whsec_xxxxx
 ```bash
 railway up
 ```
-
-### Render
-
-1. **Create New Web Service**
-   - Go to https://render.com
-   - Click "New" → "Web Service"
-   - Connect your GitHub repo
-
-2. **Configure Build**
-   - Build Command: `pip install -r requirements.txt`
-   - Start Command: `cd web && gunicorn -w 4 -b 0.0.0.0:$PORT api_server:app`
-
-3. **Add PostgreSQL**
-   - Create PostgreSQL database in Render
-   - Copy External Database URL
-
-4. **Set Environment Variables**
-   - Add all variables from .env file
-   - Set DATABASE_URL to PostgreSQL connection string
-
-5. **Deploy**
 
 ### Heroku
 

@@ -75,7 +75,6 @@ Manual vs scheduled runs
   - n8n: use the single or dual workflow and set the YouTube upload to happen via CLI, or add an HTTP upload node with `status.publishAt` and `privacyStatus=private`.
 - Scheduled generation (run entire pipeline later):
   - n8n workflow: `scheduled_topic_dual.json` — POST to `/webhook/schedule-topic-dual` with `{ topic: {...}, scheduleISO: "2025-10-01T16:00:00Z" }`. The workflow waits until `scheduleISO` then POSTs your topic to `/webhook/topic-select-dual`.
-  - Render: alternatively, create a Cron Job service that POSTs a saved topic to `/webhook/topic-select-dual` at your desired time.
   - OS schedulers: use `cron` or Windows Task Scheduler to call the CLI or webhook.
 
 **n8n: Topic Ideation + Selection**
@@ -104,28 +103,6 @@ Note: The provided workflow uses ElevenLabs+S3 by default; you can swap to Googl
 - Drive: `https://www.googleapis.com/auth/drive.file`
 - YouTube: `https://www.googleapis.com/auth/youtube.upload`
 - Enable APIs: Text-to-Speech API, Drive API, YouTube Data API v3 in your GCP project.
-**Deploy on Render**
-- Files included: `render.yaml` blueprint for one-click deploy.
-- Services created:
-  - `mss-n8n` (Docker, n8nio/n8n:latest) with a persistent disk at `/home/node/.n8n`.
-  - `mss-topic-picker` (Static) serving `web/topic-picker`.
-- Post-deploy steps:
-  - Set `WEBHOOK_URL` on the n8n service to its public URL (e.g., `https://mss-n8n.onrender.com`). Redeploy.
-  - In n8n, configure credentials (OpenAI, Google Cloud TTS, Google Drive, Google Sheets, YouTube OAuth2). Tokens will persist in the disk.
-  - In n8n Settings → Variables, set: `SHOTSTACK_API_KEY`, `GSHEET_ID`, `DRIVE_AUDIO_FOLDER`, `DRIVE_RENDERS_FOLDER`, `YOUTUBE_PRIVACY_STATUS`.
-  - In Render → `mss-n8n` → Environment → add `N8N_CORS_ALLOW_ORIGINS` to the static site origin (e.g., `https://mss-topic-picker.onrender.com`) if you want to call webhooks from the topic picker.
-  - Open the topic picker at `https://<your-topic-picker>.onrender.com`, set the Base URL to your n8n host, click “Fetch Topics”, and launch renders.
-
-**CI: Auto-bump Render env + deploy**
-- GitHub Actions workflow: `.github/workflows/render-bump.yml`
-- On push to `main` that modifies `version.json` (or workflows), it:
-  - Parses `version.json` and updates Render env vars: `APP_VERSION`, `WEBSITE_VERSION`, `VERSION_UPDATED_AT`.
-  - Triggers a new deploy of the n8n service.
-- Required repo secrets:
-  - `RENDER_API_KEY`: Render API key (generate in Render dashboard).
-  - `RENDER_SERVICE_ID`: ID of the `mss-n8n` service.
-- Adjust as needed if Render's env var API changes.
-
 **Deploy to Google Cloud Run (Recommended for Production)**
 - Complete guide: See `GCP_DEPLOYMENT.md`
 - Runbook: See `GCP_RUNBOOK.md` for operations
