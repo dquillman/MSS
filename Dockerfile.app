@@ -43,9 +43,12 @@ RUN mkdir -p tmp out public_audio thumbnails avatars logos
 COPY docker/entrypoint-app.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Set Python path
+# Set Python path and ensure PATH is set correctly
 ENV PATH=/root/.local/bin:$PATH
 ENV PYTHONPATH=/app
+
+# Verify gunicorn is installed
+RUN /root/.local/bin/gunicorn --version || pip install --user gunicorn
 
 # Expose port (Cloud Run will set PORT env var)
 EXPOSE 8080

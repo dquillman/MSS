@@ -18,7 +18,9 @@ fi
 # Verify Python and gunicorn are available
 echo "[ENTRYPOINT] Verifying dependencies..."
 python --version
-gunicorn --version || { echo "[ENTRYPOINT] ERROR: gunicorn not found!"; exit 1; }
+echo "[ENTRYPOINT] PATH=${PATH}"
+echo "[ENTRYPOINT] Looking for gunicorn..."
+which gunicorn || /root/.local/bin/gunicorn --version || { echo "[ENTRYPOINT] ERROR: gunicorn not found!"; exit 1; }
 
 # Verify app can be imported
 echo "[ENTRYPOINT] Verifying app import..."
