@@ -14,8 +14,9 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
-# Verify pip install succeeded (don't fail on import - let entrypoint handle it)
-RUN pip list | grep -E "(flask|stripe|gunicorn|bcrypt)" || echo "WARNING: Some packages may not be listed"
+# Explicitly verify flask-limiter is installed (package name vs import name)
+RUN pip list --user | grep -i flask || pip list | grep -i flask
+RUN python -c "import site; import sys; sys.path.insert(0, site.USER_SITE); from flask_limiter import Limiter; print('flask-limiter OK')" || (pip install --user flask-limiter && echo "flask-limiter installed")
 
 # Copy application code (copy requirements again so entrypoint can use it)
 COPY web/ ./web/
