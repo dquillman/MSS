@@ -9,6 +9,9 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     gcc \
     g++ \
+    libfreetype6-dev \
+    libjpeg-dev \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies

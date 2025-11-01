@@ -846,7 +846,7 @@ def _health():
     return jsonify({
         'status': 'ok',
         'service': 'MSS API',
-        'version': '5.6.4',
+        'version': '5.6.5',
         'endpoints': [
             '/studio', '/topics', '/post-process-video',
             '/get-avatar-library', '/get-logo-library', '/api/logo-files',
@@ -5967,7 +5967,7 @@ def multi_platform_page():
 def youtube_oauth_authorize():
     """Start YouTube OAuth flow"""
     if not platform_api:
-        return jsonify({'success': False, 'error': 'Platform API not available'}), 500
+        return jsonify({'success': False, 'error': 'YouTube OAuth not configured. Platform API manager not available.'}), 503
 
     user_email, error_response, error_code = _get_user_from_session()
     if error_response:
@@ -5993,7 +5993,7 @@ def youtube_oauth_authorize():
 def youtube_oauth_callback():
     """Handle YouTube/Google Calendar OAuth callback (shared endpoint)"""
     if not platform_api:
-        return "Platform API not available", 500
+        return "YouTube OAuth not configured. Platform API manager not available.", 503
 
     code = request.args.get('code')
     state = request.args.get('state')

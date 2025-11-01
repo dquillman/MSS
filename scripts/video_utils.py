@@ -169,11 +169,11 @@ def generate_thumbnail_variants(title: str, out_dir: Path, count: int = 3) -> Li
 
         # Draw title text (split into lines if too long)
         try:
-            # Try to use a nice font
-            font_large = ImageFont.truetype("arial.ttf", 74)
-            font_small = ImageFont.truetype("arial.ttf", 48)
-        except:
-            # Fallback to default
+            # Try to use a nice font (DejaVu Sans is installed in Docker)
+            font_large = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 74)
+            font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48)
+        except Exception as e:
+            # Fallback: try to find any font, then default
             font_large = ImageFont.load_default()
             font_small = ImageFont.load_default()
 
