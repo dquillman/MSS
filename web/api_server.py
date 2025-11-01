@@ -229,10 +229,10 @@ def add_security_headers(response):
     
     if is_production:
         # Production (Cloud Run): same origin only, allow Google Fonts
-        csp = "default-src 'self'; connect-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com;"
+        csp = "default-src 'self'; connect-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; require-trusted-types-for 'none';"
     else:
         # Development: allow localhost connections and Google Fonts
-        csp = "default-src 'self'; connect-src 'self' http://localhost:5000 http://localhost:3000 http://127.0.0.1:5000 http://127.0.0.1:3000 ws://localhost:* wss://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: http://localhost:5000 http://127.0.0.1:5000; font-src 'self' data: https://fonts.gstatic.com;"
+        csp = "default-src 'self'; connect-src 'self' http://localhost:5000 http://localhost:3000 http://127.0.0.1:5000 http://127.0.0.1:3000 ws://localhost:* wss://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: http://localhost:5000 http://127.0.0.1:5000; font-src 'self' data: https://fonts.gstatic.com; require-trusted-types-for 'none';"
     
     response.headers['Content-Security-Policy'] = csp
     
