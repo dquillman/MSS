@@ -41,10 +41,13 @@ jobs:
           gcloud auth configure-docker $REGION-docker.pkg.dev
 
       - name: Create YouTube credentials file from secret
-        if: ${{ secrets.YOUTUBE_CLIENT_SECRETS_JSON != '' }}
         run: |
-          mkdir -p web/platform_credentials
-          echo '${{ secrets.YOUTUBE_CLIENT_SECRETS_JSON }}' > web/platform_credentials/youtube_client_secrets.json
+          if [ -n "${{ secrets.YOUTUBE_CLIENT_SECRETS_JSON }}" ]; then
+            mkdir -p web/platform_credentials
+            echo '${{ secrets.YOUTUBE_CLIENT_SECRETS_JSON }}' > web/platform_credentials/youtube_client_secrets.json
+          else
+            echo "YOUTUBE_CLIENT_SECRETS_JSON secret not set, skipping..."
+          fi
 
       - name: Build Docker image
         run: |
