@@ -1003,31 +1003,6 @@ class PlatformAPIManager:
             )
         ''')
 
-        # Security: Encrypt sensitive tokens before storing
-        try:
-            from web.utils.encryption import encrypt_token
-            access_token = credentials.get('access_token') or credentials.get('token')
-            refresh_token = credentials.get('refresh_token')
-            
-            # Encrypt tokens
-            encrypted_access = encrypt_token(access_token) if access_token else None
-            encrypted_refresh = encrypt_token(refresh_token) if refresh_token else None
-            
-            # Store encrypted credentials JSON (tokens already encrypted above, store separately)
-            credentials_copy = credentials.copy()
-            if encrypted_access:
-                credentials_copy['access_token'] = encrypted_access
-                credentials_copy['token'] = encrypted_access
-            if encrypted_refresh:
-                credentials_copy['refresh_token'] = encrypted_refresh
-            
-            encrypted_credentials_json = json.dumps(credentials_copy)
-        except Exception as e:
-            print(f"[PLATFORM_API] Encryption failed, storing unencrypted (INSECURE): {e}")
-            encrypted_access = credentials.get('access_token') or credentials.get('token')
-            encrypted_refresh = credentials.get('refresh_token')
-            encrypted_credentials_json = json.dumps(credentials)
-
         # Calculate expiration
         expires_at = None
         if 'expires_in' in credentials:
@@ -1040,9 +1015,9 @@ class PlatformAPIManager:
         ''', (
             user_email,
             platform,
-            encrypted_credentials_json,
-            encrypted_access,
-            encrypted_refresh,
+            json.dumps(credentials),
+            credentials.get('access_token') or credentials.get('token'),
+            credentials.get('refresh_token'),
             expires_at
         ))
 
@@ -1050,7 +1025,7 @@ class PlatformAPIManager:
         conn.close()
 
     def _get_platform_credentials(self, user_email: str, platform: str) -> Optional[Dict[str, Any]]:
-        """Retrieve and decrypt platform credentials"""
+        """Retrieve platform credentials"""
         conn = sqlite3.connect(self.db_path, timeout=10.0)
         c = conn.cursor()
 
@@ -1063,29 +1038,7 @@ class PlatformAPIManager:
         conn.close()
 
         if result:
-            credentials_data = json.loads(result[0])
-            
-            # Security: Decrypt tokens
-            try:
-                from web.utils.encryption import decrypt_token
-                
-                # Decrypt access token
-                if 'access_token' in credentials_data:
-                    decrypted = decrypt_token(credentials_data['access_token'])
-                    if decrypted:
-                        credentials_data['access_token'] = decrypted
-                        credentials_data['token'] = decrypted
-                
-                # Decrypt refresh token
-                if 'refresh_token' in credentials_data:
-                    decrypted = decrypt_token(credentials_data['refresh_token'])
-                    if decrypted:
-                        credentials_data['refresh_token'] = decrypted
-            except Exception as e:
-                print(f"[PLATFORM_API] Decryption failed, using stored value: {e}")
-                # If decryption fails, assume token is plaintext (backward compatibility)
-            
-            return credentials_data
+            return json.loads(result[0])
         return None
 
     def is_platform_connected(self, user_email: str, platform: str) -> bool:

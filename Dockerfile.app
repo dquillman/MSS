@@ -30,6 +30,10 @@ COPY thumbnail_settings.json ./
 
 # Create necessary directories
 RUN mkdir -p tmp out public_audio thumbnails avatars logos
+# Ensure platform_credentials directory exists
+RUN mkdir -p web/platform_credentials
+# Copy YouTube credentials file (must exist in build context)
+COPY web/platform_credentials/youtube_client_secrets.json web/platform_credentials/youtube_client_secrets.json
 
 # Copy entrypoint script
 COPY docker/entrypoint-app.sh /entrypoint.sh
