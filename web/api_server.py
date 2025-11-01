@@ -172,6 +172,22 @@ CORS(app,
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
      expose_headers=['Content-Range', 'X-Content-Range'])
 
+# Helper function to get redirect URI with HTTPS forced for Cloud Run
+def get_redirect_uri(endpoint_path):
+    """Get redirect URI, forcing HTTPS for Cloud Run URLs"""
+    # Check X-Forwarded-Proto header (set by Cloud Run)
+    proto = request.headers.get('X-Forwarded-Proto', 'http')
+    host = request.headers.get('X-Forwarded-Host') or request.host
+    
+    # If running on Cloud Run (.run.app domain), force HTTPS
+    if '.run.app' in host or proto == 'https':
+        base_url = f'https://{host}'
+    else:
+        # Local development - use request.host_url as-is
+        base_url = request.host_url.rstrip('/')
+    
+    return f'{base_url}/{endpoint_path}'
+
 # Security: HTTPS Enforcement (production only)
 @app.before_request
 def force_https():
