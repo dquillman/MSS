@@ -5976,7 +5976,7 @@ def youtube_oauth_authorize():
 
     print(f"[YOUTUBE] Authorize: Starting OAuth for user: {user_email}")
 
-    redirect_uri = request.args.get('redirect_uri', request.host_url + 'api/oauth/youtube/callback')
+    redirect_uri = request.args.get('redirect_uri', get_redirect_uri('api/oauth/youtube/callback'))
 
     try:
         auth_url = platform_api.get_youtube_auth_url(user_email, redirect_uri)
@@ -6017,7 +6017,7 @@ def youtube_oauth_callback():
     user_email = result['user']['email']
     print(f"[OAUTH] Callback: Retrieved user email from session: {user_email}")
 
-    redirect_uri = request.host_url + 'api/oauth/youtube/callback'
+    redirect_uri = get_redirect_uri('api/oauth/youtube/callback')
 
     # Check which OAuth flow this is by checking stored state
     is_calendar = False
@@ -6113,7 +6113,7 @@ def google_calendar_oauth_authorize():
     print(f"[GOOGLE-CAL] Authorize: Starting OAuth for user: {user_email}")
 
     # Use YouTube callback URI (already registered in Google Cloud Console)
-    redirect_uri = request.host_url + 'api/oauth/youtube/callback'
+    redirect_uri = get_redirect_uri('api/oauth/youtube/callback')
 
     try:
         auth_url = platform_api.get_google_calendar_auth_url(user_email, redirect_uri)
