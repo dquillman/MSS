@@ -40,6 +40,12 @@ jobs:
         run: |
           gcloud auth configure-docker $REGION-docker.pkg.dev
 
+      - name: Create YouTube credentials file from secret
+        if: ${{ secrets.YOUTUBE_CLIENT_SECRETS_JSON != '' }}
+        run: |
+          mkdir -p web/platform_credentials
+          echo '${{ secrets.YOUTUBE_CLIENT_SECRETS_JSON }}' > web/platform_credentials/youtube_client_secrets.json
+
       - name: Build Docker image
         run: |
           docker build -f Dockerfile.app -t $REGION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME:$GITHUB_SHA \
