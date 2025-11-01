@@ -41,17 +41,17 @@
   <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
     <h1 style="margin:0;">MSS Studio <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
     <div style="display:flex; gap:10px; flex-wrap:wrap; position:relative;">
-      <button class="btn" onclick="window.location.href='workflow.html' + window.location.search" style="background:#22c55e; border-color:#22c55e;">📋 Workflow</button>
-      <button class="btn" onclick="window.location.href='trends-calendar.html'" style="background:#22c55e; border-color:#22c55e;">📊 Trends</button>
-      <button class="btn" onclick="window.location.href='avatar-manager.html'">Avatars</button>
-      <button class="btn" onclick="window.location.href='logo-manager.html'">Logos</button>
-      <button class="btn" onclick="window.location.href='meme-library.html' + window.location.search">Thumbnails</button>
-      <button class="btn" onclick="window.location.href='intro-outro.html'">Intro/Outro</button>
-      <button class="btn" onclick="window.location.href='/dashboard'">Dashboard</button>
-      <button class="btn" onclick="window.location.href='/analytics-dashboard'" style="background:#22c55e; border-color:#22c55e;">Analytics</button>
-      <button class="btn" onclick="goToPublisher()" style="background:#f59e0b; border-color:#f59e0b;">Multi-Platform</button>
-      <button class="btn" onclick="window.location.href='settings.html'" style="background:#7c3aed; border-color:#7c3aed;">Settings</button>
-      <button class="btn" onclick="logout()" style="background:#ef4444; border-color:#ef4444;">Logout</button>
+      <button class="btn btn-primary" onclick="window.location.href='workflow.html' + window.location.search">📋 Workflow</button>
+      <button class="btn btn-primary" onclick="window.location.href='trends-calendar.html'">📊 Trends</button>
+      <button class="btn btn-primary" onclick="window.location.href='avatar-manager.html'">Avatars</button>
+      <button class="btn btn-primary" onclick="window.location.href='logo-manager.html'">Logos</button>
+      <button class="btn btn-primary" onclick="window.location.href='meme-library.html' + window.location.search">Thumbnails</button>
+      <button class="btn btn-primary" onclick="window.location.href='intro-outro.html'">Intro/Outro</button>
+      <button class="btn btn-primary" onclick="window.location.href='/dashboard'">Dashboard</button>
+      <button class="btn btn-primary" onclick="window.location.href='/analytics-dashboard'">Analytics</button>
+      <button class="btn btn-warning" onclick="goToPublisher()">Multi-Platform</button>
+      <button class="btn btn-primary" onclick="window.location.href='settings.html'">Settings</button>
+      <button class="btn btn-danger" onclick="logout()">Logout</button>
     </div>
   </div>
 
@@ -89,7 +89,7 @@
     <h1>Video Topic</h1>
     <div class="row" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
       <button class="btn" id="liteLoadLast">Load Last Topic</button>
-      <button class="btn" id="liteClear" style="background:#ef4444; border-color:#ef4444;">Clear Topic</button>
+      <button class="btn btn-danger" id="liteClear">Clear Topic</button>
       <span id="liteStatus" class="status info" style="display:none; padding:8px 12px; background:rgba(34,197,94,0.2); border:1px solid #22c55e; border-radius:6px; color:#22c55e; font-size:14px; font-weight:600;"></span>
     </div>
     <div class="row" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
@@ -205,9 +205,9 @@
     <h1>Video Prompt</h1>
     <div class="row">
       <button class="btn" id="generatePrompts">Generate Prompts</button>
-      <button class="btn" id="copyFullPrompt" style="background:#22c55e; border-color:#22c55e;">Copy Full Prompt</button>
-      <button class="btn" id="copyCondensedPrompt" style="background:#3b82f6; border-color:#3b82f6;">Copy Condensed Prompt</button>
-      <button class="btn" id="clearPrompts" style="background:#ef4444; border-color:#ef4444;">Clear Prompts</button>
+      <button class="btn btn-success" id="copyFullPrompt">Copy Full Prompt</button>
+      <button class="btn btn-primary" id="copyCondensedPrompt">Copy Condensed Prompt</button>
+      <button class="btn btn-danger" id="clearPrompts">Clear Prompts</button>
     </div>
     <div class="row">
       <label>Full Prompt</label>
@@ -415,7 +415,7 @@ YouTube Description:
       </div>
     </div>
     <div class="row">
-      <button class="btn" id="uploadToYouTubeBtn" style="background:#FF0000; border-color:#FF0000;">Upload to YouTube</button>
+      <button class="btn btn-danger" id="uploadToYouTubeBtn">Upload to YouTube</button>
     </div>
     <div id="ytStatus" class="status"></div>
     <div id="ytProgress" style="display:none; margin-top:12px; padding:12px; background:rgba(59,130,246,0.1); border:1px solid var(--accent-blue); border-radius:6px;">

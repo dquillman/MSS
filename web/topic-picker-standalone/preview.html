@@ -170,29 +170,7 @@
 
     button:hover { background: #1d4ed8; }
 
-    .button-secondary {
-      background: #334;
-    }
-
-    .button-secondary:hover {
-      background: #445;
-    }
-
-    .button-success {
-      background: #22c55e;
-    }
-
-    .button-success:hover {
-      background: #16a34a;
-    }
-
-    .button-danger {
-      background: #dc2626;
-    }
-
-    .button-danger:hover {
-      background: #b91c1c;
-    }
+    /* Button classes now defined in studio.css */
 
     .button-group {
       display: flex;
@@ -398,10 +376,10 @@
 
     <!-- Action Buttons -->
     <div class="button-group">
-      <button onclick="window.location.href='studio.html'" class="button-secondary">← Back to Studio</button>
-      <button onclick="regenerateVideo()" class="button-secondary">🔄 Regenerate</button>
-      <button onclick="downloadFiles()">☁️ Upload to Drive</button>
-      <button onclick="approveForPublish()" class="button-success">✅ Approve & Publish</button>
+      <button onclick="window.location.href='studio.html'" class="btn btn-secondary">← Back to Studio</button>
+      <button onclick="regenerateVideo()" class="btn btn-secondary">🔄 Regenerate</button>
+      <button onclick="downloadFiles()" class="btn btn-primary">☁️ Upload to Drive</button>
+      <button onclick="approveForPublish()" class="btn btn-success">✅ Approve & Publish</button>
     </div>
 
     <div id="status"></div>

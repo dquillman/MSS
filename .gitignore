@@ -17,6 +17,7 @@ drive-service-account.json
 json.txt
 *.json.json
 web/platform_credentials/
+GITHUB_SECRET_CONTENT.txt
 
 # Outputs
 out/

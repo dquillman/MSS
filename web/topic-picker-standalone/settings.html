@@ -42,7 +42,7 @@
   <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
     <h1 style="margin:0;">Settings <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
     <div style="display:flex; gap:10px; flex-wrap:wrap; position:relative;">
-      <button class="btn" style="background:#3b82f6; border-color:#3b82f6;" onclick="window.location.href='studio.html'">Studio</button>
+      <button class="btn btn-primary" onclick="window.location.href='studio.html'">Studio</button>
       <button class="btn" onclick="window.location.href='avatar-manager.html'">Avatars</button>
       <button class="btn" onclick="window.location.href='logo-manager.html'">Logos</button>
       <button class="btn" onclick="window.location.href='meme-library.html'">Thumbnails</button>
@@ -199,10 +199,10 @@
   <div class="card">
     <h1>Actions</h1>
     <div class="row" style="display:flex; gap:12px; flex-wrap:wrap;">
-      <button class="btn" id="saveSettingsBtn" style="background:#22c55e; border-color:#22c55e;">💾 Save All Settings</button>
-      <button class="btn" id="resetSettingsBtn" style="background:#ef4444; border-color:#ef4444;">🔄 Reset to Defaults</button>
-      <button class="btn" id="exportSettingsBtn" style="background:#3b82f6; border-color:#3b82f6;">⬇ Export Settings</button>
-      <button class="btn" id="importSettingsBtn" style="background:#3b82f6; border-color:#3b82f6;">⬆ Import Settings</button>
+      <button class="btn btn-success" id="saveSettingsBtn">💾 Save All Settings</button>
+      <button class="btn btn-danger" id="resetSettingsBtn">🔄 Reset to Defaults</button>
+      <button class="btn btn-info" id="exportSettingsBtn">⬇ Export Settings</button>
+      <button class="btn btn-info" id="importSettingsBtn">⬆ Import Settings</button>
     </div>
     <div id="settingsStatus" class="status"></div>
     <input type="file" id="importFileInput" accept=".json" style="display:none;">

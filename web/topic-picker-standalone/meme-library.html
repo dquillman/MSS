@@ -12,8 +12,8 @@
   <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
     <h1 style="margin:0;">Thumbnail Library <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
     <div style="display:flex; gap:10px; flex-wrap:wrap; position:relative;">
-      <button class="btn" style="background:#22c55e; border-color:#22c55e;" onclick="window.location.href='workflow.html' + window.location.search">📋 Workflow</button>
-      <button class="btn" style="background:#3b82f6; border-color:#3b82f6;" onclick="goToStudio()">Studio</button>
+      <button class="btn btn-primary" onclick="window.location.href='workflow.html' + window.location.search">📋 Workflow</button>
+      <button class="btn btn-primary" onclick="goToStudio()">Studio</button>
       <div class="dropdown" style="position:relative; display:none;" id="oldMenusContainer">
         <button class="btn" id="oldMenusBtn">Old Menus</button>
         <div class="dropdown-content" id="oldMenus" style="display:none; position:absolute; top:110%; left:0; background:#0B0F19; border:1px solid #334; border-radius:8px; min-width:180px; z-index:20; box-shadow:0 6px 18px rgba(0,0,0,0.4);">
@@ -66,11 +66,11 @@
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
       <h1 style="margin:0;">Thumbnail Creator</h1>
       <div style="display:flex; gap:8px;">
-        <button class="btn" id="saveTemplateBtn" style="font-size:12px; padding:6px 12px; background:#7c3aed; border-color:#7c3aed;">💾 Save Template</button>
-        <button class="btn" id="loadTemplateBtn" style="font-size:12px; padding:6px 12px; background:#7c3aed; border-color:#7c3aed;">📁 Templates</button>
-        <button class="btn" id="showRecentBtn" style="font-size:12px; padding:6px 12px;">Recent ▾</button>
-        <button class="btn" id="exportBtn" style="font-size:12px; padding:6px 12px; background:#0891b2; border-color:#0891b2;">⬇ Export</button>
-        <button class="btn" id="importBtn" style="font-size:12px; padding:6px 12px; background:#0891b2; border-color:#0891b2;">⬆ Import</button>
+        <button class="btn btn-primary" id="saveTemplateBtn" style="font-size:12px; padding:6px 12px;">💾 Save Template</button>
+        <button class="btn btn-primary" id="loadTemplateBtn" style="font-size:12px; padding:6px 12px;">📁 Templates</button>
+        <button class="btn btn-primary" id="showRecentBtn" style="font-size:12px; padding:6px 12px;">Recent ▾</button>
+        <button class="btn btn-info" id="exportBtn" style="font-size:12px; padding:6px 12px;">⬇ Export</button>
+        <button class="btn btn-info" id="importBtn" style="font-size:12px; padding:6px 12px;">⬆ Import</button>
       </div>
     </div>
     <input type="file" id="importFileInput" accept=".json" style="display:none;">
@@ -104,13 +104,13 @@
     <div class="controls">
       <label>Background Image: <input type="file" id="memeBg" accept="image/*"></label>
       <div style="color:var(--text-muted); font-size:12px;">Or drag & drop image onto canvas</div>
-      <button class="btn" id="memeGenBg">Generate Background (AI)</button>
-      <button class="btn" id="batchGenBg" style="background:#059669; border-color:#059669;">Generate 5 Variants (AI)</button>
+      <button class="btn btn-primary" id="memeGenBg">Generate Background (AI)</button>
+      <button class="btn btn-success" id="batchGenBg">Generate 5 Variants (AI)</button>
       <label style="display:flex; align-items:center; gap:6px;">
         <input type="checkbox" id="forceCleanBg" checked> Force clean (no text)
       </label>
       <button class="btn" id="memeGenerate">Render Thumbnail</button>
-      <button class="btn" id="memeClear" style="background:#dc2626; border-color:#dc2626;">Clear Thumbnail</button>
+      <button class="btn btn-danger" id="memeClear">Clear Thumbnail</button>
       <a class="btn" id="memeDownload" download="meme.png" style="display:none;">Download</a>
     </div>
     <div class="row">
