@@ -507,10 +507,33 @@
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     }
 
-    // Load channels on page load
-    document.addEventListener('DOMContentLoaded', () => {
-      switchPlatform('youtube'); // Initialize with YouTube
-    });
+    // Authentication check - must be logged in to access channel manager
+    (async function checkAuth() {
+      try {
+        const res = await fetch(`${API_BASE}/api/me`, {
+          credentials: 'include'
+        });
+
+        if (!res.ok) {
+          // Request failed, redirect to auth page
+          window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
+          return;
+        }
+
+        const data = await res.json();
+        if (!data.success) {
+          // Not authenticated or session invalid, redirect to auth
+          window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
+          return;
+        }
+
+        // User is authenticated, continue loading page
+        switchPlatform('youtube'); // Initialize with YouTube
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
+      }
+    })();
   </script>
 </body>
 </html>

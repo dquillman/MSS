@@ -846,7 +846,7 @@ def _health():
     return jsonify({
         'status': 'ok',
         'service': 'MSS API',
-        'version': '5.6.5',
+        'version': '5.6.6',
         'endpoints': [
             '/studio', '/topics', '/post-process-video',
             '/get-avatar-library', '/get-logo-library', '/api/logo-files',
