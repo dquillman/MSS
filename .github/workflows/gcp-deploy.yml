@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - master
   workflow_dispatch:
 
 env:
@@ -40,15 +41,6 @@ jobs:
         run: |
           gcloud auth configure-docker $REGION-docker.pkg.dev
 
-      - name: Create YouTube credentials file from secret
-        run: |
-          if [ -n "${{ secrets.YOUTUBE_CLIENT_SECRETS_JSON }}" ]; then
-            mkdir -p web/platform_credentials
-            echo '${{ secrets.YOUTUBE_CLIENT_SECRETS_JSON }}' > web/platform_credentials/youtube_client_secrets.json
-          else
-            echo "YOUTUBE_CLIENT_SECRETS_JSON secret not set, skipping..."
-          fi
-
       - name: Build Docker image
         run: |
           docker build -f Dockerfile.app -t $REGION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME:$GITHUB_SHA \
@@ -71,80 +63,19 @@ jobs:
             --timeout 300 \
             --max-instances 10 \
             --min-instances 0 \
-            --clear-env-vars \
+            --set-env-vars "PORT=8080" \
+            --set-secrets "OPENAI_API_KEY=openai-api-key:latest,STRIPE_SECRET_KEY=stripe-secret-key:latest,STRIPE_WEBHOOK_SECRET=stripe-webhook-secret:latest" \
             --service-account ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
       - name: Get service URL
         run: |
           SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)')
-          echo "=========================================="
-          echo "🚀 SERVICE DEPLOYED SUCCESSFULLY!"
-          echo "=========================================="
-          echo ""
-          echo "📍 Service URL: $SERVICE_URL"
-          echo ""
-          echo "🔗 Quick Links:"
-          echo "   Health: $SERVICE_URL/health"
-          echo "   Auth:   $SERVICE_URL/auth"
-          echo "   Studio: $SERVICE_URL/studio"
-          echo ""
-          echo "=========================================="
+          echo "Service deployed at: $SERVICE_URL"
           echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_ENV
 
       - name: Health check
         run: |
           SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)')
-          echo "Service URL: $SERVICE_URL"
-          echo "Waiting for service to be ready..."
-          sleep 30
-          
-          # Try both /health and /healthz endpoints
-          HEALTH_ENDPOINTS="/health /healthz"
-          MAX_RETRIES=3
-          RETRY_DELAY=10
-          
-          for i in $(seq 1 $MAX_RETRIES); do
-            echo "Health check attempt $i/$MAX_RETRIES"
-            for endpoint in $HEALTH_ENDPOINTS; do
-              echo "Trying: $SERVICE_URL$endpoint"
-              if curl -f -s "$SERVICE_URL$endpoint" > /dev/null 2>&1; then
-                echo "✅ Health check passed on $endpoint!"
-                curl -s "$SERVICE_URL$endpoint" | jq '.' || curl -s "$SERVICE_URL$endpoint"
-                exit 0
-              fi
-            done
-            
-            if [ $i -lt $MAX_RETRIES ]; then
-              echo "❌ Health check failed, waiting ${RETRY_DELAY}s before retry..."
-              sleep $RETRY_DELAY
-            fi
-          done
-          
-          echo "⚠️ Health check failed after $MAX_RETRIES attempts on all endpoints"
-          echo "Testing with verbose output:"
-          curl -v "$SERVICE_URL/health"
-          exit 1
-
-      - name: Deployment Summary
-        run: |
-          SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)')
-          echo ""
-          echo "=========================================="
-          echo "✅ DEPLOYMENT COMPLETE!"
-          echo "=========================================="
-          echo ""
-          echo "🌐 Your MSS Service URL:"
-          echo "   $SERVICE_URL"
-          echo ""
-          echo "🔗 Direct Links:"
-          echo "   Health Check: $SERVICE_URL/health"
-          echo "   Authentication: $SERVICE_URL/auth"
-          echo "   Studio: $SERVICE_URL/studio"
-          echo "   Dashboard: $SERVICE_URL/dashboard"
-          echo ""
-          echo "=========================================="
-          echo ""
-          echo "💡 To get this URL later, run:"
-          echo "   gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)'"
-          echo ""
+          sleep 10
+          curl -f "$SERVICE_URL/healthz" || exit 1
 

@@ -53,3 +53,7 @@ Write-Host "1. Make sure Docker Desktop is fully started (wait for the whale ico
 Write-Host "2. Try: docker ps" -ForegroundColor White
 Write-Host "3. If still failing, restart Docker Desktop" -ForegroundColor White
 
+
+
+
+

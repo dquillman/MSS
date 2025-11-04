@@ -92,3 +92,7 @@ For your fixes (CSP and error handling), I'd recommend:
 
 The manual script will take ~5-10 minutes depending on your internet speed.
 
+
+
+
+

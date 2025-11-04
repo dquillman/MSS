@@ -74,3 +74,7 @@ Write-Host "Please wait a bit longer, then run:" -ForegroundColor Yellow
 Write-Host "   docker ps" -ForegroundColor White
 Write-Host "If that works, Docker is ready!" -ForegroundColor Yellow
 
+
+
+
+

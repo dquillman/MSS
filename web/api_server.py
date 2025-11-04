@@ -172,21 +172,21 @@ CORS(app,
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
      expose_headers=['Content-Range', 'X-Content-Range'])
 
-# Helper function to get redirect URI with HTTPS forced for Cloud Run
-def get_redirect_uri(endpoint_path):
-    """Get redirect URI, forcing HTTPS for Cloud Run URLs"""
-    # Check X-Forwarded-Proto header (set by Cloud Run)
-    proto = request.headers.get('X-Forwarded-Proto', 'http')
-    host = request.headers.get('X-Forwarded-Host') or request.host
-    
-    # If running on Cloud Run (.run.app domain), force HTTPS
-    if '.run.app' in host or proto == 'https':
-        base_url = f'https://{host}'
-    else:
-        # Local development - use request.host_url as-is
-        base_url = request.host_url.rstrip('/')
-    
-    return f'{base_url}/{endpoint_path}'
+# Optional CSP Trusted Types configuration (normalised once at startup)
+_raw_csp_require_trusted = os.getenv('CSP_REQUIRE_TRUSTED_TYPES_FOR', '').strip()
+_csp_require_trusted = _raw_csp_require_trusted.strip("'\"").lower() if _raw_csp_require_trusted else ''
+if _csp_require_trusted and _csp_require_trusted not in ('script', 'none'):
+    logger.warning(
+        "[SECURITY] Unsupported CSP_REQUIRE_TRUSTED_TYPES_FOR value '%s'; expected 'script' or leave unset.",
+        _raw_csp_require_trusted,
+    )
+    _csp_require_trusted = ''
+elif _csp_require_trusted == 'none':
+    logger.info("[SECURITY] CSP_REQUIRE_TRUSTED_TYPES_FOR set to 'none'; directive will be omitted.")
+    _csp_require_trusted = ''
+
+_raw_csp_trusted_types = os.getenv('CSP_TRUSTED_TYPES', '').strip()
+_csp_trusted_types = _raw_csp_trusted_types.strip("'\"") if _raw_csp_trusted_types else ''
 
 # Security: HTTPS Enforcement (production only)
 @app.before_request
@@ -229,12 +229,34 @@ def add_security_headers(response):
     
     if is_production:
         # Production (Cloud Run): same origin only, allow Google Fonts
-        csp = "default-src 'self'; connect-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; require-trusted-types-for 'none';"
+        csp_directives = [
+            "default-src 'self'",
+            "connect-src 'self'",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "img-src 'self' data: https:",
+            "font-src 'self' data: https://fonts.gstatic.com",
+        ]
     else:
         # Development: allow localhost connections and Google Fonts
-        csp = "default-src 'self'; connect-src 'self' http://localhost:5000 http://localhost:3000 http://127.0.0.1:5000 http://127.0.0.1:3000 ws://localhost:* wss://localhost:*; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: http://localhost:5000 http://127.0.0.1:5000; font-src 'self' data: https://fonts.gstatic.com; require-trusted-types-for 'none';"
-    
-    response.headers['Content-Security-Policy'] = csp
+        csp_directives = [
+            "default-src 'self'",
+            "connect-src 'self' http://localhost:5000 http://localhost:3000 http://127.0.0.1:5000 http://127.0.0.1:3000 ws://localhost:* wss://localhost:*",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "img-src 'self' data: https: http://localhost:5000 http://127.0.0.1:5000",
+            "font-src 'self' data: https://fonts.gstatic.com",
+        ]
+
+    if _csp_require_trusted == 'script':
+        csp_directives.append("require-trusted-types-for 'script'")
+
+    if _csp_trusted_types:
+        csp_directives.append(f"trusted-types {_csp_trusted_types}")
+
+    response.headers['Content-Security-Policy'] = '; '.join(csp_directives) + ';'
     
     # Referrer Policy
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
@@ -5992,7 +6014,7 @@ def youtube_oauth_authorize():
 
     print(f"[YOUTUBE] Authorize: Starting OAuth for user: {user_email}")
 
-    redirect_uri = request.args.get('redirect_uri', get_redirect_uri('api/oauth/youtube/callback'))
+    redirect_uri = request.args.get('redirect_uri', request.host_url + 'api/oauth/youtube/callback')
 
     try:
         auth_url = platform_api.get_youtube_auth_url(user_email, redirect_uri)
@@ -6033,7 +6055,7 @@ def youtube_oauth_callback():
     user_email = result['user']['email']
     print(f"[OAUTH] Callback: Retrieved user email from session: {user_email}")
 
-    redirect_uri = get_redirect_uri('api/oauth/youtube/callback')
+    redirect_uri = request.host_url + 'api/oauth/youtube/callback'
 
     # Check which OAuth flow this is by checking stored state
     is_calendar = False
@@ -6129,7 +6151,7 @@ def google_calendar_oauth_authorize():
     print(f"[GOOGLE-CAL] Authorize: Starting OAuth for user: {user_email}")
 
     # Use YouTube callback URI (already registered in Google Cloud Console)
-    redirect_uri = get_redirect_uri('api/oauth/youtube/callback')
+    redirect_uri = request.host_url + 'api/oauth/youtube/callback'
 
     try:
         auth_url = platform_api.get_google_calendar_auth_url(user_email, redirect_uri)

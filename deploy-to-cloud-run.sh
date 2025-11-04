@@ -85,3 +85,7 @@ echo "Health check: $SERVICE_URL/healthz"
 echo "View logs: gcloud run services logs read $SERVICE_NAME --region $REGION"
 
 
+
+
+
+
