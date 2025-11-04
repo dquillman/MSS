@@ -1,5 +1,6 @@
 """
 Database models and initialization for MSS user accounts
+Supports both SQLite (local dev) and PostgreSQL (production via DATABASE_URL)
 """
 
 import sqlite3
@@ -7,43 +8,84 @@ import hashlib  # Legacy - being replaced
 import bcrypt
 import secrets
 import logging
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
+
+try:
+    import psycopg2
+    import psycopg2.extras
+    from psycopg2 import sql
+    POSTGRES_AVAILABLE = True
+except ImportError:
+    POSTGRES_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
 DB_PATH = Path(__file__).parent / 'mss_users.db'
+DATABASE_URL = os.getenv('DATABASE_URL')  # PostgreSQL connection string
+
+# Detect which database to use
+USE_POSTGRES = bool(DATABASE_URL and POSTGRES_AVAILABLE)
 
 def get_db():
-    """Get database connection"""
-    conn = sqlite3.connect(str(DB_PATH), timeout=10.0)
-    conn.row_factory = sqlite3.Row  # Return rows as dictionaries
-    return conn
+    """Get database connection (PostgreSQL if DATABASE_URL set, otherwise SQLite)"""
+    if USE_POSTGRES:
+        conn = psycopg2.connect(DATABASE_URL)
+        conn.cursor_factory = psycopg2.extras.RealDictCursor
+        return conn
+    else:
+        conn = sqlite3.connect(str(DB_PATH), timeout=10.0)
+        conn.row_factory = sqlite3.Row  # Return rows as dictionaries
+        return conn
+
+def _sql(query):
+    """Convert SQLite ? placeholders to PostgreSQL %s if needed"""
+    if USE_POSTGRES:
+        return query.replace('?', '%s')
+    return query
 
 def init_db():
     """Initialize database with tables"""
     conn = get_db()
     cursor = conn.cursor()
 
-    # Users table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            username TEXT,
-            subscription_tier TEXT DEFAULT 'free',
-            videos_this_month INTEGER DEFAULT 0,
-            total_videos INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_login TIMESTAMP,
-            stripe_customer_id TEXT,
-            reset_day INTEGER DEFAULT 1
-        )
-    ''')
+    # Users table - compatible with both SQLite and PostgreSQL
+    if USE_POSTGRES:
+        cursor.execute(_sql('''
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                username VARCHAR(100),
+                subscription_tier VARCHAR(50) DEFAULT 'free',
+                videos_this_month INTEGER DEFAULT 0,
+                total_videos INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP,
+                stripe_customer_id VARCHAR(255),
+                reset_day INTEGER DEFAULT 1
+            )
+        ''')
+    else:
+        cursor.execute(_sql('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                username TEXT,
+                subscription_tier TEXT DEFAULT 'free',
+                videos_this_month INTEGER DEFAULT 0,
+                total_videos INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP,
+                stripe_customer_id TEXT,
+                reset_day INTEGER DEFAULT 1
+            )
+        ''')
 
     # Sessions table
-    cursor.execute('''
+    cursor.execute(_sql('''
         CREATE TABLE IF NOT EXISTS sessions (
             session_id TEXT PRIMARY KEY,
             user_id INTEGER NOT NULL,
@@ -54,7 +96,7 @@ def init_db():
     ''')
 
     # Video history table
-    cursor.execute('''
+    cursor.execute(_sql('''
         CREATE TABLE IF NOT EXISTS video_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -65,7 +107,7 @@ def init_db():
         )
     ''')
 
-    cursor.execute('''
+    cursor.execute(_sql('''
         CREATE TABLE IF NOT EXISTS password_reset_tokens (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -78,7 +120,7 @@ def init_db():
     ''')
 
     # Avatars table - store avatar metadata and file paths
-    cursor.execute('''
+    cursor.execute(_sql('''
         CREATE TABLE IF NOT EXISTS avatars (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -98,7 +140,7 @@ def init_db():
     ''')
     
     # Logos table - store logo metadata and file paths
-    cursor.execute('''
+    cursor.execute(_sql('''
         CREATE TABLE IF NOT EXISTS logos (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -111,14 +153,14 @@ def init_db():
     ''')
     
     # Performance: Add indexes for faster queries
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_sessions_session_id ON sessions(session_id)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_video_history_user_id ON video_history(user_id)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_video_history_created ON video_history(created_at)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_avatars_active ON avatars(active)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_logos_active ON logos(active)')
+    cursor.execute(_sql('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)')
+    cursor.execute(_sql('CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)')
+    cursor.execute(_sql('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)')
+    cursor.execute(_sql('CREATE INDEX IF NOT EXISTS idx_sessions_session_id ON sessions(session_id)')
+    cursor.execute(_sql('CREATE INDEX IF NOT EXISTS idx_video_history_user_id ON video_history(user_id)')
+    cursor.execute(_sql('CREATE INDEX IF NOT EXISTS idx_video_history_created ON video_history(created_at)')
+    cursor.execute(_sql('CREATE INDEX IF NOT EXISTS idx_avatars_active ON avatars(active)')
+    cursor.execute(_sql('CREATE INDEX IF NOT EXISTS idx_logos_active ON logos(active)')
     
     conn.commit()
     conn.close()
@@ -156,19 +198,26 @@ def create_user(email, password, username=None):
 
         password_hash = hash_password(password)
 
-        cursor.execute('''
+        cursor.execute(_sql('''
             INSERT INTO users (email, password_hash, username)
             VALUES (?, ?, ?)
-        ''', (email, password_hash, username or email.split('@')[0]))
+        ''')), (email, password_hash, username or email.split('@')[0]))
 
         conn.commit()
-        user_id = cursor.lastrowid
+        
+        if USE_POSTGRES:
+            cursor.execute(_sql('SELECT lastval()')
+            user_id = cursor.fetchone()[0]
+        else:
+            user_id = cursor.lastrowid
+            
         conn.close()
 
         return {'success': True, 'user_id': user_id}
-    except sqlite3.IntegrityError:
-        return {'success': False, 'error': 'Email already registered'}
     except Exception as e:
+        error_str = str(e).lower()
+        if 'unique' in error_str or 'duplicate' in error_str or 'already' in error_str:
+            return {'success': False, 'error': 'Email already registered'}
         return {'success': False, 'error': str(e)}
 
 def verify_user(email, password):
@@ -177,10 +226,10 @@ def verify_user(email, password):
     cursor = conn.cursor()
 
     # Fetch user by email first
-    cursor.execute('''
+    cursor.execute(_sql('''
         SELECT * FROM users
         WHERE email = ?
-    ''', (email,))
+    ''')), (email,))
 
     user = cursor.fetchone()
 
@@ -199,11 +248,11 @@ def verify_user(email, password):
         if len(stored_hash) == 64 and all(c in '0123456789abcdef' for c in stored_hash.lower()):
             # This is an old SHA-256 hash - migrate to bcrypt
             new_hash = hash_password(password)
-            cursor.execute('''
+            cursor.execute(_sql('''
                 UPDATE users
                 SET password_hash = ?
                 WHERE id = ?
-            ''', (new_hash, user['id']))
+            ''')), (new_hash, user['id']))
             conn.commit()
             logger.info(f"[SECURITY] Migrated password hash for user {email} from SHA-256 to bcrypt")
         
@@ -229,13 +278,13 @@ def create_session(user_id, duration_days=7, remember_me=False):
     actual_duration = 30 if remember_me else duration_days
     expires_at = datetime.now() + timedelta(days=actual_duration)
 
-    cursor.execute('''
+    cursor.execute(_sql('''
         INSERT INTO sessions (session_id, user_id, expires_at)
         VALUES (?, ?, ?)
     ''', (session_id, user_id, expires_at))
 
     # Update last login
-    cursor.execute('''
+    cursor.execute(_sql('''
         UPDATE users SET last_login = CURRENT_TIMESTAMP
         WHERE id = ?
     ''', (user_id,))
@@ -260,7 +309,7 @@ def get_session(session_id):
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute('''
+    cursor.execute(_sql('''
         SELECT u.* FROM users u
         JOIN sessions s ON u.id = s.user_id
         WHERE s.session_id = ? AND s.expires_at > CURRENT_TIMESTAMP
@@ -295,7 +344,7 @@ def delete_session(session_id):
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute('DELETE FROM sessions WHERE session_id = ?', (session_id,))
+    cursor.execute(_sql('DELETE FROM sessions WHERE session_id = ?', (session_id,))
 
     conn.commit()
     conn.close()
@@ -307,7 +356,7 @@ def get_user_stats(user_id):
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute('''
+    cursor.execute(_sql('''
         SELECT subscription_tier, videos_this_month, total_videos, created_at
         FROM users WHERE id = ?
     ''', (user_id,))
@@ -325,7 +374,7 @@ def increment_video_count(user_id):
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute('''
+    cursor.execute(_sql('''
         UPDATE users
         SET videos_this_month = videos_this_month + 1,
             total_videos = total_videos + 1
@@ -342,7 +391,7 @@ def add_video_to_history(user_id, video_filename, title):
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute('''
+    cursor.execute(_sql('''
         INSERT INTO video_history (user_id, video_filename, title)
         VALUES (?, ?, ?)
     ''', (user_id, video_filename, title))
@@ -357,7 +406,7 @@ def get_user_videos(user_id, limit=20):
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute('''
+    cursor.execute(_sql('''
         SELECT id, video_filename, title, created_at
         FROM video_history
         WHERE user_id = ?
@@ -384,7 +433,7 @@ def reset_monthly_counters():
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute('UPDATE users SET videos_this_month = 0')
+    cursor.execute(_sql('UPDATE users SET videos_this_month = 0')
 
     conn.commit()
     affected = cursor.rowcount
@@ -442,7 +491,7 @@ def create_password_reset_token(email):
     cursor = conn.cursor()
 
     # Find user by email
-    cursor.execute('SELECT id FROM users WHERE email = ?', (email,))
+    cursor.execute(_sql('SELECT id FROM users WHERE email = ?', (email,))
     user = cursor.fetchone()
 
     if not user:
@@ -456,7 +505,7 @@ def create_password_reset_token(email):
     expires_at = (datetime.now() + timedelta(hours=1)).isoformat()
 
     # Save token
-    cursor.execute('''
+    cursor.execute(_sql('''
         INSERT INTO password_reset_tokens (user_id, token, expires_at)
         VALUES (?, ?, ?)
     ''', (user_id, token, expires_at))
@@ -473,7 +522,7 @@ def validate_reset_token(token):
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute('''
+    cursor.execute(_sql('''
         SELECT user_id, expires_at, used
         FROM password_reset_tokens
         WHERE token = ?
@@ -515,10 +564,10 @@ def reset_password(token, new_password):
     cursor = conn.cursor()
 
     # Update password
-    cursor.execute('UPDATE users SET password_hash = ? WHERE id = ?', (password_hash, user_id))
+    cursor.execute(_sql('UPDATE users SET password_hash = ? WHERE id = ?', (password_hash, user_id))
 
     # Mark token as used
-    cursor.execute('UPDATE password_reset_tokens SET used = 1 WHERE token = ?', (token,))
+    cursor.execute(_sql('UPDATE password_reset_tokens SET used = 1 WHERE token = ?', (token,))
 
     conn.commit()
     conn.close()
@@ -530,7 +579,7 @@ def get_user_by_email(email):
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute('SELECT id, email, username FROM users WHERE email = ?', (email,))
+    cursor.execute(_sql('SELECT id, email, username FROM users WHERE email = ?', (email,))
     result = cursor.fetchone()
     conn.close()
 
@@ -554,7 +603,7 @@ def get_usage_stats(user_id):
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute('''
+    cursor.execute(_sql('''
         SELECT subscription_tier, videos_this_month, total_videos, reset_day
         FROM users WHERE id = ?
     ''', (user_id,))
@@ -597,7 +646,7 @@ def _check_and_reset_monthly_usage(user_id):
         pass  # Column already exists
 
     # Get user's current month tracking
-    cursor.execute('''
+    cursor.execute(_sql('''
         SELECT last_reset_month, videos_this_month
         FROM users WHERE id = ?
     ''', (user_id,))
@@ -616,7 +665,7 @@ def _check_and_reset_monthly_usage(user_id):
 
     # If last_reset_month is different from current month, reset counter
     if last_reset_month != current_month_str and current_count > 0:
-        cursor.execute('''
+        cursor.execute(_sql('''
             UPDATE users
             SET videos_this_month = 0,
                 last_reset_month = ?,
@@ -628,7 +677,7 @@ def _check_and_reset_monthly_usage(user_id):
         print(f"[AUTO-RESET] Reset monthly usage for user {user_id} (was {current_count}, now 0)")
     elif not last_reset_month:
         # First time, just set the month
-        cursor.execute('''
+        cursor.execute(_sql('''
             UPDATE users
             SET last_reset_month = ?
             WHERE id = ?
@@ -668,7 +717,7 @@ def increment_video_count(user_id):
     except:
         pass  # Columns already exist
 
-    cursor.execute('''
+    cursor.execute(_sql('''
         UPDATE users
         SET videos_this_month = videos_this_month + 1,
             total_videos = total_videos + 1
@@ -678,7 +727,7 @@ def increment_video_count(user_id):
     conn.commit()
 
     # Get updated stats to check if we should send notification
-    cursor.execute('''
+    cursor.execute(_sql('''
         SELECT email, username, videos_this_month, subscription_tier, email_sent_80, email_sent_100
         FROM users WHERE id = ?
     ''', (user_id,))
@@ -707,7 +756,7 @@ def increment_video_count(user_id):
                     # Mark as sent
                     conn = get_db()
                     cursor = conn.cursor()
-                    cursor.execute('UPDATE users SET email_sent_80 = 1 WHERE id = ?', (user_id,))
+                    cursor.execute(_sql('UPDATE users SET email_sent_80 = 1 WHERE id = ?', (user_id,))
                     conn.commit()
                     conn.close()
             except Exception as e:
@@ -721,7 +770,7 @@ def increment_video_count(user_id):
                     # Mark as sent
                     conn = get_db()
                     cursor = conn.cursor()
-                    cursor.execute('UPDATE users SET email_sent_100 = 1 WHERE id = ?', (user_id,))
+                    cursor.execute(_sql('UPDATE users SET email_sent_100 = 1 WHERE id = ?', (user_id,))
                     conn.commit()
                     conn.close()
             except Exception as e:
@@ -734,7 +783,7 @@ def reset_monthly_usage():
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute('UPDATE users SET videos_this_month = 0')
+    cursor.execute(_sql('UPDATE users SET videos_this_month = 0')
 
     conn.commit()
     rows_affected = cursor.rowcount
@@ -750,7 +799,7 @@ def update_subscription_tier(user_id, tier):
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.execute('''
+    cursor.execute(_sql('''
         UPDATE users
         SET subscription_tier = ?
         WHERE id = ?
@@ -769,7 +818,7 @@ def get_all_avatars():
     """Get all avatars from database"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('''
+    cursor.execute(_sql('''
         SELECT id, name, type, image_url, video_url, filename, position, 
                scale, opacity, gender, voice, active, created_at, updated_at
         FROM avatars
@@ -802,7 +851,7 @@ def get_active_avatar():
     """Get the currently active avatar"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('''
+    cursor.execute(_sql('''
         SELECT id, name, type, image_url, video_url, filename, position, 
                scale, opacity, gender, voice, active
         FROM avatars
@@ -836,12 +885,12 @@ def save_avatar_to_db(avatar_data):
     cursor = conn.cursor()
     
     # Check if avatar exists
-    cursor.execute('SELECT id FROM avatars WHERE id = ?', (avatar_data['id'],))
+    cursor.execute(_sql('SELECT id FROM avatars WHERE id = ?', (avatar_data['id'],))
     exists = cursor.fetchone()
     
     if exists:
         # Update existing avatar
-        cursor.execute('''
+        cursor.execute(_sql('''
             UPDATE avatars
             SET name = ?, type = ?, image_url = ?, video_url = ?, filename = ?,
                 position = ?, scale = ?, opacity = ?, gender = ?, voice = ?,
@@ -863,7 +912,7 @@ def save_avatar_to_db(avatar_data):
         ))
     else:
         # Insert new avatar
-        cursor.execute('''
+        cursor.execute(_sql('''
             INSERT INTO avatars 
             (id, name, type, image_url, video_url, filename, position, scale, opacity, gender, voice, active)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -892,10 +941,10 @@ def set_active_avatar_in_db(avatar_id):
     cursor = conn.cursor()
     
     # Set all to inactive
-    cursor.execute('UPDATE avatars SET active = 0')
+    cursor.execute(_sql('UPDATE avatars SET active = 0')
     
     # Set the selected one to active
-    cursor.execute('UPDATE avatars SET active = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', (avatar_id,))
+    cursor.execute(_sql('UPDATE avatars SET active = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', (avatar_id,))
     
     conn.commit()
     conn.close()
@@ -905,7 +954,7 @@ def get_all_logos():
     """Get all logos from database"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('''
+    cursor.execute(_sql('''
         SELECT id, name, filename, url, active, created_at, updated_at
         FROM logos
         ORDER BY created_at DESC
@@ -930,7 +979,7 @@ def get_active_logo():
     """Get the currently active logo"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('''
+    cursor.execute(_sql('''
         SELECT id, name, filename, url, active
         FROM logos
         WHERE active = 1
@@ -956,12 +1005,12 @@ def save_logo_to_db(logo_data):
     cursor = conn.cursor()
     
     # Check if logo exists
-    cursor.execute('SELECT id FROM logos WHERE id = ?', (logo_data['id'],))
+    cursor.execute(_sql('SELECT id FROM logos WHERE id = ?', (logo_data['id'],))
     exists = cursor.fetchone()
     
     if exists:
         # Update existing logo
-        cursor.execute('''
+        cursor.execute(_sql('''
             UPDATE logos
             SET name = ?, filename = ?, url = ?, active = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
@@ -974,7 +1023,7 @@ def save_logo_to_db(logo_data):
         ))
     else:
         # Insert new logo
-        cursor.execute('''
+        cursor.execute(_sql('''
             INSERT INTO logos (id, name, filename, url, active)
             VALUES (?, ?, ?, ?, ?)
         ''', (
@@ -995,10 +1044,10 @@ def set_active_logo_in_db(logo_id):
     cursor = conn.cursor()
     
     # Set all to inactive
-    cursor.execute('UPDATE logos SET active = 0')
+    cursor.execute(_sql('UPDATE logos SET active = 0')
     
     # Set the selected one to active
-    cursor.execute('UPDATE logos SET active = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', (logo_id,))
+    cursor.execute(_sql('UPDATE logos SET active = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', (logo_id,))
     
     conn.commit()
     conn.close()
@@ -1008,7 +1057,7 @@ def delete_logo_from_db(logo_id):
     """Delete a logo from the database"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM logos WHERE id = ?', (logo_id,))
+    cursor.execute(_sql('DELETE FROM logos WHERE id = ?', (logo_id,))
     conn.commit()
     deleted = cursor.rowcount > 0
     conn.close()
