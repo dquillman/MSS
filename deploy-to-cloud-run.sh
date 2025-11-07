@@ -57,7 +57,6 @@ gcloud run deploy $SERVICE_NAME \
     --timeout 300 \
     --max-instances 10 \
     --min-instances 0 \
-    --set-env-vars "PORT=8080" \
     --set-secrets "OPENAI_API_KEY=openai-api-key:latest,STRIPE_SECRET_KEY=stripe-secret-key:latest,STRIPE_WEBHOOK_SECRET=stripe-webhook-secret:latest" \
     || {
     echo "ERROR: Deployment failed!"
