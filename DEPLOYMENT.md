@@ -25,6 +25,11 @@ This guide covers deploying MSS to production with PostgreSQL.
 pip install psycopg2-binary  # Add to requirements.txt
 ```
 
+### Cloud Run Environment Variables
+- Store your PostgreSQL connection string as a GitHub secret named `DATABASE_URL` (the automated deploy workflow uses it when deploying to Cloud Run).
+- If you deploy manually with `deploy-to-cloud-run.sh`, provide `DATABASE_URL` in the shell environment or set `DATABASE_URL_SECRET` to the name of the Secret Manager secret that contains it.
+- Example Cloud SQL string: `postgresql://user:password@/mss?host=/cloudsql/project:region:instance`
+
 ---
 
 ## PostgreSQL Setup

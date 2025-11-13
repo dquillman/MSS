@@ -47,7 +47,24 @@ docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REGISTRY}/${SERVIC
 
 # Deploy to Cloud Run
 echo "6. Deploying to Cloud Run..."
-gcloud run deploy $SERVICE_NAME \
+
+DATABASE_URL_ENV="${DATABASE_URL:-}"
+DATABASE_URL_SECRET="${DATABASE_URL_SECRET:-}"
+
+SET_ENV_ARGS=""
+SET_SECRET_ARGS="OPENAI_API_KEY=openai-api-key:latest,STRIPE_SECRET_KEY=stripe-secret-key:latest,STRIPE_WEBHOOK_SECRET=stripe-webhook-secret:latest"
+
+if [ -n "$DATABASE_URL_ENV" ]; then
+    echo " - Using DATABASE_URL from environment"
+    SET_ENV_ARGS="--set-env-vars \"DATABASE_URL=$DATABASE_URL_ENV\""
+elif [ -n "$DATABASE_URL_SECRET" ]; then
+    echo " - Using DATABASE_URL secret: $DATABASE_URL_SECRET"
+    SET_SECRET_ARGS="$SET_SECRET_ARGS,DATABASE_URL=$DATABASE_URL_SECRET"
+else
+    echo "WARNING: DATABASE_URL not provided; service will default to SQLite."
+fi
+
+eval gcloud run deploy $SERVICE_NAME \
     --image ${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REGISTRY}/${SERVICE_NAME}:latest \
     --region $REGION \
     --platform managed \
@@ -57,7 +74,8 @@ gcloud run deploy $SERVICE_NAME \
     --timeout 300 \
     --max-instances 10 \
     --min-instances 0 \
-    --set-secrets "OPENAI_API_KEY=openai-api-key:latest,STRIPE_SECRET_KEY=stripe-secret-key:latest,STRIPE_WEBHOOK_SECRET=stripe-webhook-secret:latest" \
+    $SET_ENV_ARGS \
+    --set-secrets "$SET_SECRET_ARGS" \
     || {
     echo "ERROR: Deployment failed!"
     exit 1

@@ -4,6 +4,8 @@
 
 The route `/auth` exists, but you need to **start the server first**!
 
+> **Cloud SQL users:** set a `DATABASE_URL` environment variable (e.g. `postgresql://USER:PASSWORD@/mss?host=/cloudsql/PROJECT:REGION:INSTANCE`) before starting the server so the app connects to your Google Cloud SQL database instead of the local SQLite file.
+
 ### Step 1: Start the Server
 
 Open PowerShell in the project root and run:

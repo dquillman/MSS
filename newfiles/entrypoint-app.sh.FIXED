@@ -1,0 +1,32 @@
+#!/bin/bash
+set -e
+
+echo "[ENTRYPOINT] Starting MSS Flask application..."
+echo "[ENTRYPOINT] PORT=${PORT:-8080}"
+echo "[ENTRYPOINT] PYTHONPATH=$PYTHONPATH"
+
+# Wait for Cloud SQL if needed
+if [ -n "$DB_URL" ] && [[ "$DB_URL" == *"cloudsql"* ]]; then
+    echo "[ENTRYPOINT] Waiting for Cloud SQL proxy..."
+    sleep 2
+fi
+
+# Verify app can be imported
+echo "[ENTRYPOINT] Verifying app import..."
+python -c "from web import api_server; print('[ENTRYPOINT] App imported successfully')" || {
+    echo "[ENTRYPOINT] ERROR: Failed to import app!"
+    exit 1
+}
+
+echo "[ENTRYPOINT] Starting gunicorn on 0.0.0.0:${PORT:-8080}..."
+
+# Start gunicorn
+exec gunicorn \
+    --bind 0.0.0.0:${PORT:-8080} \
+    --workers ${GUNICORN_WORKERS:-2} \
+    --threads ${GUNICORN_THREADS:-4} \
+    --timeout ${GUNICORN_TIMEOUT:-120} \
+    --access-logfile - \
+    --error-logfile - \
+    --log-level info \
+    web.api_server:app

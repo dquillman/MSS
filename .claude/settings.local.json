@@ -58,7 +58,8 @@
       "Bash(gcloud config get-value:*)",
       "Bash(/dev/null)",
       "Bash(bash:*)",
-      "Bash(gcloud run deploy:*)"
+      "Bash(gcloud run deploy:*)",
+      "Bash(gcloud projects add-iam-policy-binding:*)"
     ],
     "deny": [],
     "ask": []
