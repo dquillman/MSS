@@ -1,0 +1,36 @@
+✅ STEP 1 COMPLETE: Service Account Created
+   - Service Account: github-actions-deployer@mss-tts.iam.gserviceaccount.com
+   - Permissions: Granted (run.admin, artifactregistry.writer, iam.serviceAccountUser)
+   - Key File: github-actions-key.json (created)
+
+📋 STEP 2: Add GitHub Secrets
+
+Go to: https://github.com/dquillman/MSS/settings/secrets/actions
+
+Add these 4 secrets:
+
+1. GCP_PROJECT_ID
+   Value: mss-tts
+
+2. GCP_SA_KEY
+   Value: (copy entire contents of github-actions-key.json file)
+   - Open: github-actions-key.json
+   - Copy ALL the JSON content
+   - Paste into GitHub Secret
+
+3. GCP_SERVICE_ACCOUNT_EMAIL
+   Value: github-actions-deployer@mss-tts.iam.gserviceaccount.com
+
+4. GCP_ARTIFACT_REGISTRY (Optional - defaults to 'mss' if not set)
+   Value: mss
+
+🔒 STEP 3: Delete Key File (After Adding to GitHub)
+   Run: Remove-Item github-actions-key.json
+
+🧪 STEP 4: Test Deployment
+   - Push any change to GitHub
+   - Or go to: https://github.com/dquillman/MSS/actions
+   - Click "Run workflow" → "Run workflow"
+
+✅ That's it! GitHub Actions will now automatically deploy to Cloud Run.
+
