@@ -9,10 +9,29 @@ import sys
 # Ensure project root is on sys.path so `web` package imports work
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Load version from version.json
+_VERSION_FILE = Path(__file__).parent.parent / "version.json"
+APP_VERSION = "5.6.7"  # Default fallback
+try:
+    if _VERSION_FILE.exists():
+        version_data = json.loads(_VERSION_FILE.read_text(encoding="utf-8"))
+        APP_VERSION = version_data.get("app", APP_VERSION)
+except Exception as e:
+    # Logger not initialized yet, use print
+    print(f"[VERSION] Failed to load version.json: {e}, using default {APP_VERSION}")
+
 from flask import Flask, request, jsonify, send_from_directory, Response, redirect
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+
+# Initialize rate limiter
+limiter = Limiter(
+    app=None,  # Will be set after app creation
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",  # In-memory storage (use Redis in production)
+)
 from PIL import Image, ImageDraw, ImageFont
 import io
 import requests
@@ -32,14 +51,23 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Database access (robust import regardless of how app is launched)
+# Ensure the project root is on sys.path for imports
+_project_root = Path(__file__).parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 try:
     # When installed as a package or run via `flask --app web.api_server`
     from web import database as database  # type: ignore
-except Exception:
+    logger.info("[DATABASE] Successfully imported database module")
+except Exception as e1:
+    logger.warning(f"[DATABASE] First import attempt failed: {e1}", exc_info=True)
     try:
         # When running directly: `python web\api_server.py`
         import database  # type: ignore
-    except Exception:
+        logger.info("[DATABASE] Successfully imported database module (direct import)")
+    except Exception as e2:
+        logger.error(f"[DATABASE] Both import attempts failed. First: {e1}, Second: {e2}", exc_info=True)
         # Fallback shim to avoid crashes if DB layer is unavailable
         class _DatabaseShim:
             @staticmethod
@@ -71,7 +99,7 @@ except Exception:
                 return 'dummy_session_id'
 
         database = _DatabaseShim()  # type: ignore
-        logger.error("[DATABASE] Failed to import database module - using fallback shim")
+        logger.error("[DATABASE] Using fallback shim - database operations will fail")
 
 from scripts.make_video import (
     read_env,
@@ -154,6 +182,9 @@ except Exception as _e:
 # Initialize Flask app
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1 GB upload cap
+
+# Initialize rate limiter with app
+limiter.init_app(app)
 
 # CORS Configuration - Security: Restrict to allowed origins only
 ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', '').split(',') if os.getenv('ALLOWED_ORIGINS') else []
@@ -383,6 +414,7 @@ def favicon_silence():
 
 # -------------------- Auth API --------------------
 @app.route('/api/login', methods=['POST'])
+@limiter.limit("5 per minute")  # Rate limit: 5 login attempts per minute
 def api_login():
     """User login endpoint with input validation"""
     try:
@@ -413,7 +445,8 @@ def api_login():
         resp.set_cookie('session_id', session_id, httponly=True, samesite='Lax', secure=False, path='/')
         return resp
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 # ---------------- Intro/Outro Conversion ----------------
 
@@ -524,7 +557,8 @@ def convert_intro_outro():
         _save_intro_outro_lib(lib)
         return jsonify({'success': True, 'item': item, 'active': lib.get('active')})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/convert-active-intro-outro', methods=['POST'])
 def convert_active_intro_outro():
@@ -558,7 +592,8 @@ def convert_active_intro_outro():
         _save_intro_outro_lib(lib)
         return jsonify({'success': True, 'changed': changed, 'active': lib.get('active')})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 # ---------------- Intro/Outro Library Endpoints ----------------
 
@@ -637,7 +672,8 @@ def get_intro_outro_library():
         data = _load_intro_outro_library()
         return jsonify({'success': True, **data})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/upload-intro-outro-file', methods=['POST'])
 def upload_intro_outro_file():
@@ -721,7 +757,8 @@ def save_intro_outro():
         _save_intro_outro_library(data)
         return jsonify({'success': True, 'id': item_id})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/delete-intro-outro', methods=['POST'])
 def delete_intro_outro():
@@ -740,7 +777,8 @@ def delete_intro_outro():
         _save_intro_outro_library(data)
         return jsonify({'success': True, 'deleted': before - len(data[key])})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/set-active-intro-outro', methods=['POST'])
 def set_active_intro_outro():
@@ -756,7 +794,8 @@ def set_active_intro_outro():
         _save_intro_outro_library(data)
         return jsonify({'success': True, 'active': data['active']})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/preview-tts', methods=['POST'])
 def preview_tts():
@@ -780,7 +819,8 @@ def preview_tts():
         url = urljoin(base, f"intro_outro/{out.name}")
         return jsonify({'success': True, 'audio_url': url})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 
 @app.route('/api/logout', methods=['POST'])
@@ -790,10 +830,14 @@ def api_logout():
         if sid:
             database.delete_session(sid)
         resp = jsonify({'success': True})
-        resp.set_cookie('session_id', '', expires=0, path='/')
+        resp.set_cookie('session_id', '', expires=0, path='/', httponly=True, samesite='Lax')
         return resp
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Logout error: {e}", exc_info=True)
+        # Still return success to avoid revealing errors
+        resp = jsonify({'success': True})
+        resp.set_cookie('session_id', '', expires=0, path='/', httponly=True, samesite='Lax')
+        return resp
 
 
 @app.route('/api/me', methods=['GET'])
@@ -802,11 +846,11 @@ def api_me():
     try:
         session_id = request.cookies.get('session_id')
         if not session_id:
-            return jsonify({'success': False, 'error': 'Not authenticated'}), 200
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
 
         result = database.get_session(session_id)
         if not result.get('success'):
-            return jsonify({'success': False, 'error': 'Invalid or expired session'}), 200
+            return jsonify({'success': False, 'error': 'Invalid or expired session'}), 401
 
         user = result['user']
         return jsonify({
@@ -822,10 +866,12 @@ def api_me():
             }
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Get user error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred'}), 500
 
 
 @app.route('/api/signup', methods=['POST'])
+@limiter.limit("3 per minute")  # Rate limit: 3 signups per minute
 def api_signup():
     """User signup endpoint with input validation"""
     try:
@@ -843,6 +889,9 @@ def api_signup():
         email = req.email
         password = req.password
         username = req.username
+        # Get remember_me from request if provided
+        data = request.get_json() or {}
+        remember_me = data.get('remember_me', False)
 
         res = database.create_user(email, password, username=username)
         if not res.get('success'):
@@ -857,7 +906,8 @@ def api_signup():
         resp.set_cookie('session_id', session_id, httponly=True, samesite='Lax', secure=False, path='/')
         return resp
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Signup error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during signup'}), 500
 
 @app.route('/dashboard')
 @app.route('/dashboard.html')
@@ -884,7 +934,7 @@ def _health():
     return jsonify({
         'status': 'ok',
         'service': 'MSS API',
-        'version': '5.6.7',
+        'version': APP_VERSION,
         'endpoints': [
             '/studio', '/topics', '/post-process-video',
             '/get-avatar-library', '/get-logo-library', '/api/logo-files',
@@ -904,7 +954,8 @@ def get_selected_topic():
         else:
             return jsonify({'success': False, 'error': 'No topic saved yet'}), 404
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/upload-avatar-file', methods=['POST'])
 def upload_avatar_file():
@@ -1056,7 +1107,8 @@ def set_active_avatar():
 
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 
 @app.route('/save-avatar', methods=['POST'])
@@ -1111,7 +1163,8 @@ def save_avatar():
 
         return jsonify({'success': True, 'id': avatar_id})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 
 @app.route('/delete-avatar', methods=['POST'])
@@ -1144,7 +1197,8 @@ def delete_avatar():
 
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 
 @app.route('/set-selected-topic', methods=['POST'])
@@ -1159,7 +1213,8 @@ def set_selected_topic():
         path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
         return jsonify({'success': True, 'path': str(path)})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 
 @app.route('/generate-meme-bg', methods=['POST'])
@@ -1862,7 +1917,8 @@ def cleanup_outputs():
             'details': summary
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 
 @app.route('/list-outputs', methods=['GET'])
@@ -1910,7 +1966,8 @@ def list_outputs():
 
         return jsonify({'success': True, 'dir': base, 'count': len(items), 'files': items})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/generate-description', methods=['POST'])
 def generate_description():
@@ -2233,7 +2290,8 @@ def delete_output():
             except Exception as e2:
                 return jsonify({'success': False, 'error': f"{err}; fallback move failed: {e2}"}), 500
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 
 @app.route('/empty-trash', methods=['POST'])
@@ -2305,7 +2363,8 @@ def empty_trash():
 
         return jsonify({'success': True, 'deleted_total': total_deleted, 'freed_bytes_total': total_bytes, 'freed_human_total': human_size(total_bytes), 'details': results})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 def create_dummy_audio(output_path, duration=60):
     """Create a minimal MP3 file for testing"""
@@ -4698,7 +4757,8 @@ def api_list_thumbnails():
                     pass
         return jsonify({'success': True, 'items': items})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 
 @app.route('/thumbnails', methods=['GET'])
@@ -4726,7 +4786,8 @@ def browse_thumbnails():
         )
         return html
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 
 @app.route('/api/health', methods=['GET'])
@@ -4790,7 +4851,8 @@ def api_health():
             }
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 
 @app.route('/api/usage', methods=['GET'])
@@ -4888,7 +4950,8 @@ def api_logo_files():
         items.sort(key=lambda x: _mtime(x['filename']), reverse=True)
         return jsonify({'success': True, 'logos': items})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/get-logo-library', methods=['GET'])
 def get_logo_library_route():
@@ -4977,7 +5040,8 @@ def set_active_logo():
         lib_path.write_text(json.dumps({'logos': logos}, indent=2), encoding='utf-8')
         return jsonify({'success': True, 'logoUrl': active_url})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/delete-logo', methods=['POST'])
 def delete_logo():
@@ -5005,7 +5069,8 @@ def delete_logo():
         lib_path.write_text(json.dumps({'logos': logos}, indent=2), encoding='utf-8')
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/upload-logo-to-library', methods=['POST'])
 def upload_logo_to_library():
@@ -5208,7 +5273,8 @@ def get_trends():
         trends = trend_manager.get_trending_topics(user_email, niche)
         return jsonify({'success': True, 'trends': trends})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/trends/save', methods=['POST'])
 def save_trend_alert():
@@ -5225,7 +5291,8 @@ def save_trend_alert():
         alert_id = trend_manager.save_trend_alert(user_email, data)
         return jsonify({'success': True, 'alert_id': alert_id})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/trends/alerts', methods=['GET'])
 def get_trend_alerts():
@@ -5242,7 +5309,8 @@ def get_trend_alerts():
         alerts = trend_manager.get_user_alerts(user_email, include_dismissed)
         return jsonify({'success': True, 'alerts': alerts})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/trends/dismiss/<int:alert_id>', methods=['POST'])
 def dismiss_trend_alert(alert_id):
@@ -5258,7 +5326,8 @@ def dismiss_trend_alert(alert_id):
         success = trend_manager.dismiss_alert(alert_id, user_email)
         return jsonify({'success': success})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/calendar/generate', methods=['GET'])
 def generate_content_calendar():
@@ -5275,7 +5344,8 @@ def generate_content_calendar():
         suggestions = trend_manager.generate_content_calendar(user_email, days_ahead)
         return jsonify({'success': True, 'suggestions': suggestions})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/calendar', methods=['GET'])
 def get_calendar_entries():
@@ -5293,7 +5363,8 @@ def get_calendar_entries():
         entries = trend_manager.get_calendar_entries(user_email, start_date, end_date)
         return jsonify({'success': True, 'entries': entries})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/calendar', methods=['POST'])
 def save_calendar_entry():
@@ -5327,7 +5398,8 @@ def save_calendar_entry():
             'google_calendar': google_calendar_result
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/calendar/<int:entry_id>/export.ics', methods=['GET'])
 def export_calendar_entry_ics(entry_id):
@@ -5428,7 +5500,8 @@ def update_calendar_entry(entry_id):
         success = trend_manager.update_calendar_entry(entry_id, user_email, data)
         return jsonify({'success': success})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/calendar/<int:entry_id>', methods=['DELETE'])
 def delete_calendar_entry(entry_id):
@@ -5444,7 +5517,8 @@ def delete_calendar_entry(entry_id):
         success = trend_manager.delete_calendar_entry(entry_id, user_email)
         return jsonify({'success': success})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/preferences', methods=['GET'])
 def get_user_preferences():
@@ -5460,7 +5534,8 @@ def get_user_preferences():
         prefs = trend_manager.get_user_preferences(user_email)
         return jsonify({'success': True, 'preferences': prefs})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/preferences', methods=['POST'])
 def save_user_preferences():
@@ -5477,7 +5552,8 @@ def save_user_preferences():
         success = trend_manager.save_user_preferences(user_email, data)
         return jsonify({'success': success})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 
 # ===========================================
@@ -5500,7 +5576,8 @@ def get_analytics_dashboard():
         stats = analytics_manager.get_dashboard_stats(user_email, days)
         return jsonify({'success': True, 'stats': stats})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/analytics/videos', methods=['GET'])
 def get_analytics_videos():
@@ -5518,7 +5595,8 @@ def get_analytics_videos():
         videos = analytics_manager.get_user_videos(user_email, limit)
         return jsonify({'success': True, 'videos': videos})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/analytics/track-video', methods=['POST'])
 def track_video_creation():
@@ -5536,7 +5614,8 @@ def track_video_creation():
         video_id = analytics_manager.track_video_creation(user_email, data)
         return jsonify({'success': True, 'video_id': video_id})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/analytics/update-metrics', methods=['POST'])
 def update_video_metrics():
@@ -5560,7 +5639,8 @@ def update_video_metrics():
         metric_id = analytics_manager.record_video_metrics(video_id, metrics, platform)
         return jsonify({'success': True, 'metric_id': metric_id})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/analytics-dashboard')
 def analytics_dashboard_page():
@@ -5587,7 +5667,8 @@ def get_platform_presets():
         presets = multi_platform.get_platform_presets()
         return jsonify({'success': True, 'presets': presets})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/platforms/optimize', methods=['POST'])
 def optimize_video():
@@ -5613,7 +5694,8 @@ def optimize_video():
         result = multi_platform.optimize_video_for_platform(input_path, platform)
         return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/upload/video', methods=['POST'])
 def upload_video():
@@ -5795,7 +5877,8 @@ def queue_publication():
         )
         return jsonify({'success': True, 'queue_id': queue_id})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/platforms/queue', methods=['GET'])
 def get_publishing_queue():
@@ -5813,7 +5896,8 @@ def get_publishing_queue():
         queue = multi_platform.get_publishing_queue(user_email, status)
         return jsonify({'success': True, 'queue': queue})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/platforms/queue/<int:queue_id>', methods=['DELETE'])
 def delete_queue_item(queue_id):
@@ -5829,7 +5913,8 @@ def delete_queue_item(queue_id):
         success = multi_platform.delete_queue_item(user_email, queue_id)
         return jsonify({'success': success})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/platforms/queue/clear-completed', methods=['POST'])
 def clear_completed_queue():
@@ -5845,7 +5930,8 @@ def clear_completed_queue():
         deleted = multi_platform.clear_completed_queue(user_email)
         return jsonify({'success': True, 'deleted': deleted})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/platforms/queue/<int:queue_id>/process', methods=['POST'])
 def process_queue_item(queue_id):
@@ -5973,7 +6059,8 @@ def get_published_videos():
         published = multi_platform.get_published_videos(user_email, platform)
         return jsonify({'success': True, 'published': published})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/platforms/connected', methods=['GET'])
 def get_connected_platforms():
@@ -5989,7 +6076,8 @@ def get_connected_platforms():
         platforms = multi_platform.get_connected_platforms(user_email)
         return jsonify({'success': True, 'platforms': platforms})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/multi-platform')
 def multi_platform_page():
@@ -6025,7 +6113,8 @@ def youtube_oauth_authorize():
         else:
             return jsonify({'success': False, 'error': 'Failed to generate auth URL. Check YouTube credentials.'}), 500
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/oauth/youtube/callback', methods=['GET'])
 def youtube_oauth_callback():
@@ -6235,7 +6324,8 @@ def tiktok_oauth_authorize():
         else:
             return jsonify({'success': False, 'error': 'Failed to generate auth URL. Check TikTok credentials.'}), 500
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/oauth/tiktok/callback', methods=['GET'])
 def tiktok_oauth_callback():
@@ -6297,7 +6387,8 @@ def instagram_oauth_authorize():
         else:
             return jsonify({'success': False, 'error': 'Failed to generate auth URL. Check Instagram credentials.'}), 500
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/oauth/instagram/callback', methods=['GET'])
 def instagram_oauth_callback():
@@ -6361,7 +6452,8 @@ def facebook_oauth_authorize():
         else:
             return jsonify({'success': False, 'error': 'Failed to generate auth URL. Check Facebook credentials.'}), 500
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/oauth/facebook/callback', methods=['GET'])
 def facebook_oauth_callback():
@@ -6463,7 +6555,8 @@ def upload_youtube():
 
         return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/platforms/upload/tiktok', methods=['POST'])
 def upload_tiktok():
@@ -6511,7 +6604,8 @@ def upload_tiktok():
 
         return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/platforms/connection-status', methods=['GET'])
 def platform_connection_status():
@@ -6538,7 +6632,8 @@ def platform_connection_status():
             'connected': connected_list
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/platforms/disconnect/<platform>', methods=['POST'])
 def disconnect_platform_endpoint(platform):
@@ -6554,7 +6649,8 @@ def disconnect_platform_endpoint(platform):
         success = platform_api.disconnect_platform(user_email, platform)
         return jsonify({'success': success})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/youtube/channel-info', methods=['GET'])
 def youtube_channel_info():
@@ -6570,7 +6666,8 @@ def youtube_channel_info():
         result = platform_api.get_youtube_channel_info(user_email)
         return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/youtube/video-stats/<video_id>', methods=['GET'])
 def youtube_video_stats(video_id):
@@ -6586,7 +6683,8 @@ def youtube_video_stats(video_id):
         result = platform_api.get_youtube_video_stats(user_email, video_id)
         return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/youtube/sync-metrics', methods=['POST'])
 def youtube_sync_metrics():
@@ -6725,7 +6823,8 @@ def list_channels():
             'count': len(channels)
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/channels/set-default', methods=['POST'])
 def set_default_channel():
@@ -6747,7 +6846,8 @@ def set_default_channel():
         success = analytics_manager.set_default_channel(user_email, channel_account_id)
         return jsonify({'success': success})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/channels/remove', methods=['POST'])
 def remove_channel():
@@ -6769,7 +6869,8 @@ def remove_channel():
         success = analytics_manager.remove_channel_account(user_email, channel_account_id)
         return jsonify({'success': success})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/api/channels/add-youtube', methods=['POST'])
 def add_youtube_channel():
@@ -6790,7 +6891,8 @@ def add_youtube_channel():
 
         return jsonify(channel_info)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 
 @app.route('/api/proxy-image')

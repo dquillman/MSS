@@ -80,6 +80,10 @@ def _row_to_dict(row: Any) -> Dict[str, Any]:
 
 def init_db() -> None:
     """Initialise required tables and indexes."""
+    # Ensure database directory exists (for SQLite)
+    if not USE_POSTGRES:
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    
     conn = get_db()
     try:
         cursor = conn.cursor()
@@ -672,9 +676,17 @@ def increment_video_count(user_id: int) -> Dict[str, Any]:
 
 
 def _mark_email_flag(user_id: int, flag: str) -> None:
+    """Mark an email flag for a user. Flag must be a whitelisted column name."""
+    # Security: Whitelist allowed flag names to prevent SQL injection
+    ALLOWED_FLAGS = {"email_sent_80", "email_sent_100"}
+    if flag not in ALLOWED_FLAGS:
+        logger.warning(f"[SECURITY] Attempted to set invalid flag: {flag}")
+        return
+    
     conn = get_db()
     try:
         cursor = conn.cursor()
+        # Use parameterized query with whitelisted column name
         cursor.execute(
             _sql(f"UPDATE users SET {flag} = 1 WHERE id = ?"),
             (user_id,),
