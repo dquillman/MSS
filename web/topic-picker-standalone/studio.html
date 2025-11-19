@@ -1,226 +1,290 @@
 ﻿<!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MSS Studio</title>
   <link rel="stylesheet" href="studio.css">
-  <!-- Silence favicon requests by using a blank data URI -->
-  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="premium_theme.css">
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <!-- Favicon -->
+  <link rel="icon" href="favicon.jpg">
   <script src="version.js" defer></script>
   <style>
     @media (max-width: 768px) {
       .card {
         padding: 16px;
       }
+
       .card h1 {
         font-size: 24px;
       }
-      .card > div[style*="display:flex"] {
+
+      .card>div[style*="display:flex"] {
         flex-direction: column;
         gap: 10px;
       }
+
       .btn {
         width: 100%;
         padding: 12px;
         font-size: 14px;
       }
     }
+
     @media (max-width: 480px) {
       .card {
         padding: 12px;
       }
+
       .card h1 {
         font-size: 20px;
       }
     }
   </style>
 </head>
+
 <body>
-  <div id="loadingBar" class="loading-bar"></div>
-  <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
-    <h1 style="margin:0;">MSS Studio <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
-    <div style="display:flex; gap:10px; flex-wrap:wrap; position:relative;">
-      <button class="btn btn-primary" onclick="window.location.href='workflow.html' + window.location.search">📋 Workflow</button>
-      <button class="btn btn-primary" onclick="window.location.href='trends-calendar.html'">📊 Trends</button>
-      <button class="btn btn-primary" onclick="window.location.href='avatar-manager.html'">Avatars</button>
-      <button class="btn btn-primary" onclick="window.location.href='logo-manager.html'">Logos</button>
-      <button class="btn btn-primary" onclick="window.location.href='meme-library.html' + window.location.search">Thumbnails</button>
-      <button class="btn btn-primary" onclick="window.location.href='intro-outro.html'">Intro/Outro</button>
-      <button class="btn btn-primary" onclick="window.location.href='/dashboard'">Dashboard</button>
-      <button class="btn btn-primary" onclick="window.location.href='/analytics-dashboard'">Analytics</button>
-      <button class="btn btn-warning" onclick="goToPublisher()">Multi-Platform</button>
-      <button class="btn btn-primary" onclick="window.location.href='settings.html'">Settings</button>
-      <button class="btn btn-danger" onclick="logout()">Logout</button>
+  <!-- Theme Switcher Button -->
+  <button class="theme-toggle-fixed" onclick="toggleTheme()" title="Switch Theme">
+    <i class="ph ph-arrows-left-right"></i>
+    <span>Switch Theme</span>
+  </button>
+
+  <!-- Premium Background -->
+  <div class="bg-mesh"></div>
+
+  <!-- Premium Sidebar -->
+  <nav class="sidebar glass-panel">
+    <div class="brand">
+      <i class="ph-fill ph-video-camera" style="color: var(--primary);"></i>
+      MSS Studio
     </div>
-  </div>
-
-<script>(function(){ const btn=document.getElementById("oldMenusBtn"); const menu=document.getElementById("oldMenus"); const $oldMenusContainer = document.getElementById('oldMenusContainer'); if(btn&&menu&&$oldMenusContainer){ btn.addEventListener("click",(e)=>{ e.stopPropagation(); menu.style.display=(menu.style.display==="block"?"none":"block");}); document.addEventListener("click",()=>{ menu.style.display="none";}); menu.addEventListener("click",(e)=>e.stopPropagation()); document.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key.toLowerCase()==='o'){ e.preventDefault(); $oldMenusContainer.style.display = ($oldMenusContainer.style.display==='none'||!$oldMenusContainer.style.display)?'block':'none'; } }); }})();</script>
-
-<!-- Minimal global helpers so inline handlers work even if later scripts fail to parse -->
-<script>
-  window.logout = async function logout(){
-    try {
-      const base = (window.location && window.location.origin) ? window.location.origin : '';
-      await fetch(base + '/api/logout', { method: 'POST', credentials: 'include' });
-    } catch(e) {}
-    try { window.location.href = '/auth?logout=true'; } catch(_) {}
-  };
-
-  (function(){
-    function clearPicker(){
-      try {
-        var t=document.getElementById('liteTitle'); if (t) t.value='';
-        var h=document.getElementById('liteHook'); if (h) h.value='';
-        var k=document.getElementById('liteKeywords'); if (k) k.value='';
-        var s=document.getElementById('liteStatus');
-        if (s) { s.textContent='Topic picker cleared'; s.className='status ok'; s.style.display='block'; }
-      } catch(e) { console.warn('clearPicker failed:', e); }
-    }
-    var btn=document.getElementById('liteClear');
-    if (btn) btn.addEventListener('click', clearPicker);
-    else document.addEventListener('DOMContentLoaded', function(){
-      var b=document.getElementById('liteClear'); if (b) b.addEventListener('click', clearPicker);
-    });
-  })();
-</script>
-
-  <div class="card">
-    <h1>Video Topic</h1>
-    <div class="row" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-      <button class="btn" id="liteLoadLast">Load Last Topic</button>
-      <button class="btn btn-danger" id="liteClear">Clear Topic</button>
-      <span id="liteStatus" class="status info" style="display:none; padding:8px 12px; background:rgba(34,197,94,0.2); border:1px solid #22c55e; border-radius:6px; color:#22c55e; font-size:14px; font-weight:600;"></span>
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <a href="/dashboard" class="nav-item"><i class="ph ph-squares-four"></i> Dashboard</a>
+      <a href="#" class="nav-item active"><i class="ph ph-magic-wand"></i> Studio</a>
+      <a href="/analytics-dashboard" class="nav-item"><i class="ph ph-chart-line-up"></i> Analytics</a>
+      <a href="trends-calendar.html" class="nav-item"><i class="ph ph-calendar"></i> Trends</a>
+      <a href="workflow.html" class="nav-item"><i class="ph ph-kanban"></i> Workflow</a>
     </div>
-    <div class="row" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
-      <div>
-        <label>Title</label>
-        <input id="liteTitle" placeholder="video Title" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
-      </div>
-      <div>
-        <label>Angle / Hook</label>
-        <input id="liteHook" placeholder="Hook / Angle" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
-      </div>
-      <div style="grid-column: 1 / span 2;">
-        <label>Keywords (comma or space separated)</label>
-        <input id="liteKeywords" placeholder="ai, 2025, automation, future of work" style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
+    <div style="margin-top: auto;">
+      <a href="settings.html" class="nav-item"><i class="ph ph-gear"></i> Settings</a>
+      <a href="#" onclick="logout()" class="nav-item" style="color: var(--accent);"><i class="ph ph-sign-out"></i>
+        Logout</a>
+    </div>
+  </nav>
+
+  <!-- Premium Header -->
+  <header class="header glass-panel premium-header" style="border-top: none; border-left: none; border-right: none;">
+    <div class="breadcrumbs">Home / <span>Studio</span></div>
+    <div class="user-actions">
+      <button class="icon-btn" onclick="window.location.href='settings.html'"><i class="ph ph-gear"></i></button>
+      <div
+        style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #ec4899);">
       </div>
     </div>
-  </div>
-  <script>
-    (function(){
-      function renderTokens(keywords){
-        try {
-          const cont = document.getElementById('topicTokens');
-          if (!cont) return;
-          cont.innerHTML = '';
-          (keywords||[]).forEach(kw => {
-            const b = document.createElement('span');
-            b.textContent = kw;
-            b.style.padding='4px 8px'; b.style.border='1px solid #334'; b.style.borderRadius='6px'; b.style.cursor='pointer'; b.style.fontSize='12px';
-            cont.appendChild(b);
-          });
-        } catch {}
-      }
+  </header>
 
-      function tryLoad(){
-        try {
-          const raw = localStorage.getItem('editingTopic');
-          if (!raw) return false;
-          const t = JSON.parse(raw);
-          if (!t) return false;
+  <!-- Main Content Wrapper -->
+  <main class="main-content">
+    <div class="content-scroll">
 
-          const title = t.yt_title || t.title || '';
-          const hook = t.angle || '';
-          const keywords = t.keywords || [];
+      <div id="loadingBar" class="loading-bar"></div>
+      <div class="card classic-nav"
+        style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+        <h1 style="margin:0;">MSS Studio <span id="appVersion"
+            style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; position:relative;">
+          <button class="btn btn-primary" onclick="window.location.href='workflow.html' + window.location.search">📋
+            Workflow</button>
+          <button class="btn btn-primary" onclick="window.location.href='trends-calendar.html'">📊 Trends</button>
+          <button class="btn btn-primary" onclick="window.location.href='avatar-manager.html'">Avatars</button>
+          <button class="btn btn-primary" onclick="window.location.href='logo-manager.html'">Logos</button>
+          <button class="btn btn-primary"
+            onclick="window.location.href='meme-library.html' + window.location.search">Thumbnails</button>
+          <button class="btn btn-primary" onclick="window.location.href='intro-outro.html'">Intro/Outro</button>
+          <button class="btn btn-primary" onclick="window.location.href='/dashboard'">Dashboard</button>
+          <button class="btn btn-primary" onclick="window.location.href='/analytics-dashboard'">Analytics</button>
+          <button class="btn btn-warning" onclick="goToPublisher()">Multi-Platform</button>
+          <button class="btn btn-primary" onclick="window.location.href='settings.html'">Settings</button>
+          <button class="btn btn-danger" onclick="logout()">Logout</button>
+        </div>
+      </div>
 
-          // Inline Picker fields
-          const liteTitle = document.getElementById('liteTitle');
-          const liteHook = document.getElementById('liteHook');
-          const liteKw = document.getElementById('liteKeywords');
-          if (liteTitle) liteTitle.value = title;
-          if (liteHook) liteHook.value = hook;
-          if (liteKw) liteKw.value = keywords.join(', ');
+      <script>(function () { const btn = document.getElementById("oldMenusBtn"); const menu = document.getElementById("oldMenus"); const $oldMenusContainer = document.getElementById('oldMenusContainer'); if (btn && menu && $oldMenusContainer) { btn.addEventListener("click", (e) => { e.stopPropagation(); menu.style.display = (menu.style.display === "block" ? "none" : "block"); }); document.addEventListener("click", () => { menu.style.display = "none"; }); menu.addEventListener("click", (e) => e.stopPropagation()); document.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'o') { e.preventDefault(); $oldMenusContainer.style.display = ($oldMenusContainer.style.display === 'none' || !$oldMenusContainer.style.display) ? 'block' : 'none'; } }); } })();</script>
 
-          renderTokens(keywords);
+      <!-- Minimal global helpers so inline handlers work even if later scripts fail to parse -->
+      <script>
+        window.logout = async function logout() {
+          try {
+            const base = (window.location && window.location.origin) ? window.location.origin : '';
+            await fetch(base + '/api/logout', { method: 'POST', credentials: 'include' });
+          } catch (e) { }
+          try { window.location.href = '/auth?logout=true'; } catch (_) { }
+        };
 
-          const s = document.getElementById('liteStatus');
-          if (s) { s.textContent = 'Loaded topic from picker'; s.className='status ok'; s.style.display='block'; }
-
-          return true;
-        } catch(e) {
-          console.error('Error loading topic:', e);
-          return false;
-        }
-      }
-
-      // Aggressive retry strategy - keep trying until it works or we give up
-      // BUT skip if URL params exist (e.g., from Trends page)
-      let attempts = 0;
-      const maxAttempts = 20;
-
-      function retryLoad() {
-        // Check if URL has topic parameter - if so, don't load from localStorage
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has('topic')) {
-          return; // Skip localStorage loading
-        }
-
-        attempts++;
-        if (tryLoad()) {
-          return;
-        }
-        if (attempts < maxAttempts) {
-          setTimeout(retryLoad, 200);
-        }
-      }
-
-      // Start trying immediately (unless URL params exist)
-      retryLoad();
-
-      // Also try when page is fully loaded (unless URL params exist)
-      window.addEventListener('load', () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        if (!urlParams.has('topic')) {
-          tryLoad();
-        }
-      });
-
-      // And when DOM is ready (unless URL params exist)
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-          const urlParams = new URLSearchParams(window.location.search);
-          if (!urlParams.has('topic')) {
-            tryLoad();
+        (function () {
+          function clearPicker() {
+            try {
+              var t = document.getElementById('liteTitle'); if (t) t.value = '';
+              var h = document.getElementById('liteHook'); if (h) h.value = '';
+              var k = document.getElementById('liteKeywords'); if (k) k.value = '';
+              var s = document.getElementById('liteStatus');
+              if (s) { s.textContent = 'Topic picker cleared'; s.className = 'status ok'; s.style.display = 'block'; }
+            } catch (e) { console.warn('clearPicker failed:', e); }
           }
-        });
-      }
+          var btn = document.getElementById('liteClear');
+          if (btn) btn.addEventListener('click', clearPicker);
+          else document.addEventListener('DOMContentLoaded', function () {
+            var b = document.getElementById('liteClear'); if (b) b.addEventListener('click', clearPicker);
+          });
+        })();
+      </script>
 
-      const btn = document.getElementById('liteLoadLast');
-      if (btn) btn.addEventListener('click', tryLoad);
-    })();
-  </script>
+      <div class="card">
+        <h1>Video Topic</h1>
+        <div class="row" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+          <button class="btn" id="liteLoadLast">Load Last Topic</button>
+          <button class="btn btn-danger" id="liteClear">Clear Topic</button>
+          <span id="liteStatus" class="status info"
+            style="display:none; padding:8px 12px; background:rgba(34,197,94,0.2); border:1px solid #22c55e; border-radius:6px; color:#22c55e; font-size:14px; font-weight:600;"></span>
+        </div>
+        <div class="row" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+          <div>
+            <label>Title</label>
+            <input id="liteTitle" placeholder="video Title"
+              style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
+          </div>
+          <div>
+            <label>Angle / Hook</label>
+            <input id="liteHook" placeholder="Hook / Angle"
+              style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
+          </div>
+          <div style="grid-column: 1 / span 2;">
+            <label>Keywords (comma or space separated)</label>
+            <input id="liteKeywords" placeholder="ai, 2025, automation, future of work"
+              style="width:100%; padding:10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
+          </div>
+        </div>
+      </div>
+      <script>
+        (function () {
+          function renderTokens(keywords) {
+            try {
+              const cont = document.getElementById('topicTokens');
+              if (!cont) return;
+              cont.innerHTML = '';
+              (keywords || []).forEach(kw => {
+                const b = document.createElement('span');
+                b.textContent = kw;
+                b.style.padding = '4px 8px'; b.style.border = '1px solid #334'; b.style.borderRadius = '6px'; b.style.cursor = 'pointer'; b.style.fontSize = '12px';
+                cont.appendChild(b);
+              });
+            } catch { }
+          }
 
-  <div class="card">
-    <h1>Video Prompt</h1>
-    <div class="row">
-      <button class="btn" id="generatePrompts">Generate Prompts</button>
-      <button class="btn btn-success" id="copyFullPrompt">Copy Full Prompt</button>
-      <button class="btn btn-primary" id="copyCondensedPrompt">Copy Condensed Prompt</button>
-      <button class="btn btn-danger" id="clearPrompts">Clear Prompts</button>
-    </div>
-    <div class="row">
-      <label>Full Prompt</label>
-      <textarea id="fullPrompt" readonly style="width:100%; min-height:200px; font-family:monospace; font-size:12px; background:#0B0F19; color:#E8EBFF; border:1px solid #334; border-radius:6px; padding:10px;"></textarea>
-    </div>
-    <div class="row">
-      <label>Condensed Prompt</label>
-      <textarea id="condensedPrompt" readonly style="width:100%; min-height:80px; font-family:monospace; font-size:12px; background:#0B0F19; color:#E8EBFF; border:1px solid #334; border-radius:6px; padding:10px;"></textarea>
-    </div>
-  </div>
+          function tryLoad() {
+            try {
+              const raw = localStorage.getItem('editingTopic');
+              if (!raw) return false;
+              const t = JSON.parse(raw);
+              if (!t) return false;
 
-  <script>
-    const FULL_TEMPLATE = `Title:
+              const title = t.yt_title || t.title || '';
+              const hook = t.angle || '';
+              const keywords = t.keywords || [];
+
+              // Inline Picker fields
+              const liteTitle = document.getElementById('liteTitle');
+              const liteHook = document.getElementById('liteHook');
+              const liteKw = document.getElementById('liteKeywords');
+              if (liteTitle) liteTitle.value = title;
+              if (liteHook) liteHook.value = hook;
+              if (liteKw) liteKw.value = keywords.join(', ');
+
+              renderTokens(keywords);
+
+              const s = document.getElementById('liteStatus');
+              if (s) { s.textContent = 'Loaded topic from picker'; s.className = 'status ok'; s.style.display = 'block'; }
+
+              return true;
+            } catch (e) {
+              console.error('Error loading topic:', e);
+              return false;
+            }
+          }
+
+          // Aggressive retry strategy - keep trying until it works or we give up
+          // BUT skip if URL params exist (e.g., from Trends page)
+          let attempts = 0;
+          const maxAttempts = 20;
+
+          function retryLoad() {
+            // Check if URL has topic parameter - if so, don't load from localStorage
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('topic')) {
+              return; // Skip localStorage loading
+            }
+
+            attempts++;
+            if (tryLoad()) {
+              return;
+            }
+            if (attempts < maxAttempts) {
+              setTimeout(retryLoad, 200);
+            }
+          }
+
+          // Start trying immediately (unless URL params exist)
+          retryLoad();
+
+          // Also try when page is fully loaded (unless URL params exist)
+          window.addEventListener('load', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (!urlParams.has('topic')) {
+              tryLoad();
+            }
+          });
+
+          // And when DOM is ready (unless URL params exist)
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+              const urlParams = new URLSearchParams(window.location.search);
+              if (!urlParams.has('topic')) {
+                tryLoad();
+              }
+            });
+          }
+
+          const btn = document.getElementById('liteLoadLast');
+          if (btn) btn.addEventListener('click', tryLoad);
+        })();
+      </script>
+
+      <div class="card">
+        <h1>Video Prompt</h1>
+        <div class="row">
+          <button class="btn" id="generatePrompts">Generate Prompts</button>
+          <button class="btn btn-success" id="copyFullPrompt">Copy Full Prompt</button>
+          <button class="btn btn-primary" id="copyCondensedPrompt">Copy Condensed Prompt</button>
+          <button class="btn btn-danger" id="clearPrompts">Clear Prompts</button>
+        </div>
+        <div class="row">
+          <label>Full Prompt</label>
+          <textarea id="fullPrompt" readonly
+            style="width:100%; min-height:200px; font-family:monospace; font-size:12px; background:#0B0F19; color:#E8EBFF; border:1px solid #334; border-radius:6px; padding:10px;"></textarea>
+        </div>
+        <div class="row">
+          <label>Condensed Prompt</label>
+          <textarea id="condensedPrompt" readonly
+            style="width:100%; min-height:80px; font-family:monospace; font-size:12px; background:#0B0F19; color:#E8EBFF; border:1px solid #334; border-radius:6px; padding:10px;"></textarea>
+        </div>
+      </div>
+
+      <script>
+        const FULL_TEMPLATE = `Title:
 {{Title}}
 
 Angle / Hook:
@@ -233,244 +297,298 @@ Keywords:
 {{Keywords}}
 
 YouTube Description:
-`;
+{{YouTube_Description}}
 
-    const CONDENSED_TEMPLATE = `Analyze {{Title}} from the perspective of {{Angle}}. Discuss the key themes and insights related to {{Keywords}}, providing a comprehensive overview that educates and informs viewers.`;
+Sub Topic:
+{{Sub_Topic}}
 
-    function normalizeKeywords(v) {
-      if (Array.isArray(v)) {
-        return v.map(x => String(x).trim()).filter(x => x).join(", ");
-      }
-      if (typeof v === 'string') {
-        const parts = v.includes(',') ? v.split(',').map(p => p.trim()) : v.split(/\s+/);
-        return parts.filter(p => p).join(", ");
-      }
-      return "";
-    }
+SEO Keywords:
+{{SEO_Keywords}}`;
 
-    function fillTemplate(tpl, fields) {
-      let out = tpl;
-      for (const [k, v] of Object.entries(fields)) {
-        out = out.replaceAll(`{{${k}}}`, v);
-      }
-      return out;
-    }
+        const CONDENSED_TEMPLATE = `Analyze {{Title}} from the perspective of {{Angle}}. Discuss the key themes and insights related to {{Keywords}}, providing a comprehensive overview that educates and informs viewers.`;
 
-    function generateNotebookLMPrompts() {
-      const title = document.getElementById('liteTitle')?.value.trim() || '';
-      const angle = document.getElementById('liteHook')?.value.trim() || '';
-      const keywordsInput = document.getElementById('liteKeywords')?.value.trim() || '';
-      const keywords = normalizeKeywords(keywordsInput);
-
-      // Try to get description from localStorage topic
-      let ytDesc = '';
-      try {
-        const raw = localStorage.getItem('editingTopic');
-        if (raw) {
-          const topic = JSON.parse(raw);
-          ytDesc = topic.yt_description || topic.description || '';
+        function normalizeKeywords(v) {
+          if (Array.isArray(v)) {
+            return v.map(x => String(x).trim()).filter(x => x).join(", ");
+          }
+          if (typeof v === 'string') {
+            const parts = v.includes(',') ? v.split(',').map(p => p.trim()) : v.split(/\s+/);
+            return parts.filter(p => p).join(", ");
+          }
+          return "";
         }
-      } catch {}
 
-      const fields = {
-        'Title': title || '{{Title}}',
-        'Angle': angle || '{{Angle}}',
-        'Keywords': keywords || '{{Keywords}}',
-        'YouTube_Description': ytDesc || '{{YouTube_Description}}'
-      };
+        function fillTemplate(tpl, fields) {
+          let out = tpl;
+          for (const [k, v] of Object.entries(fields)) {
+            out = out.replaceAll(`{{${k}}}`, v);
+          }
+          return out;
+        }
 
-      const fullPrompt = fillTemplate(FULL_TEMPLATE, fields).trim();
-      const condensedPrompt = fillTemplate(CONDENSED_TEMPLATE, fields).trim();
+        async function generateNotebookLMPrompts() {
+          const title = document.getElementById('liteTitle')?.value.trim() || '';
+          const angle = document.getElementById('liteHook')?.value.trim() || '';
+          const keywordsInput = document.getElementById('liteKeywords')?.value.trim() || '';
+          const keywords = normalizeKeywords(keywordsInput);
 
-      document.getElementById('fullPrompt').value = fullPrompt;
-      document.getElementById('condensedPrompt').value = condensedPrompt;
-    }
+          // Try to get description from localStorage topic
+          let ytDesc = '';
+          try {
+            const raw = localStorage.getItem('editingTopic');
+            if (raw) {
+              const topic = JSON.parse(raw);
+              ytDesc = topic.yt_description || topic.description || '';
+            }
+          } catch { }
 
-    document.getElementById('generatePrompts')?.addEventListener('click', generateNotebookLMPrompts);
+          const defaultDescInstruction = "Write a compelling, SEO-friendly YouTube description for this video. Include the keywords naturally, summarize the key points, and add a call to action for viewers to subscribe.";
+          let subTopicInstruction = "Identify a specific sub-topic or niche angle that adds depth to this content.";
+          let seoKeywordsInstruction = "Generate a list of high-traffic, relevant SEO keywords and tags for this video.";
 
-    document.getElementById('copyFullPrompt')?.addEventListener('click', async () => {
-      const text = document.getElementById('fullPrompt').value;
-      try {
-        await navigator.clipboard.writeText(text);
-        alert('Full prompt copied to clipboard!');
-      } catch (e) {
-        alert('Failed to copy: ' + e.message);
-      }
-    });
+          // Call API to generate subtopic and SEO keywords if we have a title
+          if (title) {
+            try {
+              console.log('[SEO] Calling API with:', { title, angle, keywords });
+              const response = await fetch(`${API_BASE}/api/generate-seo`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ title, angle, keywords })
+              });
 
-    document.getElementById('copyCondensedPrompt')?.addEventListener('click', async () => {
-      const text = document.getElementById('condensedPrompt').value;
-      try {
-        await navigator.clipboard.writeText(text);
-        alert('Condensed prompt copied to clipboard!');
-      } catch (e) {
-        alert('Failed to copy: ' + e.message);
-      }
-    });
+              console.log('[SEO] Response status:', response.status);
+              if (response.ok) {
+                const data = await response.json();
+                console.log('[SEO] Response data:', data);
+                if (data.success) {
+                  subTopicInstruction = data.sub_topic || subTopicInstruction;
+                  seoKeywordsInstruction = (data.seo_keywords || []).join(', ') || seoKeywordsInstruction;
+                  console.log('[SEO] Updated instructions:', { subTopicInstruction, seoKeywordsInstruction });
+                } else {
+                  console.warn('[SEO] API returned success=false:', data.error);
+                }
+              } else {
+                console.warn('[SEO] API returned error status:', response.status);
+              }
+            } catch (error) {
+              console.warn('[SEO] Failed to generate SEO content:', error);
+              // Continue with default instructions
+            }
+          }
 
-    document.getElementById('clearPrompts')?.addEventListener('click', () => {
-      document.getElementById('fullPrompt').value = '';
-      document.getElementById('condensedPrompt').value = '';
-    });
+          const fields = {
+            'Title': title || '{{Title}}',
+            'Angle': angle || '{{Angle}}',
+            'Keywords': keywords || '{{Keywords}}',
+            'YouTube_Description': ytDesc || defaultDescInstruction,
+            'Sub_Topic': subTopicInstruction,
+            'SEO_Keywords': seoKeywordsInstruction
+          };
 
-    // Auto-generate when topic is loaded
-    const originalLiteLoadLast = document.getElementById('liteLoadLast');
-    if (originalLiteLoadLast) {
-      originalLiteLoadLast.addEventListener('click', () => {
-        setTimeout(generateNotebookLMPrompts, 100);
-      });
-    }
-  </script>
+          const fullPrompt = fillTemplate(FULL_TEMPLATE, fields).trim();
+          const condensedPrompt = fillTemplate(CONDENSED_TEMPLATE, fields).trim();
 
-  <div class="card">
-    <h1>Video w/Audio Loader</h1>
-    <div class="row">
-      <label for="mainFile">Video (required):</label>
-      <input type="file" id="mainFile" accept="video/*">
-    </div>
-    <div class="controls">
-      <label style="display:flex; align-items:center; gap:8px;">
-        <input type="checkbox" id="toggleAvatar" checked>
-        Include avatar (lower-right)
-      </label>
-      <div id="avatarSelectWrap" style="display:flex; align-items:center; gap:6px;">
-        <span style="font-size:13px; color:#94a3b8;">Avatar:</span>
-        <select id="avatarSelect" style="padding:6px 10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;"></select>
-        <img id="activeAvatarImg" alt="Active Avatar" style="width:48px; height:48px; border-radius:8px; object-fit:cover; border:1px solid #334; background:#0B0F19; display:none; vertical-align:middle;"/>
-      </div>
-      <label style="display:flex; align-items:center; gap:8px;">
-        <input type="checkbox" id="avatarAnimated" checked>
-        Animated avatar
-      </label>
-      <label style="display:flex; align-items:center; gap:8px;">
-        <input type="checkbox" id="toggleLogo" checked>
-        Include logo
-      </label>
-      <div id="logoSelectWrap" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-        <span style="font-size:13px; color:#94a3b8;">Logo:</span>
-        <select id="logoSelect" style="padding:6px 10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;"></select>
-        <input type="file" id="logoFile" accept="image/*" style="padding:6px 10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
-        <img id="activeLogoImg" alt="Active Logo" style="width:48px; height:48px; border-radius:8px; object-fit:contain; border:1px solid #334; background:#0B0F19; display:none; vertical-align:middle;"/>
-      </div>
-      <div id="logoPositionWrap" style="display:flex; align-items:center; gap:6px;">
-        <span style="font-size:13px; color:#94a3b8;">Position:</span>
-        <select id="logoPos" style="padding:6px 10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;">
-          <option value="bottom-left">Bottom-Left</option>
-          <option value="bottom-right">Bottom-Right</option>
-          <option value="top-left">Top-Left</option>
-          <option value="top-right">Top-Right</option>
-          <option value="center">Center</option>
-        </select>
-      </div>
-      <label style="display:flex; align-items:center; gap:8px;">
-        <input type="checkbox" id="toggleIntroOutro">
-        Include intro/outro
-      </label>
-    </div>
+          document.getElementById('fullPrompt').value = fullPrompt;
+          document.getElementById('condensedPrompt').value = condensedPrompt;
+        }
 
-    <!-- Usage Limit Warning -->
-    <div id="usageWarning" style="display:none; margin:12px 0;"></div>
+        document.getElementById('generatePrompts')?.addEventListener('click', generateNotebookLMPrompts);
 
-    <div class="row">
-      <button class="btn" id="approveBtn" disabled>Approve & Process</button>
-    </div>
-    <div id="status" class="status"></div>
-    <div class="row">
-      <video id="preview" controls style="display:none;"></video>
-    </div>
-  </div>
-
-  <!-- YouTube Upload Section - COMING SOON (uncomment showYouTubeUploadSection call below to enable) -->
-  <div class="card" id="youtubeUploadCard" style="display:none;">
-    <h1>Upload to YouTube</h1>
-    <div class="row">
-      <label>Video Title</label>
-      <input id="ytTitle" type="text" placeholder="Video title (max 100 characters)" maxlength="100" style="width:100%;">
-    </div>
-    <div class="row">
-      <label>Description</label>
-      <textarea id="ytDescription" placeholder="Video description (max 5000 characters)" maxlength="5000" style="width:100%; min-height:120px;"></textarea>
-    </div>
-    <div class="row">
-      <label>Tags/Keywords (comma-separated)</label>
-      <input id="ytTags" type="text" placeholder="ai, automation, technology" style="width:100%;">
-    </div>
-    <div class="row" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
-      <div>
-        <label>Category</label>
-        <select id="ytCategory" style="width:100%; padding:10px;">
-          <option value="22">People & Blogs</option>
-          <option value="24">Entertainment</option>
-          <option value="27">Education</option>
-          <option value="28">Science & Technology</option>
-        </select>
-      </div>
-      <div>
-        <label>Privacy</label>
-        <select id="ytPrivacy" style="width:100%; padding:10px;">
-          <option value="private">Private</option>
-          <option value="unlisted">Unlisted</option>
-          <option value="public">Public</option>
-        </select>
-      </div>
-    </div>
-    <div class="row">
-      <button class="btn btn-danger" id="uploadToYouTubeBtn">Upload to YouTube</button>
-    </div>
-    <div id="ytStatus" class="status"></div>
-    <div id="ytProgress" style="display:none; margin-top:12px; padding:12px; background:rgba(59,130,246,0.1); border:1px solid var(--accent-blue); border-radius:6px;">
-      <div style="color:var(--text-muted); font-size:13px; margin-bottom:6px;">Uploading to YouTube...</div>
-      <div style="height:6px; background:rgba(255,255,255,0.1); border-radius:3px; overflow:hidden;">
-        <div id="ytProgressBar" style="height:100%; background:linear-gradient(90deg, #3b82f6, #22c55e); width:0%; transition:width 0.3s;"></div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    // API base resolution with overrides:
-    // - URL param: ?api=http://127.0.0.1:5000
-    // - localStorage: apiBase
-    // - fallback: same-origin
-    const urlApi = new URLSearchParams(window.location.search).get('api');
-    const lsApi = (function(){ try { return localStorage.getItem('apiBase'); } catch(_) { return null; }})();
-    let defaultBase = window.location.origin;
-    try {
-      if (window.location.port && window.location.port !== '5000') {
-        defaultBase = 'http://127.0.0.1:5000';
-      }
-    } catch {}
-    const API_BASE = (urlApi && urlApi.trim()) || (lsApi && lsApi.trim()) || defaultBase;
-    if (urlApi) { try { localStorage.setItem('apiBase', urlApi); } catch(_) {} }
-
-    // Authentication check - must be logged in to access studio
-    (async function checkAuth() {
-      try {
-        const res = await fetch(`${API_BASE}/api/me`, {
-          credentials: 'include'
+        document.getElementById('copyFullPrompt')?.addEventListener('click', async () => {
+          const text = document.getElementById('fullPrompt').value;
+          try {
+            await navigator.clipboard.writeText(text);
+            alert('Full prompt copied to clipboard!');
+          } catch (e) {
+            alert('Failed to copy: ' + e.message);
+          }
         });
 
-        if (!res.ok) {
-          // Request failed, redirect to auth page
-          window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
-          return;
-        }
+        document.getElementById('copyCondensedPrompt')?.addEventListener('click', async () => {
+          const text = document.getElementById('condensedPrompt').value;
+          try {
+            await navigator.clipboard.writeText(text);
+            alert('Condensed prompt copied to clipboard!');
+          } catch (e) {
+            alert('Failed to copy: ' + e.message);
+          }
+        });
 
-        const data = await res.json();
-        if (!data.success) {
-          // Not authenticated or session invalid, redirect to auth
-          window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
-          return;
-        }
+        document.getElementById('clearPrompts')?.addEventListener('click', () => {
+          document.getElementById('fullPrompt').value = '';
+          document.getElementById('condensedPrompt').value = '';
+        });
 
-        // User is authenticated, continue loading page
-        console.log('[AUTH] User authenticated:', data.user.email);
-      } catch (e) {
-        console.error('[AUTH] Error checking authentication:', e);
-        // Network error or API issue - redirect to auth to be safe
-        window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
-      }
-    })();
-    const DEFAULT_PROMPT = `Topic: {{title}}
+        // Auto-generate when topic is loaded
+        const originalLiteLoadLast = document.getElementById('liteLoadLast');
+        if (originalLiteLoadLast) {
+          originalLiteLoadLast.addEventListener('click', () => {
+            setTimeout(generateNotebookLMPrompts, 100);
+          });
+        }
+      </script>
+
+      <div class="card">
+        <h1>Video w/Audio Loader</h1>
+        <div class="row">
+          <label for="mainFile">Video (required):</label>
+          <input type="file" id="mainFile" accept="video/*">
+        </div>
+        <div class="controls">
+          <label style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="toggleAvatar" checked>
+            Include avatar (lower-right)
+          </label>
+          <div id="avatarSelectWrap" style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:13px; color:#94a3b8;">Avatar:</span>
+            <select id="avatarSelect"
+              style="padding:6px 10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;"></select>
+            <img id="activeAvatarImg" alt="Active Avatar"
+              style="width:48px; height:48px; border-radius:8px; object-fit:cover; border:1px solid #334; background:#0B0F19; display:none; vertical-align:middle;" />
+          </div>
+          <label style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="avatarAnimated" checked>
+            Animated avatar
+          </label>
+          <label style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="toggleLogo" checked>
+            Include logo
+          </label>
+          <div id="logoSelectWrap" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <span style="font-size:13px; color:#94a3b8;">Logo:</span>
+            <select id="logoSelect"
+              style="padding:6px 10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;"></select>
+            <input type="file" id="logoFile" accept="image/*"
+              style="padding:6px 10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;" />
+            <img id="activeLogoImg" alt="Active Logo"
+              style="width:48px; height:48px; border-radius:8px; object-fit:contain; border:1px solid #334; background:#0B0F19; display:none; vertical-align:middle;" />
+          </div>
+          <div id="logoPositionWrap" style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:13px; color:#94a3b8;">Position:</span>
+            <select id="logoPos"
+              style="padding:6px 10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF;">
+              <option value="bottom-left">Bottom-Left</option>
+              <option value="bottom-right">Bottom-Right</option>
+              <option value="top-left">Top-Left</option>
+              <option value="top-right">Top-Right</option>
+              <option value="center">Center</option>
+            </select>
+          </div>
+          <label style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="toggleIntroOutro">
+            Include intro/outro
+          </label>
+        </div>
+
+        <!-- Usage Limit Warning -->
+        <div id="usageWarning" style="display:none; margin:12px 0;"></div>
+
+        <div class="row">
+          <button class="btn" id="approveBtn" disabled>Approve & Process</button>
+        </div>
+        <div id="status" class="status"></div>
+        <div class="row">
+          <video id="preview" controls style="display:none;"></video>
+        </div>
+      </div>
+
+      <!-- YouTube Upload Section - COMING SOON (uncomment showYouTubeUploadSection call below to enable) -->
+      <div class="card" id="youtubeUploadCard" style="display:none;">
+        <h1>Upload to YouTube</h1>
+        <div class="row">
+          <label>Video Title</label>
+          <input id="ytTitle" type="text" placeholder="Video title (max 100 characters)" maxlength="100"
+            style="width:100%;">
+        </div>
+        <div class="row">
+          <label>Description</label>
+          <textarea id="ytDescription" placeholder="Video description (max 5000 characters)" maxlength="5000"
+            style="width:100%; min-height:120px;"></textarea>
+        </div>
+        <div class="row">
+          <label>Tags/Keywords (comma-separated)</label>
+          <input id="ytTags" type="text" placeholder="ai, automation, technology" style="width:100%;">
+        </div>
+        <div class="row" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+          <div>
+            <label>Category</label>
+            <select id="ytCategory" style="width:100%; padding:10px;">
+              <option value="22">People & Blogs</option>
+              <option value="24">Entertainment</option>
+              <option value="27">Education</option>
+              <option value="28">Science & Technology</option>
+            </select>
+          </div>
+          <div>
+            <label>Privacy</label>
+            <select id="ytPrivacy" style="width:100%; padding:10px;">
+              <option value="private">Private</option>
+              <option value="unlisted">Unlisted</option>
+              <option value="public">Public</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn btn-danger" id="uploadToYouTubeBtn">Upload to YouTube</button>
+        </div>
+        <div id="ytStatus" class="status"></div>
+        <div id="ytProgress"
+          style="display:none; margin-top:12px; padding:12px; background:rgba(59,130,246,0.1); border:1px solid var(--accent-blue); border-radius:6px;">
+          <div style="color:var(--text-muted); font-size:13px; margin-bottom:6px;">Uploading to YouTube...</div>
+          <div style="height:6px; background:rgba(255,255,255,0.1); border-radius:3px; overflow:hidden;">
+            <div id="ytProgressBar"
+              style="height:100%; background:linear-gradient(90deg, #3b82f6, #22c55e); width:0%; transition:width 0.3s;">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        // API base resolution with overrides:
+        // - URL param: ?api=http://127.0.0.1:5000
+        // - localStorage: apiBase
+        // - fallback: same-origin
+        const urlApi = new URLSearchParams(window.location.search).get('api');
+        const lsApi = (function () { try { return localStorage.getItem('apiBase'); } catch (_) { return null; } })();
+        let defaultBase = window.location.origin;
+        try {
+          if (window.location.port && window.location.port !== '5000') {
+            defaultBase = 'http://127.0.0.1:5000';
+          }
+        } catch { }
+        const API_BASE = (urlApi && urlApi.trim()) || (lsApi && lsApi.trim()) || defaultBase;
+        if (urlApi) { try { localStorage.setItem('apiBase', urlApi); } catch (_) { } }
+
+        // Authentication check - must be logged in to access studio
+        (async function checkAuth() {
+          try {
+            const res = await fetch(`${API_BASE}/api/me`, {
+              credentials: 'include'
+            });
+
+            if (!res.ok) {
+              // Request failed, redirect to auth page
+              window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
+              return;
+            }
+
+            const data = await res.json();
+            if (!data.success) {
+              // Not authenticated or session invalid, redirect to auth
+              window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
+              return;
+            }
+
+            // User is authenticated, continue loading page
+            console.log('[AUTH] User authenticated:', data.user.email);
+          } catch (e) {
+            console.error('[AUTH] Error checking authentication:', e);
+            // Network error or API issue - redirect to auth to be safe
+            window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
+          }
+        })();
+        const DEFAULT_PROMPT = `Topic: {{title}}
 Hook: {{hook}}
 Description: {{description}}
 Keywords: {{keywords}}
@@ -485,1038 +603,1050 @@ Photo-realistic elements to add depth
 
 High contrast, clean composition, and optimized for small sizes (like YouTube thumbnails)`;
 
-    // Track processing state to prevent navigation during video processing
-    let isProcessing = false;
+        // Track processing state to prevent navigation during video processing
+        let isProcessing = false;
 
-    // Warn user if they try to leave while processing
-    window.addEventListener('beforeunload', (e) => {
-      if (isProcessing) {
-        e.preventDefault();
-        // Modern browsers ignore custom messages, but setting returnValue triggers the dialog
-        e.returnValue = 'Video processing is in progress. Your video will continue processing in the background if you leave.';
-        return e.returnValue;
-      }
-    });
-
-    function liteStatus(msg, kind='info') {
-      const el = document.getElementById('liteStatus');
-      el.style.display = 'inline-block';
-      el.className = 'status ' + (kind || 'info');
-      el.textContent = msg;
-
-      // Set colors based on kind
-      if (kind === 'ok') {
-        el.style.background = 'rgba(34,197,94,0.2)';
-        el.style.borderColor = '#22c55e';
-        el.style.color = '#22c55e';
-      } else if (kind === 'err') {
-        el.style.background = 'rgba(239,68,68,0.2)';
-        el.style.borderColor = '#ef4444';
-        el.style.color = '#ef4444';
-      } else {
-        el.style.background = 'rgba(59,130,246,0.2)';
-        el.style.borderColor = '#3b82f6';
-        el.style.color = '#3b82f6';
-      }
-    }
-
-    function parseKeywords(str) {
-      if (!str) return [];
-      const raw = str.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
-      // de-dup while preserv-ing order
-      const seen = new Set(); const out = [];
-      for (const w of raw) { if (!seen.has(w.toLowerCase())) { seen.add(w.toLowerCase()); out.push(w); } }
-      return out.slice(0, 50);
-    }
-
-
-    // Fetch and display Version from API
-    (function loadVersion(){
-      fetch(`${API_BASE}/health`).then(r => r.json()).then(j => {
-        const el = document.getElementById('appVersion');
-        if (el && j && j.Version) el.textContent = 'v-' + j.Version;
-      }).catch(()=>{
-        const el = document.getElementById('appVersion');
-        if (el) el.textContent = 'v-5.5.2';
-      });
-    })();
-
-    // Persistence of logo position and toggles
-    (function initHeader(){
-      const posEl = document.getElementById('logoPos');
-      // restore saved position
-      const savedPos = localStorage.getItem('logo_position');
-      if (savedPos) posEl.value = savedPos;
-      posEl.addEventListener('change', ()=> localStorage.setItem('logo_position', posEl.value));
-      // Persist toggles
-      const persist = (id)=>{ const el = document.getElementById(id); const k = 'persist_'+id; const sv = localStorage.getItem(k); if(sv!==null) el.checked = (sv==='true'); el.addEventListener('change', ()=> localStorage.setItem(k, el.checked)); };
-      persist('toggleAvatar');
-      persist('avatarAnimated');
-      persist('toggleLogo');
-      persist('toggleIntroOutro');
-    })();
-
-
-    function applyTopicToUI(topic) {
-      try {
-        localStorage.setItem('editingTopic', JSON.stringify(topic));
-      } catch {}
-      const title = topic.title || topic.yt_title || '';
-      const hook = topic.angle || topic.hook || '';
-      const kw = topic.keywords || topic.yt_tags || [];
-      const uniq = Array.from(new Set([...(kw||[])]));
-        // Populate Inline Picker fields
-        const lTitle = document.getElementById('liteTitle'); if (lTitle) lTitle.value = title;
-        const lHook = document.getElementById('liteHook'); if (lHook) lHook.value = hook;
-        const lKw = document.getElementById('liteKeywords'); if (lKw) lKw.value = uniq.join(', ');
-      // Render keyword chips
-      const tokensEl = document.getElementById('topicTokens');
-      if (tokensEl) {
-        tokensEl.innerHTML = '';
-        uniq.slice(0, 50).forEach(t => {
-          const chip = document.createElement('span');
-          chip.textContent = t;
-          chip.style.cssText = 'background:#1e3a8a; border-radius:14px; padding:6px 10px; font-size:12px; cursor:pointer;';
-          tokensEl.appendChild(chip);
+        // Warn user if they try to leave while processing
+        window.addEventListener('beforeunload', (e) => {
+          if (isProcessing) {
+            e.preventDefault();
+            // Modern browsers ignore custom messages, but setting returnValue triggers the dialog
+            e.returnValue = 'Video processing is in progress. Your video will continue processing in the background if you leave.';
+            return e.returnValue;
+          }
         });
-      }
-      // Persist to backend (best-effort)
-      fetch(`${API_BASE}/set-selected-topic`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(topic)
-      }).catch(()=>{});
-      liteStatus('Topic applied.', 'ok');
-    }
 
-    // Wire Inline Picker controls
-    document.getElementById('liteLoadLast').addEventListener('click', async () => {
-      liteStatus('Loading last topic...', 'info');
-      try {
-        const r = await fetch(`${API_BASE}/get-selected-topic`);
-        const j = await r.json();
-        if (!j.success) throw new Error(j.error || 'Not found');
-        applyTopicToUI(j.topic || {});
-      } catch (e) {
-        liteStatus('Error: ' + e.message, 'err');
-      }
-    });
+        function liteStatus(msg, kind = 'info') {
+          const el = document.getElementById('liteStatus');
+          el.style.display = 'inline-block';
+          el.className = 'status ' + (kind || 'info');
+          el.textContent = msg;
 
-    // Clear Picker button
-    document.getElementById('liteClear').addEventListener('click', () => {
-      document.getElementById('liteTitle').value = '';
-      document.getElementById('liteHook').value = '';
-      document.getElementById('liteKeywords').value = '';
-      liteStatus('Topic picker cleared', 'ok');
-    });
+          // Set colors based on kind
+          if (kind === 'ok') {
+            el.style.background = 'rgba(34,197,94,0.2)';
+            el.style.borderColor = '#22c55e';
+            el.style.color = '#22c55e';
+          } else if (kind === 'err') {
+            el.style.background = 'rgba(239,68,68,0.2)';
+            el.style.borderColor = '#ef4444';
+            el.style.color = '#ef4444';
+          } else {
+            el.style.background = 'rgba(59,130,246,0.2)';
+            el.style.borderColor = '#3b82f6';
+            el.style.color = '#3b82f6';
+          }
+        }
+
+        function parseKeywords(str) {
+          if (!str) return [];
+          const raw = str.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+          // de-dup while preserv-ing order
+          const seen = new Set(); const out = [];
+          for (const w of raw) { if (!seen.has(w.toLowerCase())) { seen.add(w.toLowerCase()); out.push(w); } }
+          return out.slice(0, 50);
+        }
 
 
-    const mainInput = document.getElementById('mainFile');
-    const approveBtn = document.getElementById('approveBtn');
-    const statusBox = document.getElementById('status');
-    const preview = document.getElementById('preview');
-    const toggleAvatar = document.getElementById('toggleAvatar');
-    const avatarSelect = document.getElementById('avatarSelect');
-    const avatarSelectWrap = document.getElementById('avatarSelectWrap');
-    const toggleLogo = document.getElementById('toggleLogo');
-    const toggleIntroOutro = document.getElementById('toggleIntroOutro');
+        // Fetch and display Version from API
+        (function loadVersion() {
+          fetch(`${API_BASE}/health`).then(r => r.json()).then(j => {
+            const el = document.getElementById('appVersion');
+            if (el && j && j.Version) el.textContent = 'v-' + j.Version;
+          }).catch(() => {
+            const el = document.getElementById('appVersion');
+            if (el) el.textContent = 'v-5.5.2';
+          });
+        })();
 
-    function setStatus(text, kind) {
-      statusBox.style.display = 'block';
-      statusBox.className = 'status ' + (kind || 'info');
-      statusBox.textContent = text;
-    }
+        // Persistence of logo position and toggles
+        (function initHeader() {
+          const posEl = document.getElementById('logoPos');
+          // restore saved position
+          const savedPos = localStorage.getItem('logo_position');
+          if (savedPos) posEl.value = savedPos;
+          posEl.addEventListener('change', () => localStorage.setItem('logo_position', posEl.value));
+          // Persist toggles
+          const persist = (id) => { const el = document.getElementById(id); const k = 'persist_' + id; const sv = localStorage.getItem(k); if (sv !== null) el.checked = (sv === 'true'); el.addEventListener('change', () => localStorage.setItem(k, el.checked)); };
+          persist('toggleAvatar');
+          persist('avatarAnimated');
+          persist('toggleLogo');
+          persist('toggleIntroOutro');
+        })();
 
-    function clearStatus() { statusBox.style.display = 'none'; }
 
-    // Toast Notification System
-    function showToast(message, type = 'info', duration = 4000) {
-      const toast = document.createElement('div');
-      toast.className = `toast ${type}`;
-      toast.innerHTML = `
+        function applyTopicToUI(topic) {
+          try {
+            localStorage.setItem('editingTopic', JSON.stringify(topic));
+          } catch { }
+          const title = topic.title || topic.yt_title || '';
+          const hook = topic.angle || topic.hook || '';
+          const kw = topic.keywords || topic.yt_tags || [];
+          const uniq = Array.from(new Set([...(kw || [])]));
+          // Populate Inline Picker fields
+          const lTitle = document.getElementById('liteTitle'); if (lTitle) lTitle.value = title;
+          const lHook = document.getElementById('liteHook'); if (lHook) lHook.value = hook;
+          const lKw = document.getElementById('liteKeywords'); if (lKw) lKw.value = uniq.join(', ');
+          // Render keyword chips
+          const tokensEl = document.getElementById('topicTokens');
+          if (tokensEl) {
+            tokensEl.innerHTML = '';
+            uniq.slice(0, 50).forEach(t => {
+              const chip = document.createElement('span');
+              chip.textContent = t;
+              chip.style.cssText = 'background:#1e3a8a; border-radius:14px; padding:6px 10px; font-size:12px; cursor:pointer;';
+              tokensEl.appendChild(chip);
+            });
+          }
+          // Persist to backend (best-effort)
+          fetch(`${API_BASE}/set-selected-topic`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(topic)
+          }).catch(() => { });
+          liteStatus('Topic applied.', 'ok');
+        }
+
+        // Wire Inline Picker controls
+        document.getElementById('liteLoadLast').addEventListener('click', async () => {
+          liteStatus('Loading last topic...', 'info');
+          try {
+            const r = await fetch(`${API_BASE}/get-selected-topic`);
+            const j = await r.json();
+            if (!j.success) throw new Error(j.error || 'Not found');
+            applyTopicToUI(j.topic || {});
+          } catch (e) {
+            liteStatus('Error: ' + e.message, 'err');
+          }
+        });
+
+        // Clear Picker button
+        document.getElementById('liteClear').addEventListener('click', () => {
+          document.getElementById('liteTitle').value = '';
+          document.getElementById('liteHook').value = '';
+          document.getElementById('liteKeywords').value = '';
+          liteStatus('Topic picker cleared', 'ok');
+        });
+
+
+        const mainInput = document.getElementById('mainFile');
+        const approveBtn = document.getElementById('approveBtn');
+        const statusBox = document.getElementById('status');
+        const preview = document.getElementById('preview');
+        const toggleAvatar = document.getElementById('toggleAvatar');
+        const avatarSelect = document.getElementById('avatarSelect');
+        const avatarSelectWrap = document.getElementById('avatarSelectWrap');
+        const toggleLogo = document.getElementById('toggleLogo');
+        const toggleIntroOutro = document.getElementById('toggleIntroOutro');
+
+        function setStatus(text, kind) {
+          statusBox.style.display = 'block';
+          statusBox.className = 'status ' + (kind || 'info');
+          statusBox.textContent = text;
+        }
+
+        function clearStatus() { statusBox.style.display = 'none'; }
+
+        // Toast Notification System
+        function showToast(message, type = 'info', duration = 4000) {
+          const toast = document.createElement('div');
+          toast.className = `toast ${type}`;
+          toast.innerHTML = `
         <span>${message}</span>
         <span class="toast-close">x</span>
       `;
 
-      document.body.appendChild(toast);
+          document.body.appendChild(toast);
 
-      const close = () => {
-        toast.style.animation = 'slideIn 0.3s ease reverse';
-        setTimeout(() => toast.remove(), 300);
-      };
+          const close = () => {
+            toast.style.animation = 'slideIn 0.3s ease reverse';
+            setTimeout(() => toast.remove(), 300);
+          };
 
-      const closeEl = toast.querySelector('.toast-close');
-      if (closeEl) closeEl.addEventListener('click', close);
+          const closeEl = toast.querySelector('.toast-close');
+          if (closeEl) closeEl.addEventListener('click', close);
 
-      if (duration > 0) {
-        setTimeout(close, duration);
-      }
-
-      return toast;
-    }
-
-    // Override toast to stack without overlap
-    if (typeof showToast === 'function' && !window.__toastStackPatched) {
-      const __origShowToast = showToast;
-      window.showToast = function(message, type = 'info', duration = 4000) {
-        let container = document.getElementById('toastContainer');
-        if (!container) {
-          container = document.createElement('div');
-          container.id = 'toastContainer';
-          Object.assign(container.style, {
-            position: 'fixed', top: '80px', right: '24px', display: 'flex',
-            flexDirection: 'column', alignItems: 'flex-end', gap: '8px', zIndex: '10000'
-          });
-          document.body.appendChild(container);
-        }
-        const toast = __origShowToast(message, type, duration);
-        try { document.body.removeChild(toast); } catch {}
-        Object.assign(toast.style, { position: 'relative', top: 'auto', right: 'auto', margin: '0' });
-        container.appendChild(toast);
-        return toast;
-      };
-      window.__toastStackPatched = true;
-    }
-
-    // Enhanced error handling with retry
-    async function fetchWithRetry(url, options = {}, retries = 2) {
-      for (let i = 0; i <= retries; i++) {
-        try {
-          const res = await fetch(url, options);
-          if (!res.ok) {
-            const text = await res.text().catch(() => '');
-            throw new Error(`HTTP ${res.status}: ${text.slice(0, 100) || res.statusText}`);
+          if (duration > 0) {
+            setTimeout(close, duration);
           }
-          return res;
-        } catch (e) {
-          if (i === retries) throw e;
-          await new Promise(r => setTimeout(r, 1000 * (i + 1)));
-          showToast(`Retrying... (${i + 1}/${retries})`, 'info', 2000);
-        }
-      }
-    }
 
-
-    // Keyboard Shortcuts
-    document.addEventListener('keydown', (e) => {
-      // Ctrl+S or Cmd+S to generate video
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        const approveBtn = document.getElementById('approveBtn');
-        if (approveBtn && !approveBtn.disabled) {
-          approveBtn.click();
-          showToast('Generating video...', 'info', 2000);
-        }
-      }
-
-      // Escape to cancel/hide loading bar
-      if (e.key === 'Escape') {
-        const loadingBar = document.getElementById('loadingBar');
-        if (loadingBar && loadingBar.style.display === 'block') {
-          loadingBar.style.display = 'none';
-          showToast('Operation cancelled', 'info', 2000);
-        }
-      }
-    });
-
-    toggleAvatar.addEventListener('change', () => {
-      avatarSelectWrap.style.display = toggleAvatar.checked ? 'flex' : 'none';
-    });
-
-    // Load avatars
-    async function loadavatars() {
-      try {
-        const res = await fetch(`${API_BASE}/get-avatar-library`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        avatarSelect.innerHTML = '';
-        const list = (data && data.avatars) ? data.avatars : [];
-        if (list.length === 0) {
-          avatarSelect.innerHTML = '<option value="">No avatars found</option>';
-          return;
+          return toast;
         }
 
-        const activeAvatarImg = document.getElementById('activeAvatarImg');
-        let activeAvatar = null;
+        // Override toast to stack without overlap
+        if (typeof showToast === 'function' && !window.__toastStackPatched) {
+          const __origShowToast = showToast;
+          window.showToast = function (message, type = 'info', duration = 4000) {
+            let container = document.getElementById('toastContainer');
+            if (!container) {
+              container = document.createElement('div');
+              container.id = 'toastContainer';
+              Object.assign(container.style, {
+                position: 'fixed', top: '80px', right: '24px', display: 'flex',
+                flexDirection: 'column', alignItems: 'flex-end', gap: '8px', zIndex: '10000'
+              });
+              document.body.appendChild(container);
+            }
+            const toast = __origShowToast(message, type, duration);
+            try { document.body.removeChild(toast); } catch { }
+            Object.assign(toast.style, { position: 'relative', top: 'auto', right: 'auto', margin: '0' });
+            container.appendChild(toast);
+            return toast;
+          };
+          window.__toastStackPatched = true;
+        }
 
-        list.forEach(a => {
-          const opt = document.createElement('option');
-          opt.value = a.id;
-          opt.textContent = a.name || a.id;
-          if (a.active) {
-            opt.selected = true;
-            activeAvatar = a;
+        // Enhanced error handling with retry
+        async function fetchWithRetry(url, options = {}, retries = 2) {
+          for (let i = 0; i <= retries; i++) {
+            try {
+              const res = await fetch(url, options);
+              if (!res.ok) {
+                const text = await res.text().catch(() => '');
+                throw new Error(`HTTP ${res.status}: ${text.slice(0, 100) || res.statusText}`);
+              }
+              return res;
+            } catch (e) {
+              if (i === retries) throw e;
+              await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+              showToast(`Retrying... (${i + 1}/${retries})`, 'info', 2000);
+            }
           }
-          avatarSelect.appendChild(opt);
+        }
+
+
+        // Keyboard Shortcuts
+        document.addEventListener('keydown', (e) => {
+          // Ctrl+S or Cmd+S to generate video
+          if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            const approveBtn = document.getElementById('approveBtn');
+            if (approveBtn && !approveBtn.disabled) {
+              approveBtn.click();
+              showToast('Generating video...', 'info', 2000);
+            }
+          }
+
+          // Escape to cancel/hide loading bar
+          if (e.key === 'Escape') {
+            const loadingBar = document.getElementById('loadingBar');
+            if (loadingBar && loadingBar.style.display === 'block') {
+              loadingBar.style.display = 'none';
+              showToast('Operation cancelled', 'info', 2000);
+            }
+          }
         });
 
-        // Display active avatar image
-        if (activeAvatar && activeAvatarImg) {
-          activeAvatarImg.src = activeAvatar.image_url;
-          activeAvatarImg.style.display = 'inline-block';
-          console.log('Active avatar loaded:', activeAvatar.name, activeAvatar.image_url);
-        } else if (activeAvatarImg) {
-          activeAvatarImg.style.display = 'none';
-        }
-      } catch (e) {
-        console.error('Error loading avatars:', e);
-        avatarSelect.innerHTML = '<option value="">Error loading avatars</option>';
-        const activeAvatarImg = document.getElementById('activeAvatarImg');
-        if (activeAvatarImg) activeAvatarImg.style.display = 'none';
-      }
-    }
-    loadavatars();
+        toggleAvatar.addEventListener('change', () => {
+          avatarSelectWrap.style.display = toggleAvatar.checked ? 'flex' : 'none';
+        });
 
-    // Update avatar image when selection changes
-    avatarSelect.addEventListener('change', async () => {
-      const activeAvatarImg = document.getElementById('activeAvatarImg');
-      if (!activeAvatarImg) return;
-
-      const selectedId = avatarSelect.value;
-      if (!selectedId) {
-        activeAvatarImg.style.display = 'none';
-        return;
-      }
-
-      try {
-        const res = await fetch(`${API_BASE}/get-avatar-library`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const list = (data && data.avatars) ? data.avatars : [];
-        const selectedAvatar = list.find(a => a.id === selectedId);
-
-        if (selectedAvatar && selectedAvatar.image_url) {
-          activeAvatarImg.src = selectedAvatar.image_url;
-          activeAvatarImg.style.display = 'inline-block';
-          console.log('Avatar changed to:', selectedAvatar.name, selectedAvatar.image_url);
-        } else {
-          activeAvatarImg.style.display = 'none';
-        }
-      } catch (e) {
-        console.error('Error loading avatar image:', e);
-        activeAvatarImg.style.display = 'none';
-      }
-    });
-
-    // Load logos dropdown
-    const logoSelect = document.getElementById('logoSelect');
-    async function loadLogos() {
-      const activeLogoImg = document.getElementById('activeLogoImg');
-      // Always enable logo list; prefer library (has friendly names), then files API
-      logoSelect.innerHTML = '<option value="">Loading...</option>';
-
-      // 1) Prefer library with real names
-      try {
-        const res = await fetch(`${API_BASE}/get-logo-library`);
-        if (res.ok) {
-          const data = await res.json();
-          const list = (data && Array.isArray(data.logos)) ? data.logos : [];
-          const byFile = new Map();
-          for (const logo of list) {
-            const url = (logo && logo.url) || '';
-            const fname = logo.filename || (url.split('/').pop()) || '';
-            if (!fname) continue;
-            if (!byFile.has(fname)) byFile.set(fname, logo);
-          }
-          if (byFile.size > 0) {
-            logoSelect.innerHTML = '';
-            let activeFilename = '';
-            for (const [fname, logo] of byFile.entries()) {
-              const opt = document.createElement('option');
-              opt.value = fname;
-              const nice = (logo.name && String(logo.name).trim()) || fname || (logo.id || 'logo');
-              opt.textContent = nice;
-              if (logo.url) opt.dataset.url = logo.url;
-              if (logo.active) activeFilename = fname;
-              logoSelect.appendChild(opt);
+        // Load avatars
+        async function loadavatars() {
+          try {
+            const res = await fetch(`${API_BASE}/get-avatar-library`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            avatarSelect.innerHTML = '';
+            const list = (data && data.avatars) ? data.avatars : [];
+            if (list.length === 0) {
+              avatarSelect.innerHTML = '<option value="">No avatars found</option>';
+              return;
             }
-            // If an active logo exists, select it and show preview
-            if (activeFilename) {
-              logoSelect.value = activeFilename;
-              try {
-                const sel = logoSelect.selectedOptions && logoSelect.selectedOptions[0];
-                const url = sel?.dataset?.url || `${API_BASE}/logos/${activeFilename}`;
-                if (activeLogoImg && url) { activeLogoImg.src = url; activeLogoImg.style.display = 'inline-block'; }
-              } catch { if (activeLogoImg) activeLogoImg.style.display = 'none'; }
-            } else {
-              if (activeLogoImg) activeLogoImg.style.display = 'none';
-            }
-            return; // library had usable entries; done
-          }
-          // Else: library exists but empty/stale - fall through to files API
-        }
-      } catch {}
 
-      // 2) Fallback to files API
-      try {
-        const res = await fetch(`${API_BASE}/api/logo-files`);
-        if (res.ok) {
-          const data = await res.json();
-          const list = (data && Array.isArray(data.logos)) ? data.logos : [];
-          logoSelect.innerHTML = '';
-          if (list.length > 0) {
-            list.forEach(logo => {
+            const activeAvatarImg = document.getElementById('activeAvatarImg');
+            let activeAvatar = null;
+
+            list.forEach(a => {
               const opt = document.createElement('option');
-              opt.value = logo.filename;
-              // No names in this API; show filename
-              opt.textContent = logo.filename;
-              if (logo.url) opt.dataset.url = logo.url;
-              logoSelect.appendChild(opt);
+              opt.value = a.id;
+              opt.textContent = a.name || a.id;
+              if (a.active) {
+                opt.selected = true;
+                activeAvatar = a;
+              }
+              avatarSelect.appendChild(opt);
             });
-            if (activeLogoImg) activeLogoImg.style.display = 'none';
+
+            // Display active avatar image
+            if (activeAvatar && activeAvatarImg) {
+              activeAvatarImg.src = activeAvatar.image_url;
+              activeAvatarImg.style.display = 'inline-block';
+              console.log('Active avatar loaded:', activeAvatar.name, activeAvatar.image_url);
+            } else if (activeAvatarImg) {
+              activeAvatarImg.style.display = 'none';
+            }
+          } catch (e) {
+            console.error('Error loading avatars:', e);
+            avatarSelect.innerHTML = '<option value="">Error loading avatars</option>';
+            const activeAvatarImg = document.getElementById('activeAvatarImg');
+            if (activeAvatarImg) activeAvatarImg.style.display = 'none';
+          }
+        }
+        loadavatars();
+
+        // Update avatar image when selection changes
+        avatarSelect.addEventListener('change', async () => {
+          const activeAvatarImg = document.getElementById('activeAvatarImg');
+          if (!activeAvatarImg) return;
+
+          const selectedId = avatarSelect.value;
+          if (!selectedId) {
+            activeAvatarImg.style.display = 'none';
             return;
           }
-      }
-      } catch {}
 
-      // 3) Final hardcoded fallback (rare)
-      console.error('Error loading logos: falling back to defaults');
-      const fallbackNames = [
-        'logo_1759621216.png',
-        'logo_1759621223.png'
-      ];
-      logoSelect.innerHTML = '';
-      fallbackNames.forEach(fn => {
-        const opt = document.createElement('option');
-        opt.value = fn;
-        opt.textContent = fn;
-        logoSelect.appendChild(opt);
-      });
-      if (activeLogoImg) activeLogoImg.style.display = 'none';
-    }
-    loadLogos();
-
-    // Update logo image when selection changes
-    logoSelect.addEventListener('change', async () => {
-      const activeLogoImg = document.getElementById('activeLogoImg');
-      if (!activeLogoImg) return;
-
-      const filename = logoSelect.value;
-      if (!filename) {
-        activeLogoImg.style.display = 'none';
-        return;
-      }
-
-      try {
-        activeLogoImg.src = `${API_BASE}/logos/${filename}`;
-        activeLogoImg.style.display = 'inline-block';
-        console.log('Logo changed to filename:', filename);
-      } catch (e) {
-        console.error('Error loading logo image:', e);
-        const sel = logoSelect.selectedOptions && logoSelect.selectedOptions[0];
-        if (sel && sel.dataset && sel.dataset.url) {
-          activeLogoImg.src = sel.dataset.url;
-          activeLogoImg.style.display = 'inline-block';
-        } else {
-          activeLogoImg.style.display = 'none';
-        }
-      }
-    });
-
-    // Update preview when a logo file is chosen
-    const logoFile = document.getElementById('logoFile');
-    if (logoFile) {
-      logoFile.addEventListener('change', () => {
-        const f = logoFile.files && logoFile.files[0];
-        const img = document.getElementById('activeLogoImg');
-        if (!img) return;
-        if (f) {
           try {
-            const url = URL.createObjectURL(f);
-            img.src = url;
-            img.style.display = 'inline-block';
-            // Clear dropdown value to indicate file upload is used
-            const logoSelectEl = document.getElementById('logoSelect');
-            if (logoSelectEl) logoSelectEl.value = '';
-          } catch (_) {
-            img.style.display = 'none';
+            const res = await fetch(`${API_BASE}/get-avatar-library`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            const list = (data && data.avatars) ? data.avatars : [];
+            const selectedAvatar = list.find(a => a.id === selectedId);
+
+            if (selectedAvatar && selectedAvatar.image_url) {
+              activeAvatarImg.src = selectedAvatar.image_url;
+              activeAvatarImg.style.display = 'inline-block';
+              console.log('Avatar changed to:', selectedAvatar.name, selectedAvatar.image_url);
+            } else {
+              activeAvatarImg.style.display = 'none';
+            }
+          } catch (e) {
+            console.error('Error loading avatar image:', e);
+            activeAvatarImg.style.display = 'none';
           }
-        } else {
-          img.style.display = 'none';
-        }
-      });
-    }
-
-
-    // Feature flags (read from localStorage)
-    const ENABLE_YT_UPLOAD_UI = (localStorage.getItem('enableYtUploadUI') || 'false').toLowerCase() === 'true';
-    const ENABLE_LOGO_LIST = true;
-
-    // Load topic keywords/tags from localStorage or API fallback
-    async function primeFromLocalOrAPI() {
-      // Skip if URL parameters exist - they take priority
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.has('topic')) {
-        console.log('[STUDIO] Skipping primeFromLocalOrAPI because URL params exist');
-        return;
-      }
-
-      const tokensEl = document.getElementById('topicTokens');
-      if (!tokensEl) {
-        console.warn('[STUDIO] topicTokens element not found, skipping primeFromLocalOrAPI');
-        return;
-      }
-
-      const renderTokens = (arr) => {
-        tokensEl.innerHTML = '';
-        arr.slice(0, 50).forEach(t => {
-          const chip = document.createElement('span');
-          chip.textContent = t;
-          chip.style.cssText = 'background:#1e3a8a; border-radius:14px; padding:6px 10px; font-size:12px; cursor:pointer;';
-          tokensEl.appendChild(chip);
-        });
-      };
-
-      try {
-        let tokens = [];
-        const saved = localStorage.getItem('editingTopic');
-        if (saved) {
-          const topic = JSON.parse(saved);
-          if (topic) {
-            applyTopicToUI?.(topic);
-            const kw = Array.isArray(topic.keywords) ? topic.keywords : [];
-            const yt = Array.isArray(topic.yt_tags) ? topic.yt_tags : [];
-            tokens = [...new Set([...kw, ...yt].filter(Boolean))];
-          }
-        }
-        if (tokens.length > 0) { renderTokens(tokens); return; }
-      } catch (e) {
-        console.warn('editingTopic parse failed:', e);
-      }
-
-      // Fallback: ask API for last selected topic
-      try {
-        const res = await fetch(`${API_BASE}/get-selected-topic`, { credentials: 'include' });
-        if (!res.ok) return;
-        const d = await res.json();
-        const t = d?.topic || (d?.success && d.topic ? d.topic : null);
-        if (!t) return;
-        applyTopicToUI?.(t);
-        const kw = Array.isArray(t.keywords) ? t.keywords : [];
-        const yt = Array.isArray(t.yt_tags) ? t.yt_tags : [];
-        const tokens = [...new Set([...kw, ...yt].filter(Boolean))];
-        if (tokens.length) renderTokens(tokens);
-      } catch (e) {
-        console.log('get-selected-topic failed:', e);
-      }
-    }
-
-    primeFromLocalOrAPI();
-
-    // Auto-fill from URL parameters (e.g., from Trends page)
-    (function loadFromURL() {
-      const params = new URLSearchParams(window.location.search);
-      const topic = params.get('topic');
-      const keywords = params.get('keywords');
-      const hook = params.get('hook');
-
-      console.log('[STUDIO] URL params:', {
-        topic,
-        keywords,
-        hook,
-        fullURL: window.location.href
-      });
-
-      if (!topic) {
-        console.log('[STUDIO] No topic in URL, skipping URL parameter loading');
-        return;
-      }
-
-      function tryFillFromURL() {
-        const liteTitle = document.getElementById('liteTitle');
-        const liteHook = document.getElementById('liteHook');
-        const liteKeywords = document.getElementById('liteKeywords');
-
-        console.log('[STUDIO] Attempting to fill from URL. Found elements:', {
-          liteTitle: !!liteTitle,
-          liteHook: !!liteHook,
-          liteKeywords: !!liteKeywords
         });
 
-        if (!liteTitle || !liteHook || !liteKeywords) {
-          console.log('[STUDIO] Elements not ready yet, will retry...');
-          return false;
-        }
+        // Load logos dropdown
+        const logoSelect = document.getElementById('logoSelect');
+        async function loadLogos() {
+          const activeLogoImg = document.getElementById('activeLogoImg');
+          // Always enable logo list; prefer library (has friendly names), then files API
+          logoSelect.innerHTML = '<option value="">Loading...</option>';
 
-        // Fill title
-        liteTitle.value = topic;
-        console.log('[STUDIO] ✓ Set title to:', topic);
-
-        // Fill keywords if provided
-        if (keywords) {
-          liteKeywords.value = keywords;
-          console.log('[STUDIO] ✓ Set keywords to:', keywords);
-        } else {
-          liteKeywords.value = '';
-        }
-
-        // Fill hook if provided
-        if (hook) {
-          liteHook.value = hook;
-          console.log('[STUDIO] ✓ Set hook to:', hook);
-          liteStatus('Topic, keywords, and hook loaded from Trends', 'ok');
-        } else {
-          liteHook.value = '';
-          if (keywords) {
-            liteStatus('Topic and keywords loaded from Trends', 'ok');
-          } else {
-            liteStatus('Topic loaded from Trends', 'ok');
-          }
-        }
-
-        console.log('[STUDIO] ✓ Successfully filled all fields from URL parameters');
-        return true;
-      }
-
-      // Try immediately
-      if (tryFillFromURL()) return;
-
-      // Retry with delays if not ready
-      let attempts = 0;
-      const maxAttempts = 10;
-      const retryInterval = setInterval(() => {
-        attempts++;
-        console.log(`[STUDIO] Retry attempt ${attempts}/${maxAttempts} to fill from URL`);
-
-        if (tryFillFromURL() || attempts >= maxAttempts) {
-          clearInterval(retryInterval);
-          if (attempts >= maxAttempts) {
-            console.error('[STUDIO] Failed to fill fields from URL after max attempts');
-          }
-        }
-      }, 100);
-    })();
-
-
-    mainInput.addEventListener('change', () => {
-      const f = mainInput.files && mainInput.files[0];
-      approveBtn.disabled = !f;
-      if (f) {
-        try {
-          const url = URL.createObjectURL(f);
-          preview.src = url; preview.style.display = 'block'; preview.load();
-        } catch {}
-      }
-    });
-
-    approveBtn.addEventListener('click', async () => {
-      const f = mainInput.files && mainInput.files[0];
-      if (!f) { alert('Pick a video'); return; }
-      approveBtn.disabled = true;
-      const loadingBar = document.getElementById('loadingBar');
-      if (loadingBar) loadingBar.style.display = 'block';
-      setStatus('Processing...', 'info');
-      isProcessing = true;  // Set processing flag
-      showToast('Video processing started. You can navigate away - processing continues in background!', 'info', 5000);
-      try {
-        const fd = new FormData();
-        fd.append('video', f);
-        // 'use_did' indicates Include avatar; 'avatar_static' is inverse of the Animated checkbox
-        fd.append('use_did', toggleAvatar.checked ? 'true' : 'false');
-        const animated = document.getElementById('avatarAnimated').checked;
-        fd.append('avatar_static', animated ? 'false' : 'true');
-        fd.append('skip_did', 'true');
-        fd.append('add_intro_outro', toggleIntroOutro.checked ? 'true' : 'false');
-        if (toggleAvatar.checked && avatarSelect.value) {
-          fd.append('avatar_id', avatarSelect.value);
-        }
-        // Pass include_logo flag so backend can skip overlay if off
-        fd.append('include_logo', toggleLogo.checked ? 'true' : 'false');
-        // Pass logo position
-        const logoPos = document.getElementById('logoPos');
-        if (logoPos && logoPos.value) {
-          fd.append('logo_position', logoPos.value);
-        }
-        // Send uploaded logo file if provided; otherwise pass selected filename
-        const logoFileEl = document.getElementById('logoFile');
-        if (toggleLogo.checked && logoFileEl && logoFileEl.files && logoFileEl.files[0]) {
-          fd.append('logo_file', logoFileEl.files[0], logoFileEl.files[0].name);
-          console.log('[LOGO] Sending uploaded logo file:', logoFileEl.files[0].name);
-        } else if (toggleLogo.checked && logoSelect.value) {
-          // Pass filename directly from dropdown
-          fd.append('logo_filename', logoSelect.value);
-          console.log('[LOGO] Sending logo_filename:', logoSelect.value);
-        } else {
-          console.log('[LOGO] Logo not enabled or no logo selected. toggleLogo:', toggleLogo.checked, 'logoSelect:', logoSelect.value);
-        }
-        console.log('[LOGO] include_logo:', toggleLogo.checked ? 'true' : 'false');
-        console.log('[LOGO] logo_position:', logoPos?.value);
-
-        // Use keepalive to continue processing even if user navigates away
-        const resp = await fetch(`${API_BASE}/post-process-video`, {
-          method: 'POST',
-          body: fd,
-          keepalive: true  // Continue request even if page unloads
-        });
-        if (!resp.ok) {
-          const t = await resp.text();
-          throw new Error(`HTTP ${resp.status} ${resp.statusText}: ${t.slice(0,200)}`);
-        }
-        const data = await resp.json();
-        if (!data.success) throw new Error(data.error || 'Unknown error');
-        setStatus('Done!', 'ok');
-        const url = `${API_BASE}/out/${data.files.final_video}`;
-        preview.src = url; preview.style.display = 'block'; preview.load();
-
-        // Track video creation in analytics
-        try {
-          const title = document.getElementById('liteTitle')?.value || 'Untitled Video';
-          const description = document.getElementById('liteHook')?.value || '';
-          const keywords = document.getElementById('liteKeywords')?.value || '';
-
-          // Get topic data from localStorage
-          let topicData = {};
+          // 1) Prefer library with real names
           try {
-            const savedTopic = localStorage.getItem('editingTopic');
-            if (savedTopic) topicData = JSON.parse(savedTopic);
-          } catch {}
+            const res = await fetch(`${API_BASE}/get-logo-library`);
+            if (res.ok) {
+              const data = await res.json();
+              const list = (data && Array.isArray(data.logos)) ? data.logos : [];
+              const byFile = new Map();
+              for (const logo of list) {
+                const url = (logo && logo.url) || '';
+                const fname = logo.filename || (url.split('/').pop()) || '';
+                if (!fname) continue;
+                if (!byFile.has(fname)) byFile.set(fname, logo);
+              }
+              if (byFile.size > 0) {
+                logoSelect.innerHTML = '';
+                let activeFilename = '';
+                for (const [fname, logo] of byFile.entries()) {
+                  const opt = document.createElement('option');
+                  opt.value = fname;
+                  const nice = (logo.name && String(logo.name).trim()) || fname || (logo.id || 'logo');
+                  opt.textContent = nice;
+                  if (logo.url) opt.dataset.url = logo.url;
+                  if (logo.active) activeFilename = fname;
+                  logoSelect.appendChild(opt);
+                }
+                // If an active logo exists, select it and show preview
+                if (activeFilename) {
+                  logoSelect.value = activeFilename;
+                  try {
+                    const sel = logoSelect.selectedOptions && logoSelect.selectedOptions[0];
+                    const url = sel?.dataset?.url || `${API_BASE}/logos/${activeFilename}`;
+                    if (activeLogoImg && url) { activeLogoImg.src = url; activeLogoImg.style.display = 'inline-block'; }
+                  } catch { if (activeLogoImg) activeLogoImg.style.display = 'none'; }
+                } else {
+                  if (activeLogoImg) activeLogoImg.style.display = 'none';
+                }
+                return; // library had usable entries; done
+              }
+              // Else: library exists but empty/stale - fall through to files API
+            }
+          } catch { }
 
-          await fetch(`${API_BASE}/api/analytics/track-video`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              title: title,
-              description: description,
-              filename: data.files.final_video,
-              topic_data: topicData
-            })
+          // 2) Fallback to files API
+          try {
+            const res = await fetch(`${API_BASE}/api/logo-files`);
+            if (res.ok) {
+              const data = await res.json();
+              const list = (data && Array.isArray(data.logos)) ? data.logos : [];
+              logoSelect.innerHTML = '';
+              if (list.length > 0) {
+                list.forEach(logo => {
+                  const opt = document.createElement('option');
+                  opt.value = logo.filename;
+                  // No names in this API; show filename
+                  opt.textContent = logo.filename;
+                  if (logo.url) opt.dataset.url = logo.url;
+                  logoSelect.appendChild(opt);
+                });
+                if (activeLogoImg) activeLogoImg.style.display = 'none';
+                return;
+              }
+            }
+          } catch { }
+
+          // 3) Final hardcoded fallback (rare)
+          console.error('Error loading logos: falling back to defaults');
+          const fallbackNames = [
+            'logo_1759621216.png',
+            'logo_1759621223.png'
+          ];
+          logoSelect.innerHTML = '';
+          fallbackNames.forEach(fn => {
+            const opt = document.createElement('option');
+            opt.value = fn;
+            opt.textContent = fn;
+            logoSelect.appendChild(opt);
+          });
+          if (activeLogoImg) activeLogoImg.style.display = 'none';
+        }
+        loadLogos();
+
+        // Update logo image when selection changes
+        logoSelect.addEventListener('change', async () => {
+          const activeLogoImg = document.getElementById('activeLogoImg');
+          if (!activeLogoImg) return;
+
+          const filename = logoSelect.value;
+          if (!filename) {
+            activeLogoImg.style.display = 'none';
+            return;
+          }
+
+          try {
+            activeLogoImg.src = `${API_BASE}/logos/${filename}`;
+            activeLogoImg.style.display = 'inline-block';
+            console.log('Logo changed to filename:', filename);
+          } catch (e) {
+            console.error('Error loading logo image:', e);
+            const sel = logoSelect.selectedOptions && logoSelect.selectedOptions[0];
+            if (sel && sel.dataset && sel.dataset.url) {
+              activeLogoImg.src = sel.dataset.url;
+              activeLogoImg.style.display = 'inline-block';
+            } else {
+              activeLogoImg.style.display = 'none';
+            }
+          }
+        });
+
+        // Update preview when a logo file is chosen
+        const logoFile = document.getElementById('logoFile');
+        if (logoFile) {
+          logoFile.addEventListener('change', () => {
+            const f = logoFile.files && logoFile.files[0];
+            const img = document.getElementById('activeLogoImg');
+            if (!img) return;
+            if (f) {
+              try {
+                const url = URL.createObjectURL(f);
+                img.src = url;
+                img.style.display = 'inline-block';
+                // Clear dropdown value to indicate file upload is used
+                const logoSelectEl = document.getElementById('logoSelect');
+                if (logoSelectEl) logoSelectEl.value = '';
+              } catch (_) {
+                img.style.display = 'none';
+              }
+            } else {
+              img.style.display = 'none';
+            }
+          });
+        }
+
+
+        // Feature flags (read from localStorage)
+        const ENABLE_YT_UPLOAD_UI = (localStorage.getItem('enableYtUploadUI') || 'false').toLowerCase() === 'true';
+        const ENABLE_LOGO_LIST = true;
+
+        // Load topic keywords/tags from localStorage or API fallback
+        async function primeFromLocalOrAPI() {
+          // Skip if URL parameters exist - they take priority
+          const urlParams = new URLSearchParams(window.location.search);
+          if (urlParams.has('topic')) {
+            console.log('[STUDIO] Skipping primeFromLocalOrAPI because URL params exist');
+            return;
+          }
+
+          const tokensEl = document.getElementById('topicTokens');
+          if (!tokensEl) {
+            console.warn('[STUDIO] topicTokens element not found, skipping primeFromLocalOrAPI');
+            return;
+          }
+
+          const renderTokens = (arr) => {
+            tokensEl.innerHTML = '';
+            arr.slice(0, 50).forEach(t => {
+              const chip = document.createElement('span');
+              chip.textContent = t;
+              chip.style.cssText = 'background:#1e3a8a; border-radius:14px; padding:6px 10px; font-size:12px; cursor:pointer;';
+              tokensEl.appendChild(chip);
+            });
+          };
+
+          try {
+            let tokens = [];
+            const saved = localStorage.getItem('editingTopic');
+            if (saved) {
+              const topic = JSON.parse(saved);
+              if (topic) {
+                applyTopicToUI?.(topic);
+                const kw = Array.isArray(topic.keywords) ? topic.keywords : [];
+                const yt = Array.isArray(topic.yt_tags) ? topic.yt_tags : [];
+                tokens = [...new Set([...kw, ...yt].filter(Boolean))];
+              }
+            }
+            if (tokens.length > 0) { renderTokens(tokens); return; }
+          } catch (e) {
+            console.warn('editingTopic parse failed:', e);
+          }
+
+          // Fallback: ask API for last selected topic
+          try {
+            const res = await fetch(`${API_BASE}/get-selected-topic`, { credentials: 'include' });
+            if (!res.ok) return;
+            const d = await res.json();
+            const t = d?.topic || (d?.success && d.topic ? d.topic : null);
+            if (!t) return;
+            applyTopicToUI?.(t);
+            const kw = Array.isArray(t.keywords) ? t.keywords : [];
+            const yt = Array.isArray(t.yt_tags) ? t.yt_tags : [];
+            const tokens = [...new Set([...kw, ...yt].filter(Boolean))];
+            if (tokens.length) renderTokens(tokens);
+          } catch (e) {
+            console.log('get-selected-topic failed:', e);
+          }
+        }
+
+        primeFromLocalOrAPI();
+
+        // Auto-fill from URL parameters (e.g., from Trends page)
+        (function loadFromURL() {
+          const params = new URLSearchParams(window.location.search);
+          const topic = params.get('topic');
+          const keywords = params.get('keywords');
+          const hook = params.get('hook');
+
+          console.log('[STUDIO] URL params:', {
+            topic,
+            keywords,
+            hook,
+            fullURL: window.location.href
           });
 
-          console.log('[ANALYTICS] Video tracked:', title);
-        } catch (e) {
-          console.warn('[ANALYTICS] Failed to track video:', e);
+          if (!topic) {
+            console.log('[STUDIO] No topic in URL, skipping URL parameter loading');
+            return;
+          }
+
+          function tryFillFromURL() {
+            const liteTitle = document.getElementById('liteTitle');
+            const liteHook = document.getElementById('liteHook');
+            const liteKeywords = document.getElementById('liteKeywords');
+
+            console.log('[STUDIO] Attempting to fill from URL. Found elements:', {
+              liteTitle: !!liteTitle,
+              liteHook: !!liteHook,
+              liteKeywords: !!liteKeywords
+            });
+
+            if (!liteTitle || !liteHook || !liteKeywords) {
+              console.log('[STUDIO] Elements not ready yet, will retry...');
+              return false;
+            }
+
+            // Fill title
+            liteTitle.value = topic;
+            console.log('[STUDIO] ✓ Set title to:', topic);
+
+            // Fill keywords if provided
+            if (keywords) {
+              liteKeywords.value = keywords;
+              console.log('[STUDIO] ✓ Set keywords to:', keywords);
+            } else {
+              liteKeywords.value = '';
+            }
+
+            // Fill hook if provided
+            if (hook) {
+              liteHook.value = hook;
+              console.log('[STUDIO] ✓ Set hook to:', hook);
+              liteStatus('Topic, keywords, and hook loaded from Trends', 'ok');
+            } else {
+              liteHook.value = '';
+              if (keywords) {
+                liteStatus('Topic and keywords loaded from Trends', 'ok');
+              } else {
+                liteStatus('Topic loaded from Trends', 'ok');
+              }
+            }
+
+            console.log('[STUDIO] ✓ Successfully filled all fields from URL parameters');
+            return true;
+          }
+
+          // Try immediately
+          if (tryFillFromURL()) return;
+
+          // Retry with delays if not ready
+          let attempts = 0;
+          const maxAttempts = 10;
+          const retryInterval = setInterval(() => {
+            attempts++;
+            console.log(`[STUDIO] Retry attempt ${attempts}/${maxAttempts} to fill from URL`);
+
+            if (tryFillFromURL() || attempts >= maxAttempts) {
+              clearInterval(retryInterval);
+              if (attempts >= maxAttempts) {
+                console.error('[STUDIO] Failed to fill fields from URL after max attempts');
+              }
+            }
+          }, 100);
+        })();
+
+
+        mainInput.addEventListener('change', () => {
+          const f = mainInput.files && mainInput.files[0];
+          approveBtn.disabled = !f;
+          if (f) {
+            try {
+              const url = URL.createObjectURL(f);
+              preview.src = url; preview.style.display = 'block'; preview.load();
+            } catch { }
+          }
+        });
+
+        approveBtn.addEventListener('click', async () => {
+          const f = mainInput.files && mainInput.files[0];
+          if (!f) { alert('Pick a video'); return; }
+          approveBtn.disabled = true;
+          const loadingBar = document.getElementById('loadingBar');
+          if (loadingBar) loadingBar.style.display = 'block';
+          setStatus('Processing...', 'info');
+          isProcessing = true;  // Set processing flag
+          showToast('Video processing started. You can navigate away - processing continues in background!', 'info', 5000);
+          try {
+            const fd = new FormData();
+            fd.append('video', f);
+            // 'use_did' indicates Include avatar; 'avatar_static' is inverse of the Animated checkbox
+            fd.append('use_did', toggleAvatar.checked ? 'true' : 'false');
+            const animated = document.getElementById('avatarAnimated').checked;
+            fd.append('avatar_static', animated ? 'false' : 'true');
+            fd.append('skip_did', 'true');
+            fd.append('add_intro_outro', toggleIntroOutro.checked ? 'true' : 'false');
+            if (toggleAvatar.checked && avatarSelect.value) {
+              fd.append('avatar_id', avatarSelect.value);
+            }
+            // Pass include_logo flag so backend can skip overlay if off
+            fd.append('include_logo', toggleLogo.checked ? 'true' : 'false');
+            // Pass logo position
+            const logoPos = document.getElementById('logoPos');
+            if (logoPos && logoPos.value) {
+              fd.append('logo_position', logoPos.value);
+            }
+            // Send uploaded logo file if provided; otherwise pass selected filename
+            const logoFileEl = document.getElementById('logoFile');
+            if (toggleLogo.checked && logoFileEl && logoFileEl.files && logoFileEl.files[0]) {
+              fd.append('logo_file', logoFileEl.files[0], logoFileEl.files[0].name);
+              console.log('[LOGO] Sending uploaded logo file:', logoFileEl.files[0].name);
+            } else if (toggleLogo.checked && logoSelect.value) {
+              // Pass filename directly from dropdown
+              fd.append('logo_filename', logoSelect.value);
+              console.log('[LOGO] Sending logo_filename:', logoSelect.value);
+            } else {
+              console.log('[LOGO] Logo not enabled or no logo selected. toggleLogo:', toggleLogo.checked, 'logoSelect:', logoSelect.value);
+            }
+            console.log('[LOGO] include_logo:', toggleLogo.checked ? 'true' : 'false');
+            console.log('[LOGO] logo_position:', logoPos?.value);
+
+            // Use keepalive to continue processing even if user navigates away
+            const resp = await fetch(`${API_BASE}/post-process-video`, {
+              method: 'POST',
+              body: fd,
+              keepalive: true  // Continue request even if page unloads
+            });
+            if (!resp.ok) {
+              const t = await resp.text();
+              throw new Error(`HTTP ${resp.status} ${resp.statusText}: ${t.slice(0, 200)}`);
+            }
+            const data = await resp.json();
+            if (!data.success) throw new Error(data.error || 'Unknown error');
+            setStatus('Done!', 'ok');
+            const url = `${API_BASE}/out/${data.files.final_video}`;
+            preview.src = url; preview.style.display = 'block'; preview.load();
+
+            // Track video creation in analytics
+            try {
+              const title = document.getElementById('liteTitle')?.value || 'Untitled Video';
+              const description = document.getElementById('liteHook')?.value || '';
+              const keywords = document.getElementById('liteKeywords')?.value || '';
+
+              // Get topic data from localStorage
+              let topicData = {};
+              try {
+                const savedTopic = localStorage.getItem('editingTopic');
+                if (savedTopic) topicData = JSON.parse(savedTopic);
+              } catch { }
+
+              await fetch(`${API_BASE}/api/analytics/track-video`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                  title: title,
+                  description: description,
+                  filename: data.files.final_video,
+                  topic_data: topicData
+                })
+              });
+
+              console.log('[ANALYTICS] Video tracked:', title);
+            } catch (e) {
+              console.warn('[ANALYTICS] Failed to track video:', e);
+            }
+
+            // Refresh usage limits after successful video creation
+            try { if (typeof checkUsageLimitsSafe === 'function') checkUsageLimitsSafe(); } catch { }
+
+            // Show YouTube upload section and pre-fill data (enable via flag)
+            if (ENABLE_YT_UPLOAD_UI && data?.files?.final_video) {
+              try { showYouTubeUploadSection(data.files.final_video); } catch { }
+            }
+          } catch (e) {
+            console.error(e);
+            setStatus(`Error: ${e.message}`, 'err');
+            showToast(`Error: ${e.message}`, 'error', 6000);
+          } finally {
+            isProcessing = false;  // Clear processing flag
+            approveBtn.disabled = false;
+            if (loadingBar) loadingBar.style.display = 'none';
+          }
+        });
+
+
+
+
+
+
+
+
+        // Analytics Tracking
+        function trackEvent(eventType, data = {}) {
+          const stats = JSON.parse(localStorage.getItem('mss_stats') || '{}');
+          if (!stats.events) stats.events = [];
+
+          stats.events.push({
+            type: eventType,
+            timestamp: Date.now(),
+            ...data
+          });
+
+          // Keep only last 100 events
+          if (stats.events.length > 100) {
+            stats.events = stats.events.slice(-100);
+          }
+
+          // Update counters
+          if (!stats.counters) stats.counters = {};
+          stats.counters[eventType] = (stats.counters[eventType] || 0) + 1;
+          stats.counters.total = (stats.counters.total || 0) + 1;
+          stats.lastActivity = Date.now();
+
+          localStorage.setItem('mss_stats', JSON.stringify(stats));
         }
 
-        // Refresh usage limits after successful video creation
-        try { if (typeof checkUsageLimitsSafe === 'function') checkUsageLimitsSafe(); } catch {}
+        // Show basic stats on console
+        setTimeout(() => {
+          const stats = JSON.parse(localStorage.getItem('mss_stats') || '{}');
+          if (stats.counters) {
+            console.log('MSS Analytics:', stats.counters);
+            console.log(`Total actions: ${stats.counters.total || 0}`);
+          }
+        }, 2000);
 
-        // Show YouTube upload section and pre-fill data (enable via flag)
-        if (ENABLE_YT_UPLOAD_UI && data?.files?.final_video) {
-          try { showYouTubeUploadSection(data.files.final_video); } catch {}
-        }
-      } catch (e) {
-        console.error(e);
-        setStatus(`Error: ${e.message}`, 'err');
-        showToast(`Error: ${e.message}`, 'error', 6000);
-      } finally {
-        isProcessing = false;  // Clear processing flag
-        approveBtn.disabled = false;
-        if (loadingBar) loadingBar.style.display = 'none';
-      }
-    });
+        // YouTube Upload Functions
+        let processedVideoFilename = null;
 
-
-
-
-
-
-
-
-    // Analytics Tracking
-    function trackEvent(eventType, data = {}) {
-      const stats = JSON.parse(localStorage.getItem('mss_stats') || '{}');
-      if (!stats.events) stats.events = [];
-
-      stats.events.push({
-        type: eventType,
-        timestamp: Date.now(),
-        ...data
-      });
-
-      // Keep only last 100 events
-      if (stats.events.length > 100) {
-        stats.events = stats.events.slice(-100);
-      }
-
-      // Update counters
-      if (!stats.counters) stats.counters = {};
-      stats.counters[eventType] = (stats.counters[eventType] || 0) + 1;
-      stats.counters.total = (stats.counters.total || 0) + 1;
-      stats.lastActivity = Date.now();
-
-      localStorage.setItem('mss_stats', JSON.stringify(stats));
-    }
-
-    // Show basic stats on console
-    setTimeout(() => {
-      const stats = JSON.parse(localStorage.getItem('mss_stats') || '{}');
-      if (stats.counters) {
-        console.log('MSS Analytics:', stats.counters);
-        console.log(`Total actions: ${stats.counters.total || 0}`);
-      }
-    }, 2000);
-
-    // YouTube Upload Functions
-    let processedVideoFilename = null;
-
-    // Load YouTube categories from API
-    async function loadYouTubeCategories() {
-      try {
-        const res = await fetch(`${API_BASE}/youtube-categories`);
-        if (!res.ok) return;
-        const data = await res.json();
-        const select = document.getElementById('ytCategory');
-        if (data.categories && select) {
-          select.innerHTML = '';
-          for (const [id, name] of Object.entries(data.categories)) {
-            const opt = document.createElement('option');
-            opt.value = id;
-            opt.textContent = name;
-            select.appendChild(opt);
+        // Load YouTube categories from API
+        async function loadYouTubeCategories() {
+          try {
+            const res = await fetch(`${API_BASE}/youtube-categories`);
+            if (!res.ok) return;
+            const data = await res.json();
+            const select = document.getElementById('ytCategory');
+            if (data.categories && select) {
+              select.innerHTML = '';
+              for (const [id, name] of Object.entries(data.categories)) {
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = name;
+                select.appendChild(opt);
+              }
+            }
+          } catch (e) {
+            console.error('Error loading YouTube categories:', e);
           }
         }
-      } catch (e) {
-        console.error('Error loading YouTube categories:', e);
-      }
-    }
-    loadYouTubeCategories();
+        loadYouTubeCategories();
 
-    function showYouTubeUploadSection(videoFilename) {
-      processedVideoFilename = videoFilename;
-      const card = document.getElementById('youtubeUploadCard');
-      if (!card) return;
+        function showYouTubeUploadSection(videoFilename) {
+          processedVideoFilename = videoFilename;
+          const card = document.getElementById('youtubeUploadCard');
+          if (!card) return;
 
-      // Pre-fill form from topic data
-      try {
-        const topic = JSON.parse(localStorage.getItem('editingTopic') || '{}');
-        const title = topic.yt_title || topic.title || '';
-        const desc = topic.yt_description || topic.description || '';
-        const keywords = topic.keywords || topic.yt_tags || [];
+          // Pre-fill form from topic data
+          try {
+            const topic = JSON.parse(localStorage.getItem('editingTopic') || '{}');
+            const title = topic.yt_title || topic.title || '';
+            const desc = topic.yt_description || topic.description || '';
+            const keywords = topic.keywords || topic.yt_tags || [];
 
-        const ytTitle = document.getElementById('ytTitle');
-        const ytDesc = document.getElementById('ytDescription');
-        const ytTags = document.getElementById('ytTags');
+            const ytTitle = document.getElementById('ytTitle');
+            const ytDesc = document.getElementById('ytDescription');
+            const ytTags = document.getElementById('ytTags');
 
-        if (ytTitle) ytTitle.value = title.substring(0, 100);
-        if (ytDesc) ytDesc.value = desc.substring(0, 5000);
-        if (ytTags) ytTags.value = keywords.join(', ');
-      } catch (e) {
-        console.error('Error pre-filling YouTube form:', e);
-      }
+            if (ytTitle) ytTitle.value = title.substring(0, 100);
+            if (ytDesc) ytDesc.value = desc.substring(0, 5000);
+            if (ytTags) ytTags.value = keywords.join(', ');
+          } catch (e) {
+            console.error('Error pre-filling YouTube form:', e);
+          }
 
-      card.style.display = 'block';
-      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-
-    // YouTube Upload Button Handler
-    document.getElementById('uploadToYouTubeBtn').addEventListener('click', async () => {
-      if (!processedVideoFilename) {
-        showToast('No video to upload. Process a video first.', 'error', 4000);
-        return;
-      }
-
-      const ytTitle = document.getElementById('ytTitle').value.trim();
-      const ytDesc = document.getElementById('ytDescription').value.trim();
-      const ytTags = document.getElementById('ytTags').value.trim();
-      const ytCategory = document.getElementById('ytCategory').value;
-      const ytPrivacy = document.getElementById('ytPrivacy').value;
-
-      if (!ytTitle) {
-        showToast('Please enter a video title', 'error', 4000);
-        return;
-      }
-
-      const btn = document.getElementById('uploadToYouTubeBtn');
-      const statusEl = document.getElementById('ytStatus');
-      const progressEl = document.getElementById('ytProgress');
-      const progressBar = document.getElementById('ytProgressBar');
-
-      try {
-        btn.disabled = true;
-        progressEl.style.display = 'block';
-        statusEl.style.display = 'block';
-        statusEl.className = 'status info';
-        statusEl.textContent = 'Starting upload to YouTube...';
-
-        // Animate progress bar
-        let progress = 0;
-        const progressInterval = setInterval(() => {
-          progress = Math.min(progress + 2, 90);
-          progressBar.style.width = progress + '%';
-        }, 500);
-
-        const tags = ytTags.split(',').map(t => t.trim()).filter(Boolean);
-
-        const res = await fetch(`${API_BASE}/upload-to-youtube`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            video_filename: processedVideoFilename,
-            title: ytTitle,
-            description: ytDesc,
-            tags: tags,
-            category: ytCategory,
-            privacy_status: ytPrivacy
-          })
-        });
-
-        clearInterval(progressInterval);
-        progressBar.style.width = '100%';
-
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(`Upload failed: ${errText.substring(0, 200)}`);
+          card.style.display = 'block';
+          card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
-        const data = await res.json();
+        // YouTube Upload Button Handler
+        document.getElementById('uploadToYouTubeBtn').addEventListener('click', async () => {
+          if (!processedVideoFilename) {
+            showToast('No video to upload. Process a video first.', 'error', 4000);
+            return;
+          }
 
-        if (!data.success) {
-          throw new Error(data.error || 'Upload failed');
-        }
+          const ytTitle = document.getElementById('ytTitle').value.trim();
+          const ytDesc = document.getElementById('ytDescription').value.trim();
+          const ytTags = document.getElementById('ytTags').value.trim();
+          const ytCategory = document.getElementById('ytCategory').value;
+          const ytPrivacy = document.getElementById('ytPrivacy').value;
 
-        statusEl.className = 'status ok';
-        statusEl.className = 'status ok';
-        statusEl.innerHTML = `Video uploaded successfully!<br><a href="${data.url}" target="_blank" style="color:#22c55e; text-decoration:underline;">${data.url}</a>`;
-        showToast('Video uploaded to YouTube!', 'success', 8000);
+          if (!ytTitle) {
+            showToast('Please enter a video title', 'error', 4000);
+            return;
+          }
 
-      } catch (e) {
-        console.error('YouTube upload error:', e);
-        statusEl.className = 'status err';
-        statusEl.textContent = `Error: ${e.message}`;
-        showToast(`YouTube upload failed: ${e.message}`, 'error', 8000);
-        progressBar.style.width = '0%';
-        trackEvent('youtube_upload_error', { error: e.message });
-      } finally {
-        btn.disabled = false;
-        setTimeout(() => {
-          progressEl.style.display = 'none';
-        }, 2000);
-      }
-    });
+          const btn = document.getElementById('uploadToYouTubeBtn');
+          const statusEl = document.getElementById('ytStatus');
+          const progressEl = document.getElementById('ytProgress');
+          const progressBar = document.getElementById('ytProgressBar');
 
-    // Check and display usage limits
-    async function checkUsageLimits() {
-      try {
-        const res = await fetch(`${API_BASE}/api/usage`, {
-          credentials: 'include'
+          try {
+            btn.disabled = true;
+            progressEl.style.display = 'block';
+            statusEl.style.display = 'block';
+            statusEl.className = 'status info';
+            statusEl.textContent = 'Starting upload to YouTube...';
+
+            // Animate progress bar
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+              progress = Math.min(progress + 2, 90);
+              progressBar.style.width = progress + '%';
+            }, 500);
+
+            const tags = ytTags.split(',').map(t => t.trim()).filter(Boolean);
+
+            const res = await fetch(`${API_BASE}/upload-to-youtube`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                video_filename: processedVideoFilename,
+                title: ytTitle,
+                description: ytDesc,
+                tags: tags,
+                category: ytCategory,
+                privacy_status: ytPrivacy
+              })
+            });
+
+            clearInterval(progressInterval);
+            progressBar.style.width = '100%';
+
+            if (!res.ok) {
+              const errText = await res.text();
+              throw new Error(`Upload failed: ${errText.substring(0, 200)}`);
+            }
+
+            const data = await res.json();
+
+            if (!data.success) {
+              throw new Error(data.error || 'Upload failed');
+            }
+
+            statusEl.className = 'status ok';
+            statusEl.className = 'status ok';
+            statusEl.innerHTML = `Video uploaded successfully!<br><a href="${data.url}" target="_blank" style="color:#22c55e; text-decoration:underline;">${data.url}</a>`;
+            showToast('Video uploaded to YouTube!', 'success', 8000);
+
+          } catch (e) {
+            console.error('YouTube upload error:', e);
+            statusEl.className = 'status err';
+            statusEl.textContent = `Error: ${e.message}`;
+            showToast(`YouTube upload failed: ${e.message}`, 'error', 8000);
+            progressBar.style.width = '0%';
+            trackEvent('youtube_upload_error', { error: e.message });
+          } finally {
+            btn.disabled = false;
+            setTimeout(() => {
+              progressEl.style.display = 'none';
+            }, 2000);
+          }
         });
 
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success) {
-            const usage = data.usage;
-            const warning = document.getElementById('usageWarning');
-            const percentage = (usage.videos_this_month / usage.monthly_limit) * 100;
+        // Check and display usage limits
+        async function checkUsageLimits() {
+          try {
+            const res = await fetch(`${API_BASE}/api/usage`, {
+              credentials: 'include'
+            });
 
-            if (usage.at_limit) {
-              // At limit - show error
-              warning.innerHTML = `
+            if (res.ok) {
+              const data = await res.json();
+              if (data.success) {
+                const usage = data.usage;
+                const warning = document.getElementById('usageWarning');
+                const percentage = (usage.videos_this_month / usage.monthly_limit) * 100;
+
+                if (usage.at_limit) {
+                  // At limit - show error
+                  warning.innerHTML = `
                 <div style="padding:12px; background:rgba(239,68,68,0.1); border:1px solid #ef4444; border-radius:8px; color:#ef4444;">
                   Warning: Monthly limit reached (${usage.monthly_limit} videos). <a href="/pricing" style="color:#ef4444; text-decoration:underline;">Upgrade your plan</a> to create more videos.
                 </div>`;
-              warning.style.display = 'block';
-            } else if (percentage >= 80) {
-              // Near limit - show warning
-              warning.innerHTML = `
+                  warning.style.display = 'block';
+                } else if (percentage >= 80) {
+                  // Near limit - show warning
+                  warning.innerHTML = `
                 <div style="padding:12px; background:rgba(251,191,36,0.1); border:1px solid #f59e0b; border-radius:8px; color:#f59e0b;">
                   Warning: You have ${usage.videos_remaining} video${usage.videos_remaining !== 1 ? 's' : ''} remaining this month (${usage.videos_this_month}/${usage.monthly_limit} used)
                 </div>`;
-              warning.style.display = 'block';
-            } else {
-              // Plenty remaining - show info
-              warning.innerHTML = `
+                  warning.style.display = 'block';
+                } else {
+                  // Plenty remaining - show info
+                  warning.innerHTML = `
                 <div style="padding:12px; background:rgba(59,130,246,0.1); border:1px solid #3b82f6; border-radius:8px; color:#3b82f6;">
                   ${usage.videos_this_month}/${usage.monthly_limit} videos used this month - ${usage.videos_remaining} remaining
                 </div>`;
-              warning.style.display = 'block';
+                  warning.style.display = 'block';
+                }
+              }
             }
+          } catch (e) {
+            console.log('Could not fetch usage limits:', e);
           }
         }
-      } catch (e) {
-        console.log('Could not fetch usage limits:', e);
-      }
-    }
 
-    // Check and display usage limits (401-safe)
-    async function checkUsageLimitsSafe() {
-      const warning = document.getElementById('usageWarning');
-      try {
-        const res = await fetch(`${API_BASE}/api/usage`, { credentials: 'include' });
-        if (res.status === 401 || !res.ok) { if (warning) warning.style.display = 'none'; return; }
-        const data = await res.json();
-        if (!data.success) { if (warning) warning.style.display = 'none'; return; }
-        const usage = data.usage;
-        if (!warning) return;
-        const percentage = (usage.videos_this_month / usage.monthly_limit) * 100;
-        if (usage.at_limit) {
-          warning.innerHTML = `
+        // Check and display usage limits (401-safe)
+        async function checkUsageLimitsSafe() {
+          const warning = document.getElementById('usageWarning');
+          try {
+            const res = await fetch(`${API_BASE}/api/usage`, { credentials: 'include' });
+            if (res.status === 401 || !res.ok) { if (warning) warning.style.display = 'none'; return; }
+            const data = await res.json();
+            if (!data.success) { if (warning) warning.style.display = 'none'; return; }
+            const usage = data.usage;
+            if (!warning) return;
+            const percentage = (usage.videos_this_month / usage.monthly_limit) * 100;
+            if (usage.at_limit) {
+              warning.innerHTML = `
             <div style="padding:12px; background:rgba(239,68,68,0.1); border:1px solid #ef4444; border-radius:8px; color:#ef4444;">
               Monthly limit reached (${usage.monthly_limit} videos). <a href="/pricing" style="color:#ef4444; text-decoration:underline;">Upgrade your plan</a> to create more videos.
             </div>`;
-          warning.style.display = 'block';
-        } else if (percentage >= 80) {
-          warning.innerHTML = `
+              warning.style.display = 'block';
+            } else if (percentage >= 80) {
+              warning.innerHTML = `
             <div style="padding:12px; background:rgba(251,191,36,0.1); border:1px solid #f59e0b; border-radius:8px; color:#f59e0b;">
               You have ${usage.videos_remaining} video${usage.videos_remaining !== 1 ? 's' : ''} remaining this month (${usage.videos_this_month}/${usage.monthly_limit} used)
             </div>`;
-          warning.style.display = 'block';
-        } else {
-          warning.innerHTML = `
+              warning.style.display = 'block';
+            } else {
+              warning.innerHTML = `
             <div style="padding:12px; background:rgba(59,130,246,0.1); border:1px solid #3b82f6; border-radius:8px; color:#3b82f6;">
               ${usage.videos_this_month}/${usage.monthly_limit} videos used this month - ${usage.videos_remaining} remaining
             </div>`;
-          warning.style.display = 'block';
+              warning.style.display = 'block';
+            }
+          } catch (e) {
+            if (warning) warning.style.display = 'none';
+          }
         }
-      } catch (e) {
-        if (warning) warning.style.display = 'none';
-      }
-    }
 
-    // Load usage on page load
-    checkUsageLimitsSafe();
+        // Load usage on page load
+        checkUsageLimitsSafe();
 
-    // Welcome message with keyboard shortcuts
-    setTimeout(() => {
-      showToast('Shortcuts: Ctrl+S (Generate Video), Esc (Cancel)', 'info', 6000);
-    }, 1000);
+        // Welcome message with keyboard shortcuts
+        setTimeout(() => {
+          showToast('Shortcuts: Ctrl+S (Generate Video), Esc (Cancel)', 'info', 6000);
+        }, 1000);
 
-    // Logout function
-    async function logout() {
-      if (!confirm('Are you sure you want to logout?')) return;
+        // Logout function
+        async function logout() {
+          if (!confirm('Are you sure you want to logout?')) return;
 
-      try {
-        const res = await fetch(`${API_BASE}/api/logout`, {
-          method: 'POST',
-          credentials: 'include'
-        });
+          try {
+            const res = await fetch(`${API_BASE}/api/logout`, {
+              method: 'POST',
+              credentials: 'include'
+            });
 
-        if (res.ok) {
-          window.location.href = '/auth?logout=true';
-        } else {
-          alert('Error logging out. Please try again.');
+            if (res.ok) {
+              window.location.href = '/auth?logout=true';
+            } else {
+              alert('Error logging out. Please try again.');
+            }
+          } catch (error) {
+            console.error('Error logging out:', error);
+            alert('Error logging out. Please try again.');
+          }
         }
-      } catch (error) {
-        console.error('Error logging out:', error);
-        alert('Error logging out. Please try again.');
-      }
-    }
 
-    // Navigate to publisher with video data
-    function goToPublisher() {
-      const title = document.getElementById('liteTitle')?.value?.trim() || '';
-      const description = document.getElementById('liteHook')?.value?.trim() || '';
-      const keywords = document.getElementById('liteKeywords')?.value?.trim() || '';
+        // Navigate to publisher with video data
+        function goToPublisher() {
+          const title = document.getElementById('liteTitle')?.value?.trim() || '';
+          const description = document.getElementById('liteHook')?.value?.trim() || '';
+          const keywords = document.getElementById('liteKeywords')?.value?.trim() || '';
 
-      // Build URL with parameters
-      const params = new URLSearchParams();
-      if (title) params.append('title', title);
-      if (description) params.append('description', description);
-      if (keywords) params.append('tags', keywords);
+          // Build URL with parameters
+          const params = new URLSearchParams();
+          if (title) params.append('title', title);
+          if (description) params.append('description', description);
+          if (keywords) params.append('tags', keywords);
 
-      const url = '/multi-platform' + (params.toString() ? '?' + params.toString() : '');
-      window.location.href = url;
-    }
-  </script>
+          const url = '/multi-platform' + (params.toString() ? '?' + params.toString() : '');
+          window.location.href = url;
+        }
+      </script>
+      <script>
+        // Theme Switcher Logic
+        function toggleTheme() {
+          const body = document.body;
+          if (body.classList.contains('premium-mode')) {
+            body.classList.remove('premium-mode');
+            localStorage.setItem('mss_theme', 'classic');
+          } else {
+            body.classList.add('premium-mode');
+            localStorage.setItem('mss_theme', 'premium');
+          }
+        }
+
+        // Load saved theme
+        (function () {
+          const savedTheme = localStorage.getItem('mss_theme');
+          if (savedTheme === 'premium') {
+            document.body.classList.add('premium-mode');
+          }
+        })();
+      </script>
 </body>
+</div> <!-- End content-scroll -->
+</main> <!-- End main-content -->
+
 </html>
-
-
-
-
-
-
-
-
-
-
-
-

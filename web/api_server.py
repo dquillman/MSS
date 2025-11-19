@@ -263,7 +263,7 @@ def add_security_headers(response):
         csp_directives = [
             "default-src 'self'",
             "connect-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "img-src 'self' data: https:",
@@ -274,7 +274,7 @@ def add_security_headers(response):
         csp_directives = [
             "default-src 'self'",
             "connect-src 'self' http://localhost:5000 http://localhost:3000 http://127.0.0.1:5000 http://127.0.0.1:3000 ws://localhost:* wss://localhost:*",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "img-src 'self' data: https: http://localhost:5000 http://127.0.0.1:5000",
@@ -403,6 +403,12 @@ def serve_terms():
 def serve_privacy():
     """Serve Privacy Policy page"""
     return send_from_directory('topic-picker-standalone', 'privacy.html')
+
+@app.route('/reset')
+@app.route('/reset.html')
+def serve_reset():
+    """Serve Reset page"""
+    return send_from_directory('topic-picker-standalone', 'reset.html')
 
 
 # Quiet favicon requests to avoid 404 noise
@@ -1019,8 +1025,8 @@ def serve_frontend_file(filename):
     if filename.endswith(('.css', '.js', '.svg', '.png', '.jpg', '.ico', '.html')):
         try:
             return send_from_directory('topic-picker-standalone', filename)
-        except:
-            pass
+        except (FileNotFoundError, PermissionError, OSError) as e:
+            logger.warning(f"Static file not found or inaccessible: {filename} - {e}")
     from flask import abort
     abort(404)
 
@@ -1215,6 +1221,70 @@ def set_selected_topic():
     except Exception as e:
         logger.error(f"[AUTH] Login error: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
+
+
+@app.route('/api/generate-seo', methods=['POST'])
+def generate_seo():
+    """Generate subtopic and SEO keywords using OpenAI API.
+    
+    Body JSON: { title, angle, keywords }
+    Returns: { success, sub_topic, seo_keywords }
+    """
+    try:
+        data = request.get_json() or {}
+        title = (data.get('title') or '').strip()
+        angle = (data.get('angle') or '').strip()
+        keywords = (data.get('keywords') or '').strip()
+        
+        if not title:
+            return jsonify({'success': False, 'error': 'Title is required'}), 400
+        
+        # Use OpenAI to generate subtopic and SEO keywords
+        from openai import OpenAI
+        
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            return jsonify({'success': False, 'error': 'OpenAI API key not configured'}), 500
+        
+        client = OpenAI(api_key=api_key)
+        
+        # Build the prompt
+        prompt = f"""Given this video topic information:
+Title: {title}
+Angle/Hook: {angle or 'Not provided'}
+Keywords: {keywords or 'Not provided'}
+
+Generate:
+1. A specific sub-topic or niche angle that adds depth to this content (1-2 sentences)
+2. A list of 10-15 high-traffic, relevant SEO keywords and tags for this video
+
+Return JSON with keys: "sub_topic" (string) and "seo_keywords" (array of strings)"""
+        
+        completion = client.chat.completions.create(
+            model=os.getenv("OPENAI_MODEL_SEO", "gpt-4o-mini"),
+            messages=[
+                {"role": "system", "content": "You are an expert SEO and content strategist. Return JSON only."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            response_format={"type": "json_object"}
+        )
+        
+        content = completion.choices[0].message.content
+        result = json.loads(content)
+        
+        sub_topic = result.get('sub_topic', '')
+        seo_keywords = result.get('seo_keywords', [])
+        
+        return jsonify({
+            'success': True,
+            'sub_topic': sub_topic,
+            'seo_keywords': seo_keywords
+        })
+        
+    except Exception as e:
+        logger.error(f"[SEO] Error generating SEO content: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/generate-meme-bg', methods=['POST'])
@@ -2209,8 +2279,8 @@ def get_video_metadata(filename=None):
                 if not topic_data and video.get('topic_data'):
                     try:
                         topic_data = json.loads(video.get('topic_data'))
-                    except:
-                        pass
+                    except (json.JSONDecodeError, TypeError, ValueError) as e:
+                        logger.warning(f"Failed to parse topic_data for video: {e}")
 
         # Return metadata (prioritize database metadata, but always include topic_data)
         if db_metadata or topic_data:
@@ -6152,9 +6222,9 @@ def youtube_oauth_callback():
         calendar_state = platform_api._get_oauth_state(user_email, 'google_calendar')
         if calendar_state == state:
             is_calendar = True
-            print(f"[OAUTH] Detected Google Calendar OAuth flow")
-    except:
-        pass
+            logger.info(f"[OAUTH] Detected Google Calendar OAuth flow for {user_email}")
+    except Exception as e:
+        logger.debug(f"Calendar state check failed (expected for YouTube OAuth): {e}")
 
     try:
         if is_calendar:
@@ -6706,12 +6776,17 @@ def youtube_sync_metrics():
         channel_account_id = channel_info.get('channel_account_id')
 
         # Get all videos from YouTube channel
+        print(f"[SYNC] Fetching videos for {user_email}...")
         result = platform_api.get_youtube_channel_videos(user_email, max_results=50)
-
+        print(f"[SYNC] Result success: {result.get('success')}")
+        
         if not result.get('success'):
+            print(f"[SYNC] Failed: {result.get('error')}")
             return jsonify(result), 500
 
         videos = result.get('videos', [])
+        print(f"[SYNC] Found {len(videos)} videos from API")
+        
         synced_count = 0
         updated_count = 0
 
