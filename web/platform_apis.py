@@ -1081,7 +1081,8 @@ class PlatformAPIManager:
                 print(f"[PLATFORM_API] Unexpected error disconnecting platform: {e}")
                 try:
                     conn.close()
-                except:
+                except (sqlite3.Error, AttributeError):
+                    # Connection already closed or invalid
                     pass
                 raise
 

@@ -18,6 +18,11 @@ json.txt
 *.json.json
 web/platform_credentials/
 GITHUB_SECRET_CONTENT.txt
+github-actions-key.json
+KEY_FILE_CONTENTS.txt
+SECRET_VALUES.txt
+CURRENT_GCP_SETUP.md
+*.ps1
 
 # Outputs
 out/

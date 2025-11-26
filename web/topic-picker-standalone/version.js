@@ -1,7 +1,7 @@
 // Global version injector for MSS pages
 // Version: 5.5.8 - Fixed CSP issue by always using same origin
 (function(){
-  window.code_version = "5.5.7";
+  window.code_version = "5.6.9";
   async function resolveVersion(){
     try {
       // CRITICAL: Always use same origin - NEVER hardcode localhost

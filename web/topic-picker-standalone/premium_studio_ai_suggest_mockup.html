@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSS Studio - AI Suggestions</title>
+    <link rel="stylesheet" href="premium_theme.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        /* Reusing Studio Styles */
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-label {
+            display: block;
+            color: var(--text-muted);
+            font-size: 13px;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .glass-input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
+            color: var(--text-main);
+            font-family: inherit;
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+
+        .glass-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .step-number {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+        }
+
+        /* AI Suggestion Specific Styles */
+        .suggestions-panel {
+            margin-top: 20px;
+            background: rgba(99, 102, 241, 0.05);
+            /* Subtle primary tint */
+            border: 1px solid var(--primary-glow);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            animation: slideDown 0.4s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .suggestion-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            margin-bottom: 12px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .suggestion-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--primary);
+            transform: translateX(4px);
+        }
+
+        .suggestion-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .viral-score {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--success);
+            background: rgba(16, 185, 129, 0.1);
+            padding: 4px 8px;
+            border-radius: 12px;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="bg-mesh"></div>
+
+    <nav class="sidebar glass-panel">
+        <div class="brand">
+            <i class="ph-fill ph-video-camera" style="color: var(--primary);"></i>
+            MSS Studio
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+            <a href="#" class="nav-item"><i class="ph ph-squares-four"></i> Dashboard</a>
+            <a href="#" class="nav-item active"><i class="ph ph-magic-wand"></i> Studio</a>
+            <a href="#" class="nav-item"><i class="ph ph-chart-line-up"></i> Analytics</a>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <header class="header glass-panel" style="border-top: none; border-left: none; border-right: none;">
+            <div class="breadcrumbs">Home / <span>Studio</span></div>
+            <div class="user-actions">
+                <div
+                    style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #ec4899);">
+                </div>
+            </div>
+        </header>
+
+        <div class="content-scroll">
+            <div style="max-width: 1200px; margin: 0 auto;">
+                <h1 style="margin-bottom: 32px;">Create New Video</h1>
+
+                <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 32px;">
+
+                    <!-- Left Column -->
+                    <div style="display: flex; flex-direction: column; gap: 24px;">
+
+                        <!-- Step 1: Topic with Active Suggestions -->
+                        <div class="glass-panel" style="padding: 24px; border-radius: var(--radius-xl);">
+                            <div class="section-title">
+                                <span class="step-number">1</span>
+                                Video Topic
+                            </div>
+
+                            <div class="input-group">
+                                <label class="input-label">Video Title</label>
+                                <input type="text" class="glass-input" placeholder="Enter a topic..."
+                                    value="Artificial Intelligence">
+                            </div>
+
+                            <div style="display: flex; gap: 12px; margin-top: 10px;">
+                                <button class="btn-primary" style="background: var(--primary); color: white;">
+                                    <i class="ph ph-magic-wand"></i> AI Suggesting...
+                                </button>
+                            </div>
+
+                            <!-- THE NEW AI SUGGESTIONS PANEL -->
+                            <div class="suggestions-panel">
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                    <div
+                                        style="font-weight: 600; color: var(--primary-glow); text-shadow: 0 0 10px var(--primary-glow);">
+                                        <i class="ph-fill ph-sparkle"></i> AI Generated Ideas
+                                    </div>
+                                    <div style="font-size: 12px; color: var(--text-muted);">Based on "Artificial
+                                        Intelligence"</div>
+                                </div>
+
+                                <!-- Suggestion 1 -->
+                                <div class="suggestion-card">
+                                    <div>
+                                        <div style="font-weight: 500; margin-bottom: 4px;">The AI Apocalypse: Fact or
+                                            Fiction?</div>
+                                        <div style="font-size: 12px; color: var(--text-muted);">Angle: Investigative /
+                                            Debunking</div>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <div class="viral-score"><i class="ph-fill ph-trend-up"></i> 98/100</div>
+                                        <button class="btn-primary btn-sm" style="margin-top: 8px;">Apply</button>
+                                    </div>
+                                </div>
+
+                                <!-- Suggestion 2 -->
+                                <div class="suggestion-card">
+                                    <div>
+                                        <div style="font-weight: 500; margin-bottom: 4px;">How AI Will Change Your Job
+                                            in 2025</div>
+                                        <div style="font-size: 12px; color: var(--text-muted);">Angle: Educational /
+                                            Future Forecast</div>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <div class="viral-score"
+                                            style="background: rgba(245, 158, 11, 0.1); color: var(--warning);"><i
+                                                class="ph-fill ph-trend-up"></i> 85/100</div>
+                                        <button class="btn-primary btn-sm"
+                                            style="margin-top: 8px; background: rgba(255,255,255,0.1);">Apply</button>
+                                    </div>
+                                </div>
+
+                                <!-- Suggestion 3 -->
+                                <div class="suggestion-card">
+                                    <div>
+                                        <div style="font-weight: 500; margin-bottom: 4px;">5 AI Tools You Need to Try
+                                            Now</div>
+                                        <div style="font-size: 12px; color: var(--text-muted);">Angle: Listicle /
+                                            Productivity</div>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <div class="viral-score"
+                                            style="background: rgba(245, 158, 11, 0.1); color: var(--warning);"><i
+                                                class="ph-fill ph-trend-up"></i> 82/100</div>
+                                        <button class="btn-primary btn-sm"
+                                            style="margin-top: 8px; background: rgba(255,255,255,0.1);">Apply</button>
+                                    </div>
+                                </div>
+
+                            </div>
+                            <!-- END SUGGESTIONS PANEL -->
+
+                        </div>
+
+                    </div>
+
+                    <!-- Right Column Placeholder -->
+                    <div style="opacity: 0.5;">
+                        <div class="glass-panel"
+                            style="padding: 24px; border-radius: var(--radius-xl); height: 300px; display: flex; align-items: center; justify-content: center;">
+                            <div style="color: var(--text-muted);">Preview Area</div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </main>
+
+</body>
+
+</html>

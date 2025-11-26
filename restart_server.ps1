@@ -9,7 +9,7 @@ if ($port5000) {
     if ($process) {
         Stop-Process -Id $process.Id -Force
         Write-Host "✅ Stopped old server process" -ForegroundColor Green
-        Start-Sleep -Seconds 2
+        Start-Sleep -Seconds 1
     }
 }
 
@@ -21,20 +21,34 @@ if ($port8080) {
     if ($process) {
         Stop-Process -Id $process.Id -Force
         Write-Host "✅ Stopped old server process" -ForegroundColor Green
-        Start-Sleep -Seconds 2
+        Start-Sleep -Seconds 1
     }
 }
 
-# Check current version
-Write-Host "`n📦 Checking version..." -ForegroundColor Cyan
-python -c "import sys; sys.path.insert(0, '.'); from web.api_server import APP_VERSION; print(f'Code version: {APP_VERSION}')" 2>$null
+# Determine Python Path (Use venv if available)
+$VenvPython = "..\venv\Scripts\python.exe"
+$GlobalPython = "python"
+$PythonToUse = $GlobalPython
 
-# Start server
-Write-Host "`n🚀 Starting server with latest code..." -ForegroundColor Green
-Write-Host "   Server will run on: http://localhost:5000" -ForegroundColor Cyan
-Write-Host "   Press Ctrl+C to stop the server`n" -ForegroundColor Yellow
+if (Test-Path $VenvPython) {
+    $PythonToUse = $VenvPython
+    Write-Host "🐍 Using Virtual Environment: $VenvPython" -ForegroundColor Green
+} else {
+    Write-Host "🐍 Using Global Python" -ForegroundColor Yellow
+}
 
-# Change to web directory and start
+# Change to web directory
 Set-Location web
-python api_server.py
 
+# Start the server
+Write-Host "`n🚀 Starting server..." -ForegroundColor Green
+Write-Host "   URL: http://localhost:5000/studio.html" -ForegroundColor Cyan
+
+# Launch Browser in background after a short delay
+Start-Job -ScriptBlock {
+    Start-Sleep -Seconds 3
+    Start-Process "http://localhost:5000/studio.html"
+} | Out-Null
+
+# Run Python Server
+& $PythonToUse api_server.py

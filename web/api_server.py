@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Load version from version.json
 _VERSION_FILE = Path(__file__).parent.parent / "version.json"
-APP_VERSION = "5.6.7"  # Default fallback
+APP_VERSION = "5.6.9"  # Default fallback
 try:
     if _VERSION_FILE.exists():
         version_data = json.loads(_VERSION_FILE.read_text(encoding="utf-8"))
@@ -43,6 +43,8 @@ from web.exceptions import (
     MSSException, VideoGenerationError, APIError,
     AuthenticationError, DatabaseError, FileUploadError
 )
+from web.analytics import AnalyticsManager
+from web.multi_platform import MultiPlatformPublisher
 
 logging.basicConfig(
     level=logging.INFO if os.getenv('FLASK_ENV') != 'development' else logging.DEBUG,
@@ -202,6 +204,10 @@ CORS(app,
      allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'],
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
      expose_headers=['Content-Range', 'X-Content-Range'])
+
+# Initialize Managers
+analytics_manager = AnalyticsManager(db_path=database.DB_PATH)
+publisher = MultiPlatformPublisher(db_path=database.DB_PATH)
 
 # Optional CSP Trusted Types configuration (normalised once at startup)
 _raw_csp_require_trusted = os.getenv('CSP_REQUIRE_TRUSTED_TYPES_FOR', '').strip()
@@ -425,7 +431,7 @@ def api_login():
     """User login endpoint with input validation"""
     try:
         # Security: Validate input with Pydantic model
-        from web.models.requests import LoginRequest
+        from web.models.requests import LoginRequest, SignupRequest
         try:
             req = LoginRequest(**request.get_json() or {})
         except PydanticValidationError as e:
@@ -453,6 +459,11 @@ def api_login():
     except Exception as e:
         logger.error(f"[AUTH] Login error: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
+
+
+
+
+
 
 # ---------------- Intro/Outro Conversion ----------------
 
@@ -914,6 +925,126 @@ def api_signup():
     except Exception as e:
         logger.error(f"[AUTH] Signup error: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'An error occurred during signup'}), 500
+
+
+
+
+
+# ===========================================
+# OAUTH API ENDPOINTS
+# ===========================================
+
+@app.route('/api/oauth/youtube/authorize')
+def oauth_youtube_authorize():
+    """Initiate YouTube OAuth flow"""
+    try:
+        from google_auth_oauthlib.flow import Flow
+        
+        # Load client secrets
+        secrets_path = Path(__file__).parent.parent / "client_secrets.json"
+        if not secrets_path.exists():
+             return f"Error: client_secrets.json not found at {secrets_path}", 500
+
+        # Create flow instance
+        scopes = [
+            'https://www.googleapis.com/auth/youtube.readonly',
+            'https://www.googleapis.com/auth/youtube.upload',
+            'https://www.googleapis.com/auth/userinfo.email'
+        ]
+        
+        # Determine redirect URI based on request
+        # Use https if secure, else http. Localhost usually http.
+        scheme = 'https' if request.is_secure else 'http'
+        redirect_uri = f"{scheme}://{request.host}/api/oauth/youtube/callback"
+        
+        flow = Flow.from_client_secrets_file(
+            str(secrets_path),
+            scopes=scopes,
+            redirect_uri=redirect_uri
+        )
+        
+        authorization_url, state = flow.authorization_url(
+            access_type='offline',
+            include_granted_scopes='true',
+            prompt='consent' # Force consent to get refresh token
+        )
+        
+        return redirect(authorization_url)
+        
+    except Exception as e:
+        logger.error(f"[OAUTH] Error starting flow: {e}", exc_info=True)
+        return f"Error: {str(e)}", 500
+
+@app.route('/api/oauth/youtube/callback')
+def oauth_youtube_callback():
+    """Handle YouTube OAuth callback"""
+    try:
+        from google_auth_oauthlib.flow import Flow
+        from googleapiclient.discovery import build
+        
+        secrets_path = Path(__file__).parent.parent / "client_secrets.json"
+        
+        scheme = 'https' if request.is_secure else 'http'
+        redirect_uri = f"{scheme}://{request.host}/api/oauth/youtube/callback"
+        
+        flow = Flow.from_client_secrets_file(
+            str(secrets_path),
+            scopes=None, # Scopes are already granted
+            redirect_uri=redirect_uri
+        )
+        
+        # Fetch token
+        # request.url must be passed to fetch_token to validate state/code
+        # Ensure it matches the scheme (Flask might see http behind proxy)
+        authorization_response = request.url
+        if request.headers.get('X-Forwarded-Proto') == 'https':
+            authorization_response = authorization_response.replace('http:', 'https:')
+            
+        flow.fetch_token(authorization_response=authorization_response)
+        creds = flow.credentials
+        
+        # Get channel info
+        youtube = build('youtube', 'v3', credentials=creds)
+        
+        # Get channel details
+        channels_response = youtube.channels().list(
+            mine=True,
+            part='snippet,contentDetails,statistics'
+        ).execute()
+        
+        if not channels_response.get('items'):
+            return "No YouTube channel found for this account", 400
+            
+        channel = channels_response['items'][0]
+        snippet = channel['snippet']
+        
+        # Get user email from session
+        user_email, error_response, error_code = _get_user_from_session()
+        if error_response:
+             return "Authentication lost. Please log in to MSS and try again.", 401
+
+        # Prepare channel data
+        channel_data = {
+            'channel_id': channel['id'],
+            'channel_name': snippet['title'],
+            'channel_handle': snippet.get('customUrl', ''),
+            'channel_description': snippet['description'],
+            'thumbnail_url': snippet['thumbnails']['default']['url'],
+            'channel_custom_url': snippet.get('customUrl', '')
+        }
+        
+        # Add to database
+        if analytics_manager:
+            analytics_manager.add_channel_account(user_email, 'youtube', channel_data)
+            
+        # Redirect back to channel manager
+        return redirect('/channel-manager.html')
+        
+    except Exception as e:
+        logger.error(f"[OAUTH] Callback error: {e}", exc_info=True)
+        return f"Error connecting channel: {str(e)}", 500
+
+
 
 @app.route('/dashboard')
 @app.route('/dashboard.html')
