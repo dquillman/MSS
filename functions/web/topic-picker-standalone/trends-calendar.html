@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trends & Calendar - MSS Studio</title>
+  <link rel="stylesheet" href="studio.css">
+  <link rel="stylesheet" href="premium_theme.css">
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <!-- Favicon -->
+  <link rel="icon" href="favicon.jpg">
+  <script src="version.js" defer></script>
+  <style>
+    .trend-card {
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(17, 24, 39, 0.5));
+      border: 1px solid #22c55e;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 15px;
+      transition: all 0.3s;
+    }
+
+    .trend-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+    }
+
+    .trend-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 12px;
+    }
+
+    .trend-topic {
+      font-size: 18px;
+      font-weight: 700;
+      color: #E8EBFF;
+      margin-bottom: 8px;
+    }
+
+    .trend-stats {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .trend-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .trend-stat-label {
+      font-size: 11px;
+      color: #A8B3CF;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .trend-stat-value {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .growth-positive {
+      color: #22c55e;
+    }
+
+    .difficulty-badge {
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .difficulty-low {
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+    }
+
+    .difficulty-medium {
+      background: rgba(251, 191, 36, 0.2);
+      color: #fbbf24;
+    }
+
+    .difficulty-high {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .calendar-entry {
+      background: #1a202c;
+      border: 1px solid #2a3550;
+      border-radius: 8px;
+      padding: 16px;
+      transition: all 0.2s;
+    }
+
+    .calendar-entry:hover {
+      border-color: #3b82f6;
+      transform: translateY(-2px);
+    }
+
+    .calendar-entry.ai-suggested {
+      border-color: #8b5cf6;
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(17, 24, 39, 0.5));
+    }
+
+    .calendar-date {
+      font-size: 14px;
+      font-weight: 700;
+      color: #3b82f6;
+      margin-bottom: 8px;
+    }
+
+    .calendar-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #E8EBFF;
+      margin-bottom: 8px;
+    }
+
+    .calendar-reason {
+      font-size: 12px;
+      color: #A8B3CF;
+      margin-bottom: 12px;
+    }
+
+    .ai-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      background: rgba(139, 92, 246, 0.2);
+      border-radius: 4px;
+      font-size: 10px;
+      color: #a78bfa;
+      font-weight: 600;
+    }
+
+    .niche-tag {
+      display: inline-block;
+      padding: 4px 10px;
+      background: rgba(59, 130, 246, 0.2);
+      border-radius: 12px;
+      font-size: 11px;
+      color: #60a5fa;
+      margin-right: 6px;
+    }
+
+    .tab-nav {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #2a3550;
+      justify-content: center;
+    }
+
+    .tab-button {
+      padding: 12px 24px;
+      background: transparent;
+      border: none;
+      color: #A8B3CF;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
+    }
+
+    .tab-button:hover {
+      color: #E8EBFF;
+    }
+
+    .tab-button.active {
+      color: #3b82f6;
+      border-bottom-color: #3b82f6;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #A8B3CF;
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+
+      50% {
+        transform: scale(1.02);
+        opacity: 0.8;
+      }
+    }
+
+    /* Make it clearer that subtopic buttons are clickable */
+    .subtopic-btn {
+      position: relative;
+    }
+
+    .subtopic-btn::before {
+      content: "👉 ";
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .trend-card:hover .subtopic-btn::before {
+      opacity: 1;
+    }
+
+    @media (max-width: 768px) {
+      .calendar-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .trend-card {
+        padding: 16px;
+      }
+
+      .card {
+        padding: 16px;
+      }
+
+      .card h1,
+      .card h2 {
+        font-size: 24px;
+      }
+
+      .card>div[style*="display:flex"] {
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .btn {
+        width: 100%;
+        padding: 12px;
+        font-size: 14px;
+      }
+
+      .tab-nav {
+        flex-wrap: wrap;
+      }
+
+      .trend-stats {
+        flex-direction: column;
+        gap: 12px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .trend-card {
+        padding: 12px;
+      }
+
+      .card {
+        padding: 12px;
+      }
+
+      .card h1,
+      .card h2 {
+        font-size: 20px;
+      }
+
+      .trend-topic {
+        font-size: 16px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <body>
+    <!-- Theme Switcher Button -->
+    <button class="theme-toggle-fixed" onclick="toggleTheme()" title="Switch Theme">
+      <i class="ph ph-arrows-left-right"></i>
+      <span>Switch Theme</span>
+    </button>
+
+    <!-- Premium Background -->
+    <div class="bg-mesh"></div>
+
+    <!-- Premium Sidebar -->
+    <nav class="sidebar glass-panel">
+      <div class="brand">
+        <i class="ph-fill ph-video-camera" style="color: var(--primary);"></i>
+        MSS Studio
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <a href="/dashboard" class="nav-item"><i class="ph ph-squares-four"></i> Dashboard</a>
+        <a href="studio.html" class="nav-item"><i class="ph ph-magic-wand"></i> Studio</a>
+        <a href="/analytics-dashboard" class="nav-item"><i class="ph ph-chart-line-up"></i> Analytics</a>
+        <a href="trends-calendar.html" class="nav-item active"><i class="ph ph-calendar"></i> Trends</a>
+        <a href="workflow.html" class="nav-item"><i class="ph ph-kanban"></i> Workflow</a>
+      </div>
+      <div style="margin-top: auto;">
+        <a href="settings.html" class="nav-item"><i class="ph ph-gear"></i> Settings</a>
+        <a href="#" onclick="logout()" class="nav-item" style="color: var(--accent);"><i class="ph ph-sign-out"></i>
+          Logout</a>
+      </div>
+    </nav>
+
+    <!-- Premium Header -->
+    <header class="header glass-panel premium-header" style="border-top: none; border-left: none; border-right: none;">
+      <div class="breadcrumbs">Home / <span>Trends</span></div>
+      <div class="user-actions">
+        <button class="icon-btn" onclick="window.location.href='settings.html'"><i class="ph ph-gear"></i></button>
+        <div
+          style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #ec4899);">
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content Wrapper -->
+    <main class="main-content">
+      <div class="content-scroll">
+
+        <div id="loadingBar" class="loading-bar"></div>
+
+        <!-- Header -->
+        <div class="card classic-nav"
+          style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+          <h1 style="margin:0;">Trends & Content Calendar</h1>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn" onclick="window.location.href='workflow.html'"
+              style="background:#22c55e; border-color:#22c55e;">📋 Workflow</button>
+            <button class="btn" onclick="window.location.href='/dashboard'"
+              style="background:#3b82f6; border-color:#3b82f6;">Dashboard</button>
+            <button class="btn" onclick="window.location.href='studio.html'"
+              style="background:#22c55e; border-color:#22c55e;">Studio</button>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tab-nav">
+          <button class="tab-button active" onclick="switchTab('trends')">Trending Topics</button>
+          <button class="tab-button" onclick="switchTab('calendar')">Content Calendar</button>
+          <button class="tab-button" onclick="switchTab('preferences')">Preferences</button>
+        </div>
+
+        <!-- Trends Tab -->
+        <div id="trendsTab" class="tab-content active">
+          <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+              <h2 style="margin:0;">Trending Topics</h2>
+              <button class="btn" onclick="refreshTrends()"
+                style="background:#22c55e; border-color:#22c55e;">Refresh</button>
+            </div>
+
+            <div id="trendsContainer">
+              <div style="text-align:center; padding:40px; color:#A8B3CF;">Loading trends...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Calendar Tab -->
+        <div id="calendarTab" class="tab-content">
+          <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+              <h2 style="margin:0;">AI Content Calendar</h2>
+              <button class="btn" onclick="generateCalendar()"
+                style="background:#8b5cf6; border-color:#8b5cf6;">Generate Suggestions</button>
+            </div>
+
+            <div id="calendarContainer">
+              <div style="text-align:center; padding:40px; color:#A8B3CF;">Click "Generate Suggestions" to create your
+                content calendar</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preferences Tab -->
+        <div id="preferencesTab" class="tab-content">
+          <div class="card">
+            <h2 style="margin-bottom:20px;">Content Preferences</h2>
+
+            <div class="form-group">
+              <label style="display:block; margin-bottom:8px; color:#A8B3CF; font-weight:600;">Preferred Niches
+                (comma-separated)</label>
+              <input type="text" id="preferredNiches" placeholder="e.g., technology, business, gaming"
+                style="width:100%; padding:10px; background:#0f1419; border:1px solid #2a3550; border-radius:6px; color:#E8EBFF;">
+              <div style="font-size:12px; color:#64748b; margin-top:4px;">Enter topics you want to create content about
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top:20px;">
+              <label style="display:block; margin-bottom:8px; color:#A8B3CF; font-weight:600;">Posts Per Week</label>
+              <input type="number" id="postingFrequency" min="1" max="7" value="3"
+                style="width:100%; padding:10px; background:#0f1419; border:1px solid #2a3550; border-radius:6px; color:#E8EBFF;">
+            </div>
+
+            <div class="form-group" style="margin-top:20px;">
+              <label style="display:block; margin-bottom:8px; color:#A8B3CF; font-weight:600;">Best Posting Days</label>
+              <input type="text" id="bestPostingDays" value="Monday,Wednesday,Friday"
+                placeholder="e.g., Monday,Wednesday,Friday"
+                style="width:100%; padding:10px; background:#0f1419; border:1px solid #2a3550; border-radius:6px; color:#E8EBFF;">
+              <div style="font-size:12px; color:#64748b; margin-top:4px;">Day names separated by commas</div>
+            </div>
+
+            <div class="form-group" style="margin-top:20px;">
+              <label style="display:block; margin-bottom:8px; color:#A8B3CF; font-weight:600;">Best Posting Time</label>
+              <input type="time" id="bestPostingTime" value="10:00"
+                style="width:100%; padding:10px; background:#0f1419; border:1px solid #2a3550; border-radius:6px; color:#E8EBFF;">
+            </div>
+
+            <button class="btn" onclick="savePreferences()"
+              style="margin-top:20px; background:#22c55e; border-color:#22c55e;">Save Preferences</button>
+            <div id="preferencesStatus" style="margin-top:12px;"></div>
+          </div>
+        </div>
+
+        <script>
+          const API_BASE = window.location.origin;
+
+          // Tab switching
+          function switchTab(tabName) {
+            // Update buttons
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update content
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(tabName + 'Tab').classList.add('active');
+
+            // Load data if needed
+            if (tabName === 'trends') {
+              loadTrends();
+            } else if (tabName === 'calendar') {
+              loadCalendar();
+            } else if (tabName === 'preferences') {
+              loadPreferences();
+            }
+          }
+
+          // Load trending topics
+          async function loadTrends() {
+            const container = document.getElementById('trendsContainer');
+            if (!container) return;
+
+            container.innerHTML = '<div style="text-align:center; padding:40px; color:#A8B3CF;">Loading trends...</div>';
+
+            try {
+              const res = await fetch(`${API_BASE}/api/trends`, { credentials: 'include' });
+
+              // Handle authentication errors gracefully - check status BEFORE parsing JSON
+              // This prevents any console errors for 401 responses
+              if (res.status === 401 || res.status === 403) {
+                container.innerHTML = `
+            <div style="text-align:center; padding:40px;">
+              <p style="color:#f59e0b; margin-bottom:20px;">Authentication required</p>
+              <p style="color:#A8B3CF; margin-bottom:20px;">Please log in to view trending topics.</p>
+              <button class="btn" onclick="window.location.href='/auth?redirect=' + encodeURIComponent(window.location.pathname)" style="background:#3b82f6; border-color:#3b82f6;">
+                Go to Login
+              </button>
+            </div>
+          `;
+                // Silently return - don't throw or log anything
+                return;
+              }
+
+              // Check if response is OK before parsing JSON
+              if (!res.ok) {
+                let errorMessage = `HTTP ${res.status}: Failed to load trends`;
+                try {
+                  const errorText = await res.text();
+                  if (errorText) {
+                    try {
+                      const errorData = JSON.parse(errorText);
+                      errorMessage = errorData.error || errorMessage;
+                    } catch {
+                      errorMessage = errorText.slice(0, 100) || errorMessage;
+                    }
+                  }
+                } catch {
+                  // Ignore parsing errors
+                }
+                // Only throw if not already handled (401/403 handled above)
+                throw new Error(errorMessage);
+              }
+
+              // Parse JSON only if response is OK
+              const data = await res.json();
+
+              if (!data.success) {
+                throw new Error(data.error || 'Failed to load trends');
+              }
+
+              const trends = data.trends || [];
+
+              if (trends.length === 0) {
+                container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><div>No trending topics found</div></div>';
+                return;
+              }
+
+              container.innerHTML = trends.map(trend => {
+                const keywords = trend.keywords || [];
+                const subtopics = trend.subtopics || [];
+
+                return `
+          <div class="trend-card"
+               data-topic="${trend.topic.replace(/"/g, '&quot;')}"
+               data-keywords='${JSON.stringify(keywords).replace(/'/g, '&apos;')}'
+               data-subtopics='${JSON.stringify(subtopics).replace(/'/g, '&apos;')}'
+               style="cursor:pointer;">
+            <div class="trend-header">
+              <div style="flex:1;">
+                <div class="trend-topic">${trend.topic}</div>
+                <div style="margin-bottom:12px;">
+                  <span class="niche-tag">${trend.niche}</span>
+                  <span class="difficulty-badge difficulty-${trend.difficulty}">${trend.difficulty}</span>
+                </div>
+                <div class="trend-stats">
+                  <div class="trend-stat">
+                    <div class="trend-stat-label">Views</div>
+                    <div class="trend-stat-value">${trend.views}</div>
+                  </div>
+                  <div class="trend-stat">
+                    <div class="trend-stat-label">Growth</div>
+                    <div class="trend-stat-value growth-positive">${trend.growth}</div>
+                  </div>
+                </div>
+                ${keywords.length > 0 ? `
+                  <div style="margin-top:12px;">
+                    <div style="font-size:11px; color:#A8B3CF; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Top Keywords</div>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                      ${keywords.slice(0, 5).map(kw => `<span style="padding:3px 8px; background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.3); border-radius:10px; font-size:11px; color:#60a5fa;">${kw}</span>`).join('')}
+                    </div>
+                  </div>
+                ` : ''}
+                ${subtopics.length > 0 ? `
+                  <div style="margin-top:12px;">
+                    <div style="font-size:11px; color:#c084fc; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; font-weight:700;">⚡ Click a Subtopic to Create Video:</div>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                      ${subtopics.map(st => `
+                        <button class="subtopic-btn" data-subtopic="${st.replace(/"/g, '&quot;')}"
+                          style="padding:8px 12px; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.3); border-radius:6px; font-size:12px; color:#c084fc; text-align:left; cursor:pointer; transition:all 0.2s; width:100%;"
+                          onmouseover="this.style.background='rgba(139,92,246,0.25)'; this.style.borderColor='rgba(139,92,246,0.5)';"
+                          onmouseout="this.style.background='rgba(139,92,246,0.15)'; this.style.borderColor='rgba(139,92,246,0.3)';">
+                          ${st}
+                        </button>
+                      `).join('')}
+                    </div>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+        `}).join('');
+
+              // Add click handlers after rendering
+              setTimeout(() => {
+                // Subtopic button handlers - these take priority over card click
+                document.querySelectorAll('.subtopic-btn').forEach(btn => {
+                  btn.addEventListener('click', function (e) {
+                    e.stopPropagation(); // Prevent card click
+
+                    const card = this.closest('.trend-card');
+                    const topic = card.getAttribute('data-topic');
+                    const keywordsAttr = card.getAttribute('data-keywords');
+                    const subtopic = this.getAttribute('data-subtopic');
+
+                    console.log('[TRENDS] Clicked subtopic:', subtopic);
+
+                    const keywords = JSON.parse(keywordsAttr || '[]');
+
+                    // Build URL with topic and selected subtopic as hook
+                    const params = new URLSearchParams();
+                    params.append('topic', topic);
+                    params.append('hook', subtopic); // Use subtopic as hook
+                    if (keywords.length > 0) {
+                      params.append('keywords', keywords.join(', '));
+                    }
+
+                    const url = `studio.html?${params.toString()}`;
+                    console.log('[TRENDS] Navigating to:', url);
+                    window.location.href = url;
+                  });
+                });
+
+                // Trend card handlers - REQUIRE selecting a subtopic
+                document.querySelectorAll('.trend-card').forEach(card => {
+                  card.addEventListener('click', function (e) {
+                    // Don't trigger if clicking on a subtopic button (they handle their own clicks)
+                    if (e.target.classList.contains('subtopic-btn') || e.target.closest('.subtopic-btn')) {
+                      return;
+                    }
+
+                    const topic = this.getAttribute('data-topic');
+                    const subtopicsAttr = this.getAttribute('data-subtopics');
+                    const subtopics = JSON.parse(subtopicsAttr || '[]');
+
+                    // Show message to select a specific subtopic
+                    if (subtopics.length > 0) {
+                      // Flash the subtopics section to draw attention
+                      const subtopicSection = this.querySelector('.subtopic-btn')?.closest('div').parentElement;
+                      if (subtopicSection) {
+                        subtopicSection.style.animation = 'pulse 0.5s ease-in-out 2';
+                      }
+
+                      alert(`📌 Please select a specific subtopic/hook for "${topic}"\n\nClick one of the purple subtopic buttons below to create a focused video.`);
+                    } else {
+                      // No subtopics available - show error
+                      alert(`⚠️ No subtopics available for "${topic}"\n\nThis trend needs subtopics to create a video.`);
+                    }
+                  });
+                });
+              }, 100);
+
+            } catch (error) {
+              // Suppress console errors for authentication issues - they're handled above
+              const isAuthError = error.message && (
+                error.message.includes('Invalid or expired session') ||
+                error.message.includes('Not authenticated') ||
+                error.message.includes('401') ||
+                error.message.includes('403') ||
+                error.message.includes('Authentication required')
+              );
+
+              // Check if we already handled auth in the try block (401/403 status check)
+              const currentContent = container.innerHTML || '';
+              const alreadyHandledAuth = currentContent.includes('Authentication required');
+
+              // Only log if not an auth error and not already handled
+              if (!isAuthError && !alreadyHandledAuth) {
+                console.error('Error loading trends:', error);
+              }
+
+              // Only show error if we haven't already set innerHTML for auth (401/403 case handled above)
+              if (!alreadyHandledAuth && !isAuthError) {
+                container.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444;">Error: ${error.message}</div>`;
+              } else if (isAuthError && !alreadyHandledAuth) {
+                // Fallback auth message if somehow we got here
+                container.innerHTML = `
+            <div style="text-align:center; padding:40px;">
+              <p style="color:#f59e0b; margin-bottom:20px;">Authentication required</p>
+              <p style="color:#A8B3CF; margin-bottom:20px;">Please log in to view trending topics.</p>
+              <button class="btn" onclick="window.location.href='/auth?redirect=' + encodeURIComponent(window.location.pathname)" style="background:#3b82f6; border-color:#3b82f6;">
+                Go to Login
+              </button>
+            </div>
+          `;
+              }
+            }
+          }
+
+          function refreshTrends() {
+            loadTrends();
+          }
+
+          // Generate content calendar
+          async function generateCalendar() {
+            const container = document.getElementById('calendarContainer');
+            container.innerHTML = '<div style="text-align:center; padding:40px; color:#A8B3CF;">Generating calendar...</div>';
+
+            try {
+              const res = await fetch(`${API_BASE}/api/calendar/generate?days=30`, { credentials: 'include' });
+              const data = await res.json();
+
+              if (!data.success) {
+                throw new Error(data.error || 'Failed to generate calendar');
+              }
+
+              const suggestions = data.suggestions || [];
+
+              if (suggestions.length === 0) {
+                container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📅</div><div>No suggestions generated. Try setting your preferences first.</div></div>';
+                return;
+              }
+
+              container.innerHTML = `
+          <div style="margin-bottom:20px; padding:12px; background:rgba(139,92,246,0.1); border:1px solid #8b5cf6; border-radius:8px; color:#a78bfa;">
+            AI has generated ${suggestions.length} content suggestions for the next 30 days based on trending topics and your preferences.
+          </div>
+          <div class="calendar-grid">
+            ${suggestions.map(entry => `
+              <div class="calendar-entry ${entry.ai_suggested ? 'ai-suggested' : ''}">
+                ${entry.ai_suggested ? '<div class="ai-badge">AI Suggested</div>' : ''}
+                <div class="calendar-date">${new Date(entry.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at ${entry.time}</div>
+                <div class="calendar-title">${entry.title}</div>
+                <div class="calendar-reason">${entry.reason}</div>
+                <div style="margin-top:12px;">
+                  <span class="niche-tag">${entry.niche}</span>
+                  <span class="difficulty-badge difficulty-${entry.difficulty}">${entry.difficulty}</span>
+                </div>
+                <button class="btn" onclick='saveToCalendar(${JSON.stringify(entry)})' style="width:100%; margin-top:12px; background:#22c55e; border-color:#22c55e;">Add to Calendar</button>
+              </div>
+            `).join('')}
+          </div>
+        `;
+
+            } catch (error) {
+              console.error('Error generating calendar:', error);
+              container.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444;">Error: ${error.message}</div>`;
+            }
+          }
+
+          async function saveToCalendar(entry) {
+            try {
+              // Save to database and Google Calendar
+              const res = await fetch(`${API_BASE}/api/calendar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(entry)
+              });
+
+              const data = await res.json();
+
+              if (data.success) {
+                // Check if added to Google Calendar
+                if (data.google_calendar && data.google_calendar.success) {
+                  alert(`✓ Event added to Google Calendar!\n\n"${entry.title}"\n\nView in calendar: ${data.google_calendar.html_link || 'Open Google Calendar'}`);
+                } else {
+                  // Fallback to .ics download
+                  const entryId = data.entry_id;
+                  const downloadUrl = `${API_BASE}/api/calendar/${entryId}/export.ics`;
+
+                  const a = document.createElement('a');
+                  a.href = downloadUrl;
+                  a.download = `mss-event-${entryId}.ics`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+
+                  alert(`Calendar event downloaded!\n\nNote: Connect your Google account in Channel Manager to automatically add events to Google Calendar.`);
+                }
+              } else {
+                throw new Error(data.error || 'Failed to save to calendar');
+              }
+            } catch (error) {
+              alert('Error saving to calendar: ' + error.message);
+            }
+          }
+
+          async function loadCalendar() {
+            const container = document.getElementById('calendarContainer');
+
+            try {
+              const today = new Date().toISOString().split('T')[0];
+              const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+              const res = await fetch(`${API_BASE}/api/calendar?start=${today}&end=${endDate}`, { credentials: 'include' });
+              const data = await res.json();
+
+              if (!data.success) {
+                throw new Error(data.error || 'Failed to load calendar');
+              }
+
+              const entries = data.entries || [];
+
+              if (entries.length === 0) {
+                container.innerHTML = '<div style="text-align:center; padding:40px; color:#A8B3CF;">Click "Generate Suggestions" to create your content calendar</div>';
+                return;
+              }
+
+              // Display saved entries (similar to suggestions but with edit/delete options)
+              // Implementation similar to generateCalendar but for saved entries
+            } catch (error) {
+              console.error('Error loading calendar:', error);
+            }
+          }
+
+          // Preferences
+          async function loadPreferences() {
+            try {
+              const res = await fetch(`${API_BASE}/api/preferences`, { credentials: 'include' });
+              const data = await res.json();
+
+              if (data.success && data.preferences) {
+                const prefs = data.preferences;
+                document.getElementById('preferredNiches').value = prefs.preferred_niches || '';
+                document.getElementById('postingFrequency').value = prefs.posting_frequency || 3;
+                document.getElementById('bestPostingDays').value = prefs.best_posting_days || 'Monday,Wednesday,Friday';
+                document.getElementById('bestPostingTime').value = prefs.best_posting_time || '10:00';
+              }
+            } catch (error) {
+              console.error('Error loading preferences:', error);
+            }
+          }
+
+          async function savePreferences() {
+            const status = document.getElementById('preferencesStatus');
+            status.innerHTML = '<span style="color:#3b82f6;">Saving...</span>';
+
+            try {
+              const prefs = {
+                preferred_niches: document.getElementById('preferredNiches').value.trim(),
+                posting_frequency: parseInt(document.getElementById('postingFrequency').value),
+                best_posting_days: document.getElementById('bestPostingDays').value.trim(),
+                best_posting_time: document.getElementById('bestPostingTime').value
+              };
+
+              const res = await fetch(`${API_BASE}/api/preferences`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(prefs)
+              });
+
+              const data = await res.json();
+
+              if (data.success) {
+                status.innerHTML = '<span style="color:#22c55e;">Preferences saved successfully!</span>';
+                setTimeout(() => { status.innerHTML = ''; }, 3000);
+              } else {
+                throw new Error(data.error || 'Failed to save preferences');
+              }
+            } catch (error) {
+              status.innerHTML = `<span style="color:#ef4444;">Error: ${error.message}</span>`;
+            }
+          }
+
+          // Load trends on page load
+          document.addEventListener('DOMContentLoaded', () => {
+            loadTrends();
+          });
+        </script>
+        <script>
+          // Theme Switcher Logic
+          function toggleTheme() {
+            const body = document.body;
+            if (body.classList.contains('premium-mode')) {
+              body.classList.remove('premium-mode');
+              localStorage.setItem('mss_theme', 'classic');
+            } else {
+              body.classList.add('premium-mode');
+              localStorage.setItem('mss_theme', 'premium');
+            }
+          }
+
+          // Load saved theme
+          (function () {
+            const savedTheme = localStorage.getItem('mss_theme');
+            if (savedTheme === 'premium') {
+              document.body.classList.add('premium-mode');
+            }
+          })();
+        </script>
+  </body>
+  </div> <!-- End content-scroll -->
+  </main> <!-- End main-content -->
+
+</html>

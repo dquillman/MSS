@@ -23,6 +23,10 @@ KEY_FILE_CONTENTS.txt
 SECRET_VALUES.txt
 CURRENT_GCP_SETUP.md
 *.ps1
+serviceAccountKey.json
+**/serviceAccountKey.json
+serviceAccountKey.txt
+**/serviceAccountKey.txt
 
 # Outputs
 out/
@@ -51,7 +55,11 @@ out/*.mp4
 out/*.mov
 
 # Local databases
+# Local databases
 web/*.db
+functions/web/*.db
+*.db
+**/youtube_client_secrets.json
 
 # OS
 .DS_Store

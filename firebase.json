@@ -1,0 +1,51 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "us-central1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "venv",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log"
+      ]
+    }
+  ],
+  "hosting": {
+    "public": "web/topic-picker-standalone",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "function": "api"
+      },
+      {
+        "source": "/auth",
+        "function": "api"
+      },
+      {
+        "source": "/login",
+        "function": "api"
+      },
+      {
+        "source": "/signup",
+        "function": "api"
+      },
+      {
+        "source": "/admin",
+        "function": "api"
+      }
+    ],
+    "cleanUrls": true
+  }
+}

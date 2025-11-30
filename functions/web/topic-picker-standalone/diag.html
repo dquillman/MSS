@@ -1,0 +1,85 @@
+<!doctype html>
+<html>
+<head>\n  <meta charset="utf-8"\n  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />\n  <meta http-equiv="Pragma" content="no-cache" />\n  <meta http-equiv="Expires" content="0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MSS Diagnostics - Topics</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#0B0F19; color:#E8EBFF; margin:0; padding:20px; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    input, button, select { padding:10px 12px; border-radius:6px; border:1px solid #334; background:#121826; color:#E8EBFF; }
+    button { background:#2563eb; border-color:#2563eb; font-weight:600; cursor:pointer; }
+    .card { background:#121826; border:1px solid #2a3550; border-radius:8px; padding:14px; margin-top:10px; }
+    .title { font-weight:700; margin-bottom:6px; }
+    .muted { color:#A8B3CF; }
+    .status { margin-top:10px; padding:10px; border-left:4px solid #3b82f6; background:#1e293b; border-radius:6px; }
+    .ok { border-left-color:#22c55e; background:#14532d; }
+    .err { border-left-color:#ef4444; background:#7f1d1d; }
+    pre { background:#0f172a; padding:10px; border-radius:6px; color:#93c5fd; overflow:auto; }
+  </style>
+</head>
+<body>
+  <h1>MSS Diagnostics - Topics</h1>
+
+  <div class="row">
+    <label>Brand <input id="brand" value="Many Sources Say" /></label>
+    <label>Seed <input id="seed" placeholder="(optional)" /></label>
+    <label>Limit
+      <select id="limit">
+        <option value="5" selected>5</option>
+        <option value="3">3</option>
+        <option value="7">7</option>
+      </select>
+    </label>
+    <button id="btnHealth" onclick="window.testHealth ? window.testHealth() : (location.href=\"http://127.0.0.1:5000/health\")">Test API</button>
+    <button id="btnGen" onclick="window.gen && window.gen()">Generate Topics</button>
+  </div>
+
+  <div id="status" class="status"></div>
+  <pre id="log"></pre>
+  <div id="topics"></div>
+
+  <script>
+    const API = window.location.origin;
+    const $s = document.getElementById('status');
+    const $log = document.getElementById('log');
+    const $wrap = document.getElementById('topics');
+    function setStatus(t, ok){ $s.textContent=t; $s.className='status ' + (ok?'ok':''); }
+    function logLine(t){ $log.textContent += t + "\n"; }
+    async function testHealth(){
+      try {
+        setStatus('Pinging /health ...');
+        const r = await fetch(API + '/health', { cache:'no-store' });
+        const j = await r.json();
+        setStatus('Health OK v' + (j.version||'?'), true);
+        logLine('health ' + r.status + ' ' + JSON.stringify(j));
+      } catch(e){ setStatus('Health failed: ' + e.message); logLine('health error: ' + e.stack); }
+    }
+    async function gen(){
+      try {
+        const brand = (document.getElementById('brand').value || 'Many Sources Say').trim();
+        const seed = (document.getElementById('seed').value || '').trim();
+        const limit = document.getElementById('limit').value || '5';
+        setStatus('GET /generate-topics ...');
+        $wrap.innerHTML='';
+        const qs = new URLSearchParams({ brand, seed, limit: String(parseInt(limit)||5) }).toString();
+        const url = API + '/generate-topics?' + qs;
+        logLine('GET ' + url);
+        const r = await fetch(url, { cache:'no-store' });
+        const j = await r.json();
+        logLine('resp ' + r.status + ' ' + JSON.stringify(j).slice(0,500));
+        const topics = j.topics || [];
+        if (!topics.length) throw new Error('No topics');
+        const meta = `Source: ${j.source||'?'}${j.model? ' ('+j.model+')':''} • Seed: ${(j.seed||seed||'')}`;
+        setStatus('OK ' + topics.length + ' topics — ' + meta, true);
+        topics.forEach((t,i)=>{\n          const card = document.createElement('div'); card.className='card';\n          const title = document.createElement('div'); title.className='title'; title.textContent = ${i+1}. ; card.appendChild(title);\n          const angle = document.createElement('div'); angle.className='muted'; angle.textContent = t.angle||''; card.appendChild(angle);\n          const row = document.createElement('div'); row.style.marginTop='8px'; row.style.display='flex'; row.style.gap='8px';\n          const btnUse = document.createElement('button'); btnUse.textContent='Use in Notebook'; btnUse.style.background='#10b981'; btnUse.style.borderColor='#10b981';\n          btnUse.onclick = async () => {\n            try {\n              try { localStorage.setItem('editingTopic', JSON.stringify(t)); } catch {}\n              try { await fetch(API + '/set-selected-topic', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(t) }); } catch {}\n              location.href = 'studio.html';\n            } catch(e){ setStatus('Failed to handoff: ' + e.message); }\n          };\n          const btnCreate = document.createElement('button'); btnCreate.textContent='Create Video';\n          btnCreate.onclick = async () => {\n            try { setStatus('Starting video creation...'); const r = await fetch(API + '/create-video', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ topic: t, include_avatar: true, include_logo: true }) }); const j = await r.json().catch(()=>({success:false,error:'Invalid JSON'})); if (!r.ok || !j.success) throw new Error(j.error || r.statusText); setStatus('Video creation started.', true); } catch(e){ setStatus('Create failed: ' + e.message); }\n          };\n          const btnCopy = document.createElement('button'); btnCopy.textContent='Copy JSON'; btnCopy.className='button-secondary';\n          btnCopy.onclick = async () => { try { await navigator.clipboard.writeText(JSON.stringify(t, null, 2)); setStatus('Copied topic JSON.', true); } catch(e){ setStatus('Copy failed: ' + e.message); } };\n          row.appendChild(btnUse); row.appendChild(btnCreate); row.appendChild(btnCopy);\n          card.appendChild(row);\n          .appendChild(card);\n        });
+      } catch(e){ setStatus('Generate failed: ' + e.message); logLine('gen error: ' + e.stack); }
+    }
+    document.getElementById('btnHealth').onclick = testHealth;
+    document.getElementById('btnGen').onclick = gen;
+  </script>
+</body>
+</html>
+
+
+
+

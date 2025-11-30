@@ -1,0 +1,895 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MSS Thumbnail Designer</title>
+  <style>
+    body {
+      font-family: Inter, Arial, sans-serif;
+      background: #0B0F19;
+      color: #E8EBFF;
+      margin: 0;
+      padding: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    h2 { color: #E8EBFF; margin-bottom: 10px; }
+    .subtitle { color: #A8B3CF; margin-bottom: 30px; font-size: 14px; }
+
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .panel {
+      background: #121826;
+      border: 1px solid #2a3550;
+      border-radius: 10px;
+      padding: 25px;
+    }
+
+    .panel h3 {
+      margin-top: 0;
+      color: #E8EBFF;
+      font-size: 18px;
+      margin-bottom: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      color: #A8B3CF;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="color"],
+    textarea,
+    select {
+      width: 100%;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid #334;
+      background: #0B0F19;
+      color: #E8EBFF;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    .help-text {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+
+    button {
+      padding: 12px 24px;
+      border-radius: 6px;
+      border: 1px solid #334;
+      background: #2563eb;
+      color: #E8EBFF;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    .button-secondary {
+      background: #334 !important;
+      border-color: #334 !important;
+    }
+
+    .button-secondary:hover {
+      background: #445 !important;
+    }
+
+    .button-success {
+      background: #22c55e !important;
+      border-color: #22c55e !important;
+    }
+
+    .button-success:hover {
+      background: #16a34a !important;
+    }
+
+    .preview-container {
+      background: #000;
+      border-radius: 10px;
+      overflow: hidden;
+      aspect-ratio: 16/9;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .thumbnail-preview {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      box-sizing: border-box;
+    }
+
+    .status {
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 20px;
+      background: #1e293b;
+      border-left: 4px solid #3b82f6;
+    }
+
+    .status.error {
+      background: #7f1d1d;
+      border-left-color: #dc2626;
+    }
+
+    .status.success {
+      background: #14532d;
+      border-left-color: #22c55e;
+    }
+
+    .color-row {
+      display: grid;
+      grid-template-columns: 1fr 100px;
+      gap: 10px;
+      align-items: end;
+    }
+
+    input[type="color"] {
+      width: 100%;
+      height: 45px;
+      padding: 4px;
+      cursor: pointer;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .button-group button {
+      flex: 1;
+    }
+
+    .template-select {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .template-option {
+      padding: 15px;
+      border: 2px solid #334;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+      background: #1e293b;
+    }
+
+    .template-option:hover {
+      border-color: #2563eb;
+    }
+
+    .template-option.active {
+      border-color: #22c55e;
+      background: #14532d;
+    }
+
+    .button-danger {
+      background: #dc2626 !important;
+      border-color: #dc2626 !important;
+    }
+
+    .button-danger:hover {
+      background: #b91c1c !important;
+    }
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <script src="version.js" defer></script>
+</head>
+<body>
+  <script>
+    (function(){
+      const group = document.querySelector("div[style*='gap: 10px']");
+      if (group && !group.querySelector('[data-nav-studio]')) {
+        const studio = document.createElement('button');
+        studio.setAttribute('data-nav-studio','1');
+        studio.textContent = 'Studio';
+        studio.style.padding = '8px 16px'; studio.style.margin = '0';
+        studio.onclick = () => { window.location.href = 'studio.html'; };
+        group?.prepend(studio);
+        const viewer = document.createElement('button');
+        viewer.textContent = 'Viewer';
+        viewer.style.padding = '8px 16px'; viewer.style.margin = '0';
+        viewer.onclick = () => { window.location.href = 'viewer.html'; };
+        group?.prepend(viewer);
+      }
+    })();
+  </script>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+    <button onclick="window.location.href='studio.html'" style="padding: 8px 16px; margin: 0;" class="button-secondary" data-nav-studio="1">Studio</button>
+    <h2 style="margin: 0;">🖼️ Thumbnail Designer <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h2>
+    <button onclick="window.location.href='studio.html'" class="button-secondary">← Back to Studio</button>
+  </div>
+  <p class="subtitle">Design perfect thumbnails for your videos. Customize persistent branding and video-specific text.</p>
+
+  <div class="container">
+    <!-- Preview Panel -->
+    <div class="panel" style="grid-column: 1 / -1;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3 style="margin: 0;">👁️ Thumbnail Preview</h3>
+        <button onclick="testWithSampleTitle()" class="button-secondary">🎲 Test with Sample Title</button>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <div class="preview-container" style="border: 3px solid #3b82f6;">
+          <div class="thumbnail-preview" id="thumbnailPreview1" style="display: none;">
+            <!-- Preview will be rendered here -->
+          </div>
+          <div id="thumbnailDisplay" style="display: flex; align-items: center; justify-content: center; min-height: 400px; background: #0B0F19;">
+            <div style="text-align: center; color: #64748b;">
+              <div style="font-size: 48px; margin-bottom: 10px;">🖼️</div>
+              <div style="font-size: 16px;">Click "Create Thumbnail" to generate your thumbnail</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+        <button onclick="createThumbnailBackgrounds()" style="flex: 1; background: #22c55e; border-color: #22c55e; font-size: 16px; padding: 15px;">
+          ✨ Generate Thumbnails (AI + Text)
+        </button>
+        <button onclick="createThumbnail()" style="flex: 1; background: #3b82f6; border-color: #3b82f6; font-size: 16px; padding: 15px;">
+          📝 Old Method (AI Text)
+        </button>
+        <button onclick="downloadThumbnail()" class="button-secondary" style="flex: 1; font-size: 16px; padding: 15px;">
+          💾 Download
+        </button>
+      </div>
+
+      <div style="padding: 15px; background: #1e293b; border-radius: 8px; border-left: 4px solid #22c55e;">
+        <div style="font-size: 13px; color: #94a3b8; margin-bottom: 8px;">✨ Recommended Workflow (Perfect Text):</div>
+        <div style="font-size: 12px; color: #cbd5e1; line-height: 1.6;">
+          <strong>1. Generate Thumbnails</strong>: AI creates 3 thumbnails with perfect text overlay (yellow/white + black outline)<br>
+          <strong>2. Save to Library</strong>: Click "Save to Library" on your favorite thumbnail<br>
+          <strong>3. Use in Videos</strong>: Your saved thumbnail will be ready to use in video creation
+        </div>
+      </div>
+
+      <div style="padding: 15px; background: #1e293b; border-radius: 8px; border-left: 4px solid #3b82f6; margin-top: 10px;">
+        <div style="font-size: 13px; color: #94a3b8; margin-bottom: 8px;">⚠️ Old Method (AI Text):</div>
+        <div style="font-size: 12px; color: #cbd5e1; line-height: 1.6;">
+          AI attempts to add text directly, but often has spelling errors. Use the new workflow above for professional results.
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Panel -->
+    <div class="panel">
+      <h3>⚙️ Thumbnail Settings</h3>
+
+      <!-- Hidden field to store active logo URL (set by logo library) -->
+      <input type="hidden" id="logoUrl">
+
+      <div class="form-group">
+        <label>Logo Position on Videos</label>
+        <select id="logoPosition" style="width: 100%;">
+          <option value="bottom-left">Bottom Left (Default)</option>
+          <option value="bottom-right">Bottom Right</option>
+          <option value="top-left">Top Left</option>
+          <option value="top-right">Top Right</option>
+          <option value="center">Center</option>
+        </select>
+        <div class="help-text">Choose where the logo appears on all videos</div>
+      </div>
+
+      <div class="form-group">
+        <label>AI Thumbnail Generation Prompt</label>
+        <textarea id="thumbnailPrompt" style="min-height: 120px;" placeholder="Enter prompt for AI thumbnail generation..."></textarea>
+        <div class="help-text">This prompt will be used when generating AI thumbnails. Use {{title}} as placeholder for video title.</div>
+      </div>
+
+      <div class="form-group">
+        <label>Template Style</label>
+        <div class="template-select">
+          <div class="template-option active" onclick="selectTemplate('bold')" id="template-bold">
+            <strong>Bold</strong>
+          </div>
+          <div class="template-option" onclick="selectTemplate('minimal')" id="template-minimal">
+            <strong>Minimal</strong>
+          </div>
+          <div class="template-option" onclick="selectTemplate('gradient')" id="template-gradient">
+            <strong>Gradient</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Persistent Text (Always Shown)</label>
+        <textarea id="persistentText" placeholder="e.g., MANY SOURCES SAY" oninput="updatePreview()"></textarea>
+        <div class="help-text">This text appears on all thumbnails (brand name, tagline, etc.)</div>
+      </div>
+
+      <div class="form-group">
+        <label>Video Title (Auto-filled from topic)</label>
+        <textarea id="videoTitle" placeholder="This will be filled automatically from your video topic" oninput="updatePreview()"></textarea>
+        <div class="help-text">This gets auto-populated when creating videos</div>
+      </div>
+
+      <div class="form-group">
+        <label>Background Color</label>
+        <div class="color-row">
+          <input type="text" id="bgColorText" value="#0B0F19" oninput="updateColorFromText('bg')">
+          <input type="color" id="bgColor" value="#0B0F19" oninput="updateColorFromPicker('bg')">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Persistent Text Color</label>
+        <div class="color-row">
+          <input type="text" id="persistentColorText" value="#FFD700" oninput="updateColorFromText('persistent')">
+          <input type="color" id="persistentColor" value="#FFD700" oninput="updateColorFromPicker('persistent')">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Video Title Color</label>
+        <div class="color-row">
+          <input type="text" id="titleColorText" value="#E8EBFF" oninput="updateColorFromText('title')">
+          <input type="color" id="titleColor" value="#E8EBFF" oninput="updateColorFromPicker('title')">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Persistent Text Size</label>
+        <input type="number" id="persistentSize" value="72" min="24" max="200" oninput="updatePreview()">
+        <div class="help-text">Font size in pixels</div>
+      </div>
+
+      <div class="form-group">
+        <label>Video Title Size</label>
+        <input type="number" id="titleSize" value="96" min="24" max="200" oninput="updatePreview()">
+        <div class="help-text">Font size in pixels</div>
+      </div>
+
+      <div class="button-group">
+        <button onclick="saveSettings()" class="button-success">💾 Save Settings</button>
+        <button onclick="resetSettings()" class="button-secondary">🔄 Reset to Default</button>
+      </div>
+
+      <div id="status"></div>
+    </div>
+
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+    let currentTemplate = 'bold';
+    // Removed variation selection - using single thumbnail design
+
+    function getDefaultPrompt() {
+      return `Topic: {{title}}
+Hook: {{hook}}
+Description: {{description}}
+Keywords: {{keywords}}
+
+Your favorite meme style is the "Bold Contrast News Cut" — a clean, high-impact, visually balanced look that you use for YouTube thumbnails and meme-style posts. It usually includes:
+
+A red-and-blue political color split (especially for MSS videos)
+
+A central visual metaphor (e.g., a symbol, object, or expressive hand)
+
+Photo-realistic elements to add depth
+
+High contrast, clean composition, and optimized for small sizes (like YouTube thumbnails)`;
+    }
+
+    // Load saved settings on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      // Set default prompt if empty
+      if (!document.getElementById('thumbnailPrompt').value) {
+        document.getElementById('thumbnailPrompt').value = getDefaultPrompt();
+      }
+      loadSettings();
+      updatePreview();
+      selectVariation(selectedVariationNumber);
+    });
+
+    function selectTemplate(template) {
+      currentTemplate = template;
+
+      // Update active state
+      document.querySelectorAll('.template-option').forEach(el => el.classList.remove('active'));
+      document.getElementById(`template-${template}`).classList.add('active');
+
+      updatePreview();
+    }
+
+    function updateColorFromPicker(type) {
+      const picker = document.getElementById(`${type}Color`);
+      const text = document.getElementById(`${type}ColorText`);
+      text.value = picker.value;
+      updatePreview();
+    }
+
+    function updateColorFromText(type) {
+      const text = document.getElementById(`${type}ColorText`);
+      const picker = document.getElementById(`${type}Color`);
+      picker.value = text.value;
+      updatePreview();
+    }
+
+    function selectVariation(num) {
+      selectedVariationNumber = num;
+
+      // Update border colors
+      for (let i = 1; i <= 4; i++) {
+        const elem = document.getElementById(`variation-${i}`);
+        if (i === num) {
+          elem.style.borderColor = '#22c55e';
+          elem.style.boxShadow = '0 0 20px rgba(34, 197, 94, 0.3)';
+        } else {
+          elem.style.borderColor = 'transparent';
+          elem.style.boxShadow = 'none';
+        }
+      }
+
+      // Update selected text
+      document.getElementById('selectedVariation').textContent = `Variation ${num}`;
+    }
+
+    function updatePreview() {
+      const persistentText = document.getElementById('persistentText').value || 'MANY SOURCES SAY';
+      const videoTitle = document.getElementById('videoTitle').value || 'Your Video Title Here';
+      const bgColor = document.getElementById('bgColor').value;
+      const persistentColor = document.getElementById('persistentColor').value;
+      const titleColor = document.getElementById('titleColor').value;
+      const persistentSize = document.getElementById('persistentSize').value;
+      const titleSize = document.getElementById('titleSize').value;
+
+      // Variation 1: Bold Center
+      document.getElementById('thumbnailPreview1').innerHTML = `
+        <div style="width: 100%; height: 100%; background: ${bgColor}; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; box-sizing: border-box;">
+          <div style="font-size: ${persistentSize}px; font-weight: 900; color: ${persistentColor}; text-shadow: 0 4px 12px rgba(0,0,0,0.7); margin-bottom: 20px; text-align: center; line-height: 1.1; text-transform: uppercase;">${persistentText}</div>
+          <div style="font-size: ${titleSize}px; font-weight: 700; color: ${titleColor}; text-align: center; line-height: 1.2; text-shadow: 0 2px 8px rgba(0,0,0,0.5);">${videoTitle}</div>
+        </div>
+      `;
+
+      // Variation 2: Minimal Left
+      document.getElementById('thumbnailPreview2').innerHTML = `
+        <div style="width: 100%; height: 100%; background: ${bgColor}; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: 60px; box-sizing: border-box;">
+          <div style="font-size: ${persistentSize}px; font-weight: 400; color: ${persistentColor}; margin-bottom: 30px; font-style: italic;">${persistentText}</div>
+          <div style="font-size: ${titleSize}px; font-weight: 900; color: ${titleColor}; line-height: 1.1; max-width: 90%;">${videoTitle}</div>
+        </div>
+      `;
+
+      // Variation 3: Gradient Glow
+      document.getElementById('thumbnailPreview3').innerHTML = `
+        <div style="width: 100%; height: 100%; background: linear-gradient(135deg, ${bgColor} 0%, #1a2332 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; box-sizing: border-box;">
+          <div style="font-size: ${persistentSize}px; font-weight: 900; color: ${persistentColor}; text-shadow: 0 0 30px ${persistentColor}; margin-bottom: 25px; text-align: center; line-height: 1.1;">${persistentText}</div>
+          <div style="font-size: ${titleSize}px; font-weight: 700; color: ${titleColor}; text-align: center; line-height: 1.2; text-shadow: 0 0 20px ${titleColor}80;">${videoTitle}</div>
+        </div>
+      `;
+
+      // Variation 4: Split Layout
+      document.getElementById('thumbnailPreview4').innerHTML = `
+        <div style="width: 100%; height: 100%; background: ${bgColor}; display: flex; box-sizing: border-box;">
+          <div style="flex: 1; background: linear-gradient(45deg, ${persistentColor}40, transparent); display: flex; align-items: center; justify-content: center; padding: 40px;">
+            <div style="font-size: ${persistentSize}px; font-weight: 900; color: ${persistentColor}; text-shadow: 0 4px 12px rgba(0,0,0,0.7); transform: rotate(-5deg); text-align: center; line-height: 1.1; text-transform: uppercase;">${persistentText}</div>
+          </div>
+          <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px;">
+            <div style="font-size: ${titleSize}px; font-weight: 700; color: ${titleColor}; text-align: left; line-height: 1.2; text-shadow: 0 2px 8px rgba(0,0,0,0.5);">${videoTitle}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function saveSettings() {
+      const settings = {
+        selectedVariation: selectedVariationNumber,
+        template: currentTemplate,
+        logoUrl: document.getElementById('logoUrl').value,
+        logoPosition: document.getElementById('logoPosition').value,
+        thumbnailPrompt: document.getElementById('thumbnailPrompt').value,
+        persistentText: document.getElementById('persistentText').value,
+        bgColor: document.getElementById('bgColor').value,
+        persistentColor: document.getElementById('persistentColor').value,
+        titleColor: document.getElementById('titleColor').value,
+        persistentSize: parseInt(document.getElementById('persistentSize').value),
+        titleSize: parseInt(document.getElementById('titleSize').value)
+      };
+
+      try {
+        const response = await fetch(`${API_BASE}/save-thumbnail-settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(settings)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          showStatus('✓ Thumbnail settings saved successfully!', 'success');
+
+          // Also save to localStorage as backup
+          localStorage.setItem('mss_thumbnail_settings', JSON.stringify(settings));
+        } else {
+          showStatus(`Failed to save: ${result.error}`, 'error');
+        }
+      } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error');
+      }
+    }
+
+    async function loadSettings() {
+      try {
+        const response = await fetch(`${API_BASE}/get-thumbnail-settings`);
+        const result = await response.json();
+
+        if (result.success && result.settings) {
+          applySettings(result.settings);
+        } else {
+          // Try localStorage backup
+          const saved = localStorage.getItem('mss_thumbnail_settings');
+          if (saved) {
+            applySettings(JSON.parse(saved));
+          }
+        }
+      } catch (error) {
+        console.error('Error loading settings:', error);
+        // Try localStorage backup
+        const saved = localStorage.getItem('mss_thumbnail_settings');
+        if (saved) {
+          applySettings(JSON.parse(saved));
+        }
+      }
+    }
+
+    function applySettings(settings) {
+      if (settings.selectedVariation) {
+        selectedVariationNumber = settings.selectedVariation;
+        selectVariation(settings.selectedVariation);
+      }
+      if (settings.template) {
+        selectTemplate(settings.template);
+      }
+      if (settings.logoUrl) {
+        document.getElementById('logoUrl').value = settings.logoUrl;
+      }
+      if (settings.logoPosition) {
+        document.getElementById('logoPosition').value = settings.logoPosition;
+      }
+      if (settings.thumbnailPrompt) {
+        document.getElementById('thumbnailPrompt').value = settings.thumbnailPrompt;
+      }
+      if (settings.persistentText !== undefined) {
+        document.getElementById('persistentText').value = settings.persistentText;
+      }
+      if (settings.bgColor) {
+        document.getElementById('bgColor').value = settings.bgColor;
+        document.getElementById('bgColorText').value = settings.bgColor;
+      }
+      if (settings.persistentColor) {
+        document.getElementById('persistentColor').value = settings.persistentColor;
+        document.getElementById('persistentColorText').value = settings.persistentColor;
+      }
+      if (settings.titleColor) {
+        document.getElementById('titleColor').value = settings.titleColor;
+        document.getElementById('titleColorText').value = settings.titleColor;
+      }
+      if (settings.persistentSize) {
+        document.getElementById('persistentSize').value = settings.persistentSize;
+      }
+      if (settings.titleSize) {
+        document.getElementById('titleSize').value = settings.titleSize;
+      }
+      updatePreview();
+    }
+
+    function resetSettings() {
+      if (confirm('Reset all thumbnail settings to default?')) {
+        document.getElementById('logoPosition').value = 'bottom-left';
+        document.getElementById('persistentText').value = 'MANY SOURCES SAY';
+        document.getElementById('videoTitle').value = '';
+        document.getElementById('bgColor').value = '#0B0F19';
+        document.getElementById('bgColorText').value = '#0B0F19';
+        document.getElementById('persistentColor').value = '#FFD700';
+        document.getElementById('persistentColorText').value = '#FFD700';
+        document.getElementById('titleColor').value = '#E8EBFF';
+        document.getElementById('titleColorText').value = '#E8EBFF';
+        document.getElementById('persistentSize').value = '72';
+        document.getElementById('titleSize').value = '96';
+        selectTemplate('bold');
+        updatePreview();
+        showStatus('✓ Reset to default settings', 'success');
+      }
+    }
+
+    function testWithSampleTitle() {
+      const samples = [
+        'The SHOCKING Truth About AI',
+        'Why Everyone is WRONG About This',
+        '5 Secrets They Don\'t Want You to Know',
+        'This Changes EVERYTHING',
+        'The Future is Here and It\'s Terrifying'
+      ];
+      const random = samples[Math.floor(Math.random() * samples.length)];
+      document.getElementById('videoTitle').value = random;
+      updatePreview();
+    }
+
+    async function createThumbnailBackgrounds() {
+      console.log('[CREATE BG] Generate backgrounds button clicked');
+
+      const videoTitle = document.getElementById('videoTitle').value.trim();
+      const aiPrompt = document.getElementById('thumbnailPrompt').value.trim();
+
+      if (!videoTitle) {
+        alert('⚠️ Please enter a video title first');
+        return;
+      }
+
+      if (!aiPrompt) {
+        alert('⚠️ Please enter an AI thumbnail generation prompt');
+        return;
+      }
+
+      try {
+        console.log('[CREATE BG] Starting thumbnail generation...');
+        showStatus('⏳ Generating 3 thumbnails with AI + text overlay... This may take 30-60 seconds', 'info');
+
+        // Call AI generation endpoint (same as before, but prompts already updated to request NO TEXT)
+        const response = await fetch(`${API_BASE}/generate-ai-thumbnail`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: videoTitle,
+            prompt: aiPrompt
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success && result.thumbnails) {
+          // Display 3 background variations
+          const thumbnailDisplay = document.getElementById('thumbnailDisplay');
+          thumbnailDisplay.innerHTML = `
+            <div style="width: 100%;">
+              <h4 style="text-align: center; color: #E8EBFF; margin-bottom: 10px;">✅ 3 Thumbnails Generated with Perfect Text!</h4>
+              <div style="text-align: center; margin-bottom: 15px; padding: 10px; background: #1e293b; border-radius: 6px;">
+                <div style="font-size: 13px; color: #22c55e; margin-bottom: 5px;">✨ Ready to Use!</div>
+                <div style="font-size: 12px; color: #cbd5e1;">
+                  Click "💾 Save to Library" to add to your thumbnails<br>
+                  Text overlay: "${videoTitle}" (yellow/white with black outline)
+                </div>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                ${result.thumbnails.map((thumb, idx) => `
+                  <div style="border: 3px solid #3b82f6; border-radius: 8px; background: #1a2332; padding: 10px;">
+                    <img src="${thumb.url}?t=${Date.now()}" alt="Background ${idx + 1}"
+                         style="width: 100%; height: auto; border-radius: 6px; margin-bottom: 8px; cursor: pointer;">
+                    <div style="text-align: center; color: #94a3b8; font-size: 12px; margin-bottom: 5px;">${thumb.variation} Style</div>
+                    <button onclick='saveBackgroundToLibrary(${JSON.stringify(thumb)})' style="width: 100%; padding: 6px; background: #22c55e; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 12px; margin-bottom: 4px;">
+                      💾 Save to Library
+                    </button>
+                    <button onclick="window.open('${thumb.url}', '_blank')" style="width: 100%; padding: 6px; background: #3b82f6; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                      📥 Download
+                    </button>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+
+          showStatus('✓ 3 thumbnails generated with perfect text! Click "Save to Library" to use them.', 'success');
+        } else {
+          alert(`❌ Generation failed: ${result.error}`);
+          showStatus(`❌ Generation failed: ${result.error}`, 'error');
+        }
+      } catch (error) {
+        console.error('[CREATE BG] Error:', error);
+        alert(`❌ Error: ${error.message}`);
+        showStatus(`❌ Error: ${error.message}`, 'error');
+      }
+    }
+
+    async function createThumbnail() {
+      console.log('[CREATE] Create thumbnail button clicked');
+
+      const videoTitle = document.getElementById('videoTitle').value.trim();
+      const aiPrompt = document.getElementById('thumbnailPrompt').value.trim();
+
+      console.log('[CREATE] Video title:', videoTitle);
+      console.log('[CREATE] AI prompt:', aiPrompt);
+
+      if (!videoTitle) {
+        alert('⚠️ Please enter a video title first');
+        return;
+      }
+
+      if (!aiPrompt) {
+        alert('⚠️ Please enter an AI thumbnail generation prompt');
+        return;
+      }
+
+      try {
+        console.log('[CREATE] Starting AI thumbnail generation...');
+        showStatus('⏳ Generating 3 thumbnail variations with AI... This may take 30-60 seconds', 'info');
+
+        // Call AI generation endpoint
+        const response = await fetch(`${API_BASE}/generate-ai-thumbnail`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: videoTitle,
+            prompt: aiPrompt
+          })
+        });
+
+        console.log('[CREATE] Response status:', response.status);
+        const result = await response.json();
+        console.log('[CREATE] Response result:', result);
+
+        if (result.success && result.thumbnails) {
+          // Display 3 variations for user to choose from
+          const thumbnailDisplay = document.getElementById('thumbnailDisplay');
+          thumbnailDisplay.innerHTML = `
+            <div style="width: 100%;">
+              <h4 style="text-align: center; color: #E8EBFF; margin-bottom: 20px;">Choose Your Thumbnail (Click to Select & Save)</h4>
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                ${result.thumbnails.map((thumb, idx) => `
+                  <div onclick="selectAndSaveThumbnail(${JSON.stringify(thumb).replace(/"/g, '&quot;')})"
+                       style="cursor: pointer; border: 3px solid transparent; border-radius: 8px; transition: all 0.2s; background: #1a2332; padding: 10px;"
+                       onmouseover="this.style.borderColor='#22c55e'"
+                       onmouseout="this.style.borderColor='transparent'">
+                    <img src="${thumb.url}?t=${Date.now()}" alt="Variation ${idx + 1}"
+                         style="width: 100%; height: auto; border-radius: 6px; margin-bottom: 8px;">
+                    <div style="text-align: center; color: #94a3b8; font-size: 12px;">${thumb.variation}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+
+          showStatus('✓ 3 thumbnails generated! Click one to save it to your library.', 'success');
+        } else {
+          alert(`❌ Generation failed: ${result.error}`);
+          showStatus(`❌ Generation failed: ${result.error}`, 'error');
+        }
+      } catch (error) {
+        console.error('[CREATE] Error creating thumbnail:', error);
+        alert(`❌ Error: ${error.message}`);
+        showStatus(`❌ Error: ${error.message}`, 'error');
+      }
+    }
+
+    async function selectAndSaveThumbnail(thumbnail) {
+      try {
+        showStatus('⏳ Saving thumbnail to library...', 'info');
+
+        // Save the selected thumbnail to library
+        const response = await fetch(`${API_BASE}/save-selected-thumbnail`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(thumbnail)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          // Display the selected thumbnail
+          const thumbnailDisplay = document.getElementById('thumbnailDisplay');
+          thumbnailDisplay.innerHTML = `<img src="${thumbnail.url}?t=${Date.now()}" alt="Selected Thumbnail" style="max-width: 100%; height: auto; border-radius: 6px;">`;
+
+          alert('✓ Thumbnail saved to library!');
+          showStatus('✓ Thumbnail saved to library!', 'success');
+          loadThumbnails(); // Refresh the thumbnail library
+        } else {
+          alert(`❌ Save failed: ${result.error}`);
+          showStatus(`❌ Save failed: ${result.error}`, 'error');
+        }
+      } catch (error) {
+        console.error('[SAVE] Error saving thumbnail:', error);
+        alert(`❌ Error: ${error.message}`);
+        showStatus(`❌ Error: ${error.message}`, 'error');
+      }
+    }
+
+    async function saveBackgroundToLibrary(thumbnail) {
+      try {
+        showStatus('⏳ Saving background to library...', 'info');
+
+        // Save the thumbnail to library
+        const response = await fetch(`${API_BASE}/save-selected-thumbnail`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(thumbnail)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          showStatus('✓ Background saved to library!', 'success');
+          loadThumbnails(); // Refresh the thumbnail library
+        } else {
+          alert(`❌ Save failed: ${result.error}`);
+          showStatus(`❌ Save failed: ${result.error}`, 'error');
+        }
+      } catch (error) {
+        console.error('[SAVE BG] Error saving background:', error);
+        alert(`❌ Error: ${error.message}`);
+        showStatus(`❌ Error: ${error.message}`, 'error');
+      }
+    }
+
+    async function downloadThumbnail() {
+      try {
+        showStatus('⏳ Generating download...', 'info');
+
+        // Check if thumbnail has been created
+        const thumbnailDisplay = document.getElementById('thumbnailDisplay');
+        const img = thumbnailDisplay.querySelector('img');
+
+        if (!img) {
+          alert('⚠️ Please create a thumbnail first');
+          return;
+        }
+
+        // Download the created thumbnail
+        const videoTitle = document.getElementById('videoTitle').value.trim() || 'thumbnail';
+        const a = document.createElement('a');
+        a.href = img.src;
+        a.download = `${videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.png`;
+
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        showStatus('✓ Thumbnail downloaded!', 'success');
+
+      } catch (error) {
+        showStatus(`❌ Download error: ${error.message}`, 'error');
+      }
+    }
+
+    function showStatus(message, type = 'info') {
+      const statusEl = document.getElementById('status');
+      statusEl.className = `status ${type}`;
+      statusEl.innerHTML = message;
+
+      setTimeout(() => {
+        statusEl.innerHTML = '';
+        statusEl.className = 'status';
+      }, 5000);
+    }
+  </script>
+</body>
+</html>
+

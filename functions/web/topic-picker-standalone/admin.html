@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - MSS</title>
+  <link rel="stylesheet" href="studio.css">
+  <style>
+    .search-bar {
+      margin-bottom: 20px;
+      display: flex;
+      gap: 12px;
+    }
+
+    .search-bar input {
+      flex: 1;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.05);
+      color: #E8EBFF;
+      font-size: 15px;
+    }
+
+    .search-bar input:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+
+    .users-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    .users-table th {
+      text-align: left;
+      padding: 12px;
+      background: rgba(255,255,255,0.05);
+      border-bottom: 2px solid rgba(255,255,255,0.1);
+      font-size: 13px;
+      color: #A8B3CF;
+      font-weight: 600;
+    }
+
+    .users-table td {
+      padding: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      font-size: 14px;
+    }
+
+    .users-table tr:hover {
+      background: rgba(255,255,255,0.03);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .badge.free { background: rgba(100, 116, 139, 0.2); color: #64748b; }
+    .badge.starter { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+    .badge.pro { background: rgba(139, 92, 246, 0.2); color: #8b5cf6; }
+    .badge.agency { background: rgba(236, 72, 153, 0.2); color: #ec4899; }
+    .badge.lifetime { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+
+    .action-btn {
+      padding: 6px 12px;
+      font-size: 12px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.05);
+      color: #E8EBFF;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .action-btn:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: #3b82f6;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 30px;
+    }
+
+    .stat-card {
+      padding: 20px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+    }
+
+    .stat-card h3 {
+      font-size: 13px;
+      color: #A8B3CF;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .stat-card .value {
+      font-size: 32px;
+      font-weight: 900;
+      color: #E8EBFF;
+    }
+  </style>
+</head>
+<body>
+  <div id="loadingBar" class="loading-bar"></div>
+
+  <!-- Header -->
+  <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+    <h1 style="margin:0;">Admin Dashboard</h1>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn" style="background:#3b82f6; border-color:#3b82f6;" onclick="window.location.href='/studio'">🎬 Studio</button>
+      <button class="btn" onclick="window.location.href='/dashboard'">📊 My Dashboard</button>
+      <button class="btn" onclick="logout()" style="background:#ef4444; border-color:#ef4444;">🚪 Logout</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid" style="margin-top:20px;">
+    <div class="stat-card">
+      <h3>Total Users</h3>
+      <div class="value" id="totalUsers">0</div>
+    </div>
+    <div class="stat-card">
+      <h3>Free Users</h3>
+      <div class="value" id="freeUsers">0</div>
+    </div>
+    <div class="stat-card">
+      <h3>Paid Users</h3>
+      <div class="value" id="paidUsers">0</div>
+    </div>
+    <div class="stat-card">
+      <h3>Total Videos</h3>
+      <div class="value" id="totalVideos">0</div>
+    </div>
+  </div>
+
+  <!-- System Health -->
+  <div class="card" style="margin-top:20px;">
+    <h2 style="margin:0 0 12px 0;">System Health</h2>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+      <button class="btn" onclick="checkHealth(false)">Quick Check</button>
+      <button class="btn" onclick="checkHealth(true)" style="background:#3b82f6; border-color:#3b82f6;">Deep Check (Chromium)</button>
+      <a class="btn" href="/api/health" target="_blank" rel="noopener">Open JSON</a>
+    </div>
+    <pre id="healthOutput" style="margin:0; padding:12px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:8px; white-space:pre-wrap; word-break:break-word; min-height:48px;">
+    </pre>
+  </div>
+
+  <!-- User Management -->
+  <div class="card" style="margin-top:20px;">
+    <h2 style="margin:0 0 20px 0;">User Management</h2>
+
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="Search by email or username...">
+      <button class="btn" onclick="loadUsers()" style="background:#3b82f6; border-color:#3b82f6;">🔍 Search</button>
+      <button class="btn" onclick="refreshStats()">🔄 Refresh</button>
+    </div>
+
+    <div style="overflow-x:auto;">
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Username</th>
+            <th>Plan</th>
+            <th>Videos (Month/Total)</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="usersTableBody">
+          <tr>
+            <td colspan="6" style="text-align:center; padding:40px; color:#A8B3CF;">Loading users...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+
+    async function checkAdminAccess() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/check`, {
+          credentials: 'include'
+        });
+        const data = await res.json();
+
+        if (!data.success || !data.is_admin) {
+          alert('Access denied. Admin access required.');
+          window.location.href = '/dashboard';
+        }
+      } catch (e) {
+        alert('Not logged in');
+        window.location.href = '/auth';
+      }
+    }
+
+    async function loadUsers() {
+      const searchTerm = document.getElementById('searchInput').value;
+      const tbody = document.getElementById('usersTableBody');
+
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/users?search=${encodeURIComponent(searchTerm)}`, {
+          credentials: 'include'
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#ef4444;">Error loading users</td></tr>';
+          return;
+        }
+
+        const users = data.users || [];
+
+        if (users.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#A8B3CF;">No users found</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = users.map(user => `
+          <tr>
+            <td>${user.email}</td>
+            <td>${user.username || 'N/A'}</td>
+            <td><span class="badge ${user.subscription_tier}">${user.subscription_tier}</span></td>
+            <td>${user.videos_this_month}/${user.total_videos}</td>
+            <td>${new Date(user.created_at).toLocaleDateString()}</td>
+            <td>
+              <button class="action-btn" onclick="changeTier(${user.id}, '${user.email}')">Change Tier</button>
+              <button class="action-btn" onclick="resetMonthlyCount(${user.id})">Reset Count</button>
+            </td>
+          </tr>
+        `).join('');
+
+      } catch (e) {
+        console.error('Error loading users:', e);
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#ef4444;">Error loading users</td></tr>';
+      }
+    }
+
+    async function refreshStats() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/stats`, {
+          credentials: 'include'
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          document.getElementById('totalUsers').textContent = data.stats.total_users || 0;
+          document.getElementById('freeUsers').textContent = data.stats.free_users || 0;
+          document.getElementById('paidUsers').textContent = data.stats.paid_users || 0;
+          document.getElementById('totalVideos').textContent = data.stats.total_videos || 0;
+        }
+      } catch (e) {
+        console.error('Error loading stats:', e);
+      }
+    }
+
+    async function changeTier(userId, email) {
+      const tier = prompt(
+        `Change tier for ${email}\\n\\nEnter new tier:`,
+        'free'
+      );
+
+      if (!tier) return;
+
+      const validTiers = ['free', 'starter', 'pro', 'agency', 'lifetime'];
+      if (!validTiers.includes(tier.toLowerCase())) {
+        alert('Invalid tier. Must be one of: ' + validTiers.join(', '));
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/update-tier`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ user_id: userId, tier: tier.toLowerCase() })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          alert('Tier updated successfully!');
+          loadUsers();
+          refreshStats();
+        } else {
+          alert('Error: ' + (data.error || 'Failed to update tier'));
+        }
+      } catch (e) {
+        console.error('Error updating tier:', e);
+        alert('Error updating tier');
+      }
+    }
+
+    async function resetMonthlyCount(userId) {
+      if (!confirm('Reset monthly video count for this user?')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/reset-count`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ user_id: userId })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          alert('Count reset successfully!');
+          loadUsers();
+        } else {
+          alert('Error: ' + (data.error || 'Failed to reset count'));
+        }
+      } catch (e) {
+        console.error('Error resetting count:', e);
+        alert('Error resetting count');
+      }
+    }
+
+    async function checkHealth(deep=false) {
+      const el = document.getElementById('healthOutput');
+      el.textContent = 'Checking...';
+      try {
+        const url = deep ? `${API_BASE}/api/health?deep=1` : `${API_BASE}/api/health`;
+        const res = await fetch(url, { credentials: 'include' });
+        const data = await res.json();
+        const lines = [];
+        lines.push(`ffmpeg: ${data.ffmpeg?.available ? 'OK' : 'MISSING'} ${data.ffmpeg?.path ? '('+data.ffmpeg.path+')' : ''}`);
+        lines.push(`ffprobe: ${data.ffprobe?.available ? 'OK' : 'MISSING'} ${data.ffprobe?.path ? '('+data.ffprobe.path+')' : ''}`);
+        if (data.playwright) {
+          lines.push(`playwright: ${data.playwright.importable ? 'importable' : 'not installed'}`);
+          if (data.playwright.check === 'deep') {
+            lines.push(`chromium: ${data.playwright.chromium_ready === true ? 'ready' : data.playwright.chromium_ready === false ? 'FAILED' : 'skipped'}`);
+          }
+        }
+        el.textContent = lines.join('\n');
+      } catch (e) {
+        console.error('health error', e);
+        el.textContent = 'Health check failed';
+      }
+    }
+
+    async function logout() {
+      if (!confirm('Are you sure you want to logout?')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/logout`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+
+        if (res.ok) {
+          window.location.href = '/auth?logout=true';
+        } else {
+          alert('Error logging out. Please try again.');
+        }
+      } catch (error) {
+        console.error('Error logging out:', error);
+        alert('Error logging out. Please try again.');
+      }
+    }
+
+    // Initialize
+    checkAdminAccess().then(() => {
+      loadUsers();
+      refreshStats();
+      // Preload quick health on open
+      checkHealth(false);
+    });
+
+    // Auto-refresh every 30 seconds
+    setInterval(() => {
+      loadUsers();
+      refreshStats();
+    }, 30000);
+  </script>
+</body>
+</html>

@@ -1,213 +1,38 @@
 import os
 import json
 import time
-import sqlite3
 import logging
 from pathlib import Path
 import sys
-
-# Ensure project root is on sys.path so `web` package imports work
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-# Load version from version.json
-_VERSION_FILE = Path(__file__).parent.parent / "version.json"
-APP_VERSION = "5.6.9"  # Default fallback
-try:
-    if _VERSION_FILE.exists():
-        version_data = json.loads(_VERSION_FILE.read_text(encoding="utf-8"))
-        APP_VERSION = version_data.get("app", APP_VERSION)
-except Exception as e:
-    # Logger not initialized yet, use print
-    print(f"[VERSION] Failed to load version.json: {e}, using default {APP_VERSION}")
-
-from flask import Flask, request, jsonify, send_from_directory, Response, redirect
-from flask_cors import CORS
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-
-# Initialize rate limiter
-limiter = Limiter(
-    app=None,  # Will be set after app creation
-    key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"],
-    storage_uri="memory://",  # In-memory storage (use Redis in production)
-)
-from PIL import Image, ImageDraw, ImageFont
-import io
-import requests
 import stripe
-import shutil
-import uuid
-from pydantic import BaseModel, EmailStr, Field, ValidationError as PydanticValidationError
-from web.exceptions import (
-    MSSException, VideoGenerationError, APIError,
-    AuthenticationError, DatabaseError, FileUploadError
-)
 from web.analytics import AnalyticsManager
 from web.multi_platform import MultiPlatformPublisher
+from flask import Flask, request, jsonify, send_from_directory, redirect, url_for, session, make_response
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from web import firebase_db as database
+from pydantic import ValidationError as PydanticValidationError
 
-logging.basicConfig(
-    level=logging.INFO if os.getenv('FLASK_ENV') != 'development' else logging.DEBUG,
-    format='%(asctime)s [%(levelname)s] %(message)s'
-)
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Database access (robust import regardless of how app is launched)
-# Ensure the project root is on sys.path for imports
-_project_root = Path(__file__).parent.parent
-if str(_project_root) not in sys.path:
-    sys.path.insert(0, str(_project_root))
+app = Flask(__name__, static_folder='out', static_url_path='/out')
+app.secret_key = os.getenv('SECRET_KEY', 'dev_secret_key')
 
-try:
-    # When installed as a package or run via `flask --app web.api_server`
-    from web import database as database  # type: ignore
-    logger.info("[DATABASE] Successfully imported database module")
-except Exception as e1:
-    logger.warning(f"[DATABASE] First import attempt failed: {e1}", exc_info=True)
-    try:
-        # When running directly: `python web\api_server.py`
-        import database  # type: ignore
-        logger.info("[DATABASE] Successfully imported database module (direct import)")
-    except Exception as e2:
-        logger.error(f"[DATABASE] Both import attempts failed. First: {e1}, Second: {e2}", exc_info=True)
-        # Fallback shim to avoid crashes if DB layer is unavailable
-        class _DatabaseShim:
-            @staticmethod
-            def get_session(session_id):
-                return {'success': False, 'error': 'db unavailable'}
-
-            @staticmethod
-            def can_create_video(user_id):
-                return {'allowed': True, 'remaining': 'unlimited'}
-
-            @staticmethod
-            def increment_video_count(user_id):
-                return {'success': True}
-
-            @staticmethod
-            def add_video_to_history(user_id, video_filename, title):
-                return {'success': True}
-
-            @staticmethod
-            def verify_user(email, password):
-                return {'success': False, 'error': 'Database unavailable - cannot verify user'}
-
-            @staticmethod
-            def create_user(email, password, username=None):
-                return {'success': False, 'error': 'Database unavailable - cannot create user'}
-
-            @staticmethod
-            def create_session(user_id, duration_days=7, remember_me=False):
-                return 'dummy_session_id'
-
-        database = _DatabaseShim()  # type: ignore
-        logger.error("[DATABASE] Using fallback shim - database operations will fail")
-
-from scripts.make_video import (
-    read_env,
-    ensure_dir,
-    openai_generate_topics,
-    openai_draft_from_topic,
-    google_tts,
-    drive_upload_public,
-    get_mp3_duration_seconds,
-    build_shotstack_payload,
-    build_shotstack_payload_wide,
-    shotstack_render,
-    shotstack_poll,
-    render_video,
-)
-from scripts.video_utils import (
-    generate_thumbnail_variants,
-    get_stock_footage_for_keywords,
+# Initialize Limiter
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
 )
 
-# Ensure temp directory is on the project drive (avoid filling system TEMP)
-from pathlib import Path as _Path
-import tempfile as _tempfile
-
-# Best-effort .env loader (so OPENAI_API_KEY and others are available when launching directly)
-def _load_env_file():
-    try:
-        root = _Path(__file__).parent.parent
-        env_path = root / ".env"
-        if env_path.exists():
-            # Safety: back up .env on boot (timestamped + rolling .env.bak)
-            try:
-                backups = root / "backups"
-                backups.mkdir(exist_ok=True)
-                import time as _time
-                ts = _time.strftime("%Y%m%d-%H%M%S")
-                # Rolling backup
-                bak_path = root / ".env.bak"
-                try:
-                    env_path.replace(bak_path)
-                    bak_path.replace(env_path)  # move back to original place
-                except Exception:
-                    pass
-                # Timestamped copy
-                ts_path = backups / f".env-{ts}"
-                try:
-                    ts_path.write_text(env_path.read_text(encoding="utf-8"), encoding="utf-8")
-                except Exception:
-                    pass
-            except Exception:
-                pass
-            for line in env_path.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if not line or line.startswith('#'):
-                    continue
-                if '=' in line:
-                    k, v = line.split('=', 1)
-                    k = k.strip()
-                    v = v.strip().strip('"').strip("'")
-                    if k and v and not os.environ.get(k):
-                        os.environ[k] = v
-        if os.getenv("OPENAI_API_KEY"):
-            print("[BOOT] OPENAI_API_KEY loaded from .env")
-    except Exception as e:
-        print(f"[BOOT] .env load skipped: {e}")
-
-_load_env_file()
-
-_tmp_dir = _Path(__file__).parent.parent / "tmp"
-try:
-    _tmp_dir.mkdir(exist_ok=True)
-    os.environ["TMPDIR"] = str(_tmp_dir)
-    os.environ["TEMP"] = str(_tmp_dir)
-    os.environ["TMP"] = str(_tmp_dir)
-    _tempfile.tempdir = str(_tmp_dir)
-    print(f"[BOOT] Using temp dir: {_tmp_dir}")
-except Exception as _e:
-    print(f"[BOOT] Could not set temp dir: {_e}")
-
-# Initialize Flask app
-app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1 GB upload cap
-
-# Initialize rate limiter with app
-limiter.init_app(app)
-
-# CORS Configuration - Security: Restrict to allowed origins only
-ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', '').split(',') if os.getenv('ALLOWED_ORIGINS') else []
-# Remove empty strings and add common dev origins if not in production
-if not ALLOWED_ORIGINS or ALLOWED_ORIGINS == ['']:
-    if os.getenv('FLASK_ENV') == 'development':
-        ALLOWED_ORIGINS = ['http://localhost:5000', 'http://localhost:3000', 'http://127.0.0.1:5000']
-    else:
-        # Production: require explicit ALLOWED_ORIGINS env var
-        ALLOWED_ORIGINS = []  # Fail safe - no origins allowed unless explicitly set
-
-CORS(app, 
-     origins=ALLOWED_ORIGINS,
-     supports_credentials=True,
-     allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'],
-     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-     expose_headers=['Content-Range', 'X-Content-Range'])
+# ... (lines 9-212)
 
 # Initialize Managers
-analytics_manager = AnalyticsManager(db_path=database.DB_PATH)
-publisher = MultiPlatformPublisher(db_path=database.DB_PATH)
+analytics_manager = AnalyticsManager()
+publisher = MultiPlatformPublisher()
 
 # Optional CSP Trusted Types configuration (normalised once at startup)
 _raw_csp_require_trusted = os.getenv('CSP_REQUIRE_TRUSTED_TYPES_FOR', '').strip()
@@ -265,26 +90,34 @@ def add_security_headers(response):
     )
     
     if is_production:
-        # Production (Cloud Run): same origin only, allow Google Fonts
+        # Production (Cloud Run): same origin only, allow Google Fonts and Firebase
         csp_directives = [
             "default-src 'self'",
-            "connect-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com",
+            "connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://www.gstatic.com https://apis.google.com",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "img-src 'self' data: https:",
             "font-src 'self' data: https://fonts.gstatic.com",
+            "frame-src 'self' https://accounts.google.com",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
         ]
     else:
-        # Development: allow localhost connections and Google Fonts
+        # Development (Local): allow external resources (CDN, etc.)
         csp_directives = [
             "default-src 'self'",
-            "connect-src 'self' http://localhost:5000 http://localhost:3000 http://127.0.0.1:5000 http://127.0.0.1:3000 ws://localhost:* wss://localhost:*",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com",
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-            "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "connect-src 'self' http://localhost:5000 http://localhost:3000 http://127.0.0.1:5000 http://127.0.0.1:3000 ws://localhost:* wss://localhost:* https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://www.gstatic.com https://apis.google.com",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+            "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
             "img-src 'self' data: https: http://localhost:5000 http://127.0.0.1:5000",
             "font-src 'self' data: https://fonts.gstatic.com",
+            "frame-src 'self' https://accounts.google.com",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
         ]
 
     if _csp_require_trusted == 'script':
@@ -294,7 +127,7 @@ def add_security_headers(response):
         csp_directives.append(f"trusted-types {_csp_trusted_types}")
 
     response.headers['Content-Security-Policy'] = '; '.join(csp_directives) + ';'
-    
+
     # Referrer Policy
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     
@@ -372,12 +205,21 @@ def serve_admin():
 def serve_auth():
     """Serve Authentication page"""
     try:
+        logger.info(f"[AUTH] Serving auth.html. CWD: {os.getcwd()}")
+        logger.info(f"[AUTH] __file__: {__file__}")
         return send_from_directory('topic-picker-standalone', 'auth.html')
     except Exception as e:
-        logger.error(f"[AUTH] Error serving auth.html: {e}")
+        logger.warning(f"[AUTH] Error serving auth.html relative: {e}")
         # Fallback: try with absolute path
         try:
             topic_picker_dir = Path(__file__).parent / 'topic-picker-standalone'
+            logger.info(f"[AUTH] Trying absolute path: {topic_picker_dir}")
+            if not topic_picker_dir.exists():
+                logger.error(f"[AUTH] Directory does not exist: {topic_picker_dir}")
+                # List parent dir
+                parent = Path(__file__).parent
+                logger.error(f"[AUTH] Contents of {parent}: {[x.name for x in parent.iterdir()]}")
+            
             return send_from_directory(str(topic_picker_dir), 'auth.html')
         except Exception as e2:
             logger.error(f"[AUTH] Fallback also failed: {e2}")
@@ -426,36 +268,33 @@ def favicon_silence():
 
 # -------------------- Auth API --------------------
 @app.route('/api/login', methods=['POST'])
-@limiter.limit("5 per minute")  # Rate limit: 5 login attempts per minute
+@limiter.limit("20 per minute")
 def api_login():
     """User login endpoint with input validation"""
     try:
-        # Security: Validate input with Pydantic model
-        from web.models.requests import LoginRequest, SignupRequest
-        try:
-            req = LoginRequest(**request.get_json() or {})
-        except PydanticValidationError as e:
-            return jsonify({
-                'success': False,
-                'error': 'Invalid input',
-                'details': e.errors()
-            }), 400
-        
-        email = req.email
-        password = req.password
-        # Get remember_me from request if provided
         data = request.get_json() or {}
-        remember_me = data.get('remember_me', False)
+        
+        # Check for Firebase ID Token
+        if 'idToken' in data:
+            id_token = data['idToken']
+            remember_me = data.get('remember_me', False)
+            
+            # Verify token via Firebase Admin SDK
+            result = database.verify_id_token(id_token)
+            if not result.get('success'):
+                return jsonify({'success': False, 'error': result.get('error', 'Invalid token')}), 401
+            
+            user = result['user']
+            # Create session
+            session_id = database.create_session(user['id'], remember_me=remember_me)
+            
+            resp = jsonify({'success': True, 'user': {'id': user['id'], 'email': user['email']}})
+            resp.set_cookie('session_id', session_id, httponly=True, samesite='Lax', secure=False, path='/')
+            return resp
+            
+        # Legacy Login Fallback (or error)
+        return jsonify({'success': False, 'error': 'Please use the new login form'}), 400
 
-        result = database.verify_user(email, password)
-        if not result.get('success'):
-            return jsonify({'success': False, 'error': result.get('error', 'Invalid credentials')}), 401
-
-        user = result['user']
-        session_id = database.create_session(user['id'], remember_me=remember_me)
-        resp = jsonify({'success': True, 'user': {'id': user['id'], 'email': user['email']}})
-        resp.set_cookie('session_id', session_id, httponly=True, samesite='Lax', secure=False, path='/')
-        return resp
     except Exception as e:
         logger.error(f"[AUTH] Login error: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
@@ -614,7 +453,7 @@ def convert_active_intro_outro():
 
 # ---------------- Intro/Outro Library Endpoints ----------------
 
-LIB_DIR = Path('intro_outro')
+LIB_DIR = Path(__file__).parent / 'intro_outro'
 LIB_DIR.mkdir(exist_ok=True)
 LIB_PATH = LIB_DIR / 'library.json'
 
@@ -941,7 +780,7 @@ def oauth_youtube_authorize():
         from google_auth_oauthlib.flow import Flow
         
         # Load client secrets
-        secrets_path = Path(__file__).parent.parent / "client_secrets.json"
+        secrets_path = Path(__file__).parent / "platform_credentials" / "youtube_client_secrets.json"
         if not secrets_path.exists():
              return f"Error: client_secrets.json not found at {secrets_path}", 500
 
@@ -2273,73 +2112,54 @@ def search_trends():
         return jsonify({'success': False, 'error': 'No title provided'}), 400
 
     try:
-        conn = sqlite3.connect('web/mss_users.db')
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-
-        # Clean and normalize the search title for better matching
-        search_title = title.strip()
-
-        # Try exact match first
-        c.execute('''
-            SELECT title, description, tags, topic_data
-            FROM videos
-            WHERE user_email = ? AND LOWER(TRIM(title)) = LOWER(?)
-            ORDER BY created_at DESC
-            LIMIT 1
-        ''', (user_email, search_title))
-
-        row = c.fetchone()
-
-        # If no exact match, try partial match (contains)
-        if not row:
-            c.execute('''
-                SELECT title, description, tags, topic_data
-                FROM videos
-                WHERE user_email = ? AND LOWER(REPLACE(title, ' ', '')) LIKE LOWER(REPLACE(?, ' ', ''))
-                ORDER BY created_at DESC
-                LIMIT 1
-            ''', (user_email, f'%{search_title}%'))
-
-            row = c.fetchone()
-
-        # If still no match, try even more lenient search
-        if not row:
-            # Remove common words and try matching core keywords
-            core_words = ' '.join([w for w in search_title.split() if len(w) > 3])
-            if core_words:
-                c.execute('''
-                    SELECT title, description, tags, topic_data
-                    FROM videos
-                    WHERE user_email = ? AND LOWER(title) LIKE LOWER(?)
-                    ORDER BY created_at DESC
-                    LIMIT 1
-                ''', (user_email, f'%{core_words}%'))
-
-                row = c.fetchone()
-
-        conn.close()
-
-        if row:
-            trend_data = {
+        # Search in Firestore
+        # Note: Firestore doesn't support case-insensitive substring search natively.
+        # We'll fetch recent videos and filter in Python.
+        
+        videos_ref = analytics_manager.db.collection('videos')
+        query = (videos_ref.where('user_email', '==', user_email)
+                 .order_by('created_at', direction=firestore.Query.DESCENDING)
+                 .limit(50)) # Limit to recent 50 for performance
+        
+        docs = query.stream()
+        
+        search_title_lower = title.strip().lower()
+        search_title_clean = search_title_lower.replace(' ', '')
+        
+        match = None
+        
+        for doc in docs:
+            data = doc.to_dict()
+            vid_title = data.get('title', '')
+            if not vid_title:
+                continue
+                
+            vid_title_lower = vid_title.strip().lower()
+            
+            # Exact match
+            if vid_title_lower == search_title_lower:
+                match = data
+                break
+                
+            # Fuzzy match
+            if search_title_clean in vid_title_lower.replace(' ', ''):
+                if match is None: # Keep looking for exact match, but save this
+                    match = data
+        
+        if match:
+            return jsonify({
                 'success': True,
                 'found': True,
-                'title': row['title'],
-                'description': row['description'],
-                'tags': row['tags'],
-                'topic_data': row['topic_data']
-            }
+                'title': match.get('title'),
+                'description': match.get('description'),
+                'tags': match.get('tags'),
+                'topic_data': match.get('topic_data')
+            })
         else:
-            trend_data = {
-                'success': True,
-                'found': False,
-                'message': 'No matching trend found'
-            }
-
-        return jsonify(trend_data)
+            return jsonify({'success': True, 'found': False})
 
     except Exception as e:
-        print(f"[TRENDS] Error searching trends: {e}")
+        logger.error(f"[TRENDS] Error searching trends: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/video/metadata/<path:filename>', methods=['GET', 'POST'])
@@ -6925,19 +6745,24 @@ def youtube_sync_metrics():
             video_id_yt = video['video_id']
 
             # Check if this video already exists in analytics by platform_video_id
-            conn = sqlite3.connect(analytics_manager.db_path)
-            c = conn.cursor()
-            c.execute('''
-                SELECT v.id FROM videos v
-                JOIN published_videos pv ON v.id = pv.video_id
-                WHERE pv.platform_video_id = ? AND v.user_email = ?
-            ''', (video_id_yt, user_email))
-            existing = c.fetchone()
-            conn.close()
-
-            if existing:
+            # Check if this video already exists in analytics by platform_video_id
+            # Query published_videos collection
+            existing_pub_query = (analytics_manager.db.collection('published_videos')
+                                  .where('platform_video_id', '==', video_id_yt)
+                                  .where('platform', '==', 'youtube')
+                                  .limit(1)
+                                  .stream())
+            
+            existing_pub = None
+            for doc in existing_pub_query:
+                existing_pub = doc.to_dict()
+                existing_pub['id'] = doc.id
+                break
+            
+            if existing_pub:
                 # Update existing video metrics
-                analytics_manager.record_video_metrics(existing[0], {
+                # existing_pub['video_id'] is the ID in 'videos' collection
+                analytics_manager.record_video_metrics(existing_pub['video_id'], {
                     'views': video['views'],
                     'likes': video['likes'],
                     'comments': video['comments'],
@@ -6953,18 +6778,17 @@ def youtube_sync_metrics():
                     'title': video['title'],
                     'description': video['description'],
                     'filename': f"youtube_{video_id_yt}.mp4",
-                    'topic_data': {}
+                    'topic_data': {},
+                    'channel_account_id': channel_account_id # Add directly here
                 }
                 video_id = analytics_manager.track_video_creation(user_email, video_data)
 
-                # Link video to channel account
-                if channel_account_id:
-                    conn = sqlite3.connect(analytics_manager.db_path)
-                    c = conn.cursor()
-                    c.execute('UPDATE videos SET channel_account_id = ? WHERE id = ?',
-                             (channel_account_id, video_id))
-                    conn.commit()
-                    conn.close()
+                # Link video to channel account - already done in video_data if supported, 
+                # but track_video_creation might not save extra fields.
+                # Let's ensure it's saved.
+                analytics_manager.db.collection('videos').document(video_id).update({
+                    'channel_account_id': channel_account_id
+                })
 
                 # Mark as published on YouTube
                 analytics_manager.update_video_published(video_id, 'youtube')

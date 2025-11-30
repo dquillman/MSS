@@ -1,0 +1,20 @@
+{
+  "intros": [
+    {
+      "id": "default",
+      "name": "Default Brand Intro",
+      "duration": 3.0,
+      "html": "<div style='width:100%;height:100%;background:linear-gradient(135deg, #0B0F19 0%, #1a2332 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;'>\n                <div style='font-family:Inter,Arial,sans-serif;font-size:96px;font-weight:900;color:#FFD700;text-shadow:0 6px 20px rgba(255,215,0,.5);margin-bottom:20px;'>MANY SOURCES SAY</div>\n                <div style='font-family:Inter,Arial,sans-serif;font-size:32px;font-weight:400;color:#94a3b8;font-style:italic;'>Because one source is NEVER enough</div>\n            </div>",
+      "active": true
+    }
+  ],
+  "outros": [
+    {
+      "id": "default",
+      "name": "Default Brand Outro",
+      "duration": 3.0,
+      "html": "<div style='width:100%;height:100%;background:linear-gradient(135deg, #0B0F19 0%, #1a2332 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;'>\n                <div style='font-family:Inter,Arial,sans-serif;font-size:72px;font-weight:900;color:#FFD700;text-shadow:0 6px 20px rgba(255,215,0,.5);margin-bottom:30px;'>THANKS FOR WATCHING!</div>\n                <div style='font-family:Inter,Arial,sans-serif;font-size:48px;font-weight:700;color:#E8EBFF;margin-bottom:15px;'>MANY SOURCES SAY</div>\n                <div style='font-family:Inter,Arial,sans-serif;font-size:28px;font-weight:400;color:#94a3b8;'>Subscribe for more insights</div>\n            </div>",
+      "active": true
+    }
+  ]
+}

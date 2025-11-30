@@ -1,0 +1,620 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Edit Topic - MSS</title>
+  <style>
+    body {
+      font-family: Inter, Arial, sans-serif;
+      background: #0B0F19;
+      color: #E8EBFF;
+      margin: 0;
+      padding: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    h2 { color: #E8EBFF; margin-bottom: 10px; }
+    .subtitle { color: #A8B3CF; margin-bottom: 30px; font-size: 14px; }
+
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .panel {
+      background: #121826;
+      border: 1px solid #2a3550;
+      border-radius: 10px;
+      padding: 20px;
+    }
+
+    .panel h3 {
+      margin-top: 0;
+      color: #3b82f6;
+      font-size: 16px;
+      border-bottom: 1px solid #2a3550;
+      padding-bottom: 10px;
+      margin-bottom: 15px;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    label {
+      display: block;
+      color: #A8B3CF;
+      font-size: 13px;
+      margin-bottom: 5px;
+      font-weight: 600;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid #334;
+      background: #0B0F19;
+      color: #E8EBFF;
+      font-size: 14px;
+      font-family: inherit;
+      box-sizing: border-box;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+      font-family: inherit;
+    }
+
+    textarea.large {
+      min-height: 150px;
+    }
+
+    textarea.prompt {
+      min-height: 120px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+    }
+
+    button {
+      padding: 12px 24px;
+      border-radius: 6px;
+      border: 1px solid #2563eb;
+      background: #2563eb;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    button:hover { background: #1d4ed8; }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .button-secondary {
+      background: #334;
+      border-color: #334;
+    }
+
+    .button-secondary:hover {
+      background: #445;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .status {
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 20px;
+      background: #1e293b;
+      border-left: 4px solid #3b82f6;
+    }
+
+    .status.error {
+      background: #7f1d1d;
+      border-left-color: #dc2626;
+    }
+
+    .status.success {
+      background: #14532d;
+      border-left-color: #22c55e;
+    }
+
+    .loading {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid #3b82f6;
+      border-radius: 50%;
+      border-top-color: transparent;
+      animation: spin 0.8s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .tag-input {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px;
+      background: #0B0F19;
+      border: 1px solid #334;
+      border-radius: 6px;
+      min-height: 60px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: #1e3a8a;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    .tag button {
+      padding: 0;
+      margin: 0;
+      border: none;
+      background: none;
+      color: #fff;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .help-text {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+
+    .preview-section {
+      background: #0f1419;
+      border-radius: 6px;
+      padding: 15px;
+      margin-top: 15px;
+    }
+
+    .preview-section h4 {
+      margin-top: 0;
+      color: #94a3b8;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .full-width {
+      grid-column: 1 / -1;
+    }
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="version.js" defer></script>
+</head>
+<body>
+  <script>
+    (function(){
+      const group = document.querySelector("div[style*='gap: 10px']");
+      if (group && !group.querySelector('[data-nav-studio]')) {
+        const btn = document.createElement('button');
+        btn.setAttribute('data-nav-studio','1');
+        btn.textContent = 'Studio';
+        btn.style.padding = '8px 16px'; btn.style.margin = '0';
+        btn.onclick = () => { window.location.href = 'studio.html'; };
+        group.prepend(btn);
+      }
+    })();
+  </script>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+    <h2 style="margin: 0;">📝 Edit Topic & Customize Prompts <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h2>
+    <div style="display: flex; gap: 10px;">
+      <button onclick="window.location.href='studio.html'" style="padding: 8px 16px; margin: 0;" class="button-secondary" data-nav-studio="1">Studio</button>
+      <button onclick="window.location.href='intro-outro.html'" style="padding: 8px 16px; margin: 0;">🎬 Intro/Outro</button>
+      <button onclick="window.location.href='preview.html'" style="padding: 8px 16px; margin: 0;">📺 View Preview</button>
+      <button onclick="window.location.href='studio.html'" style="padding: 8px 16px; margin: 0;">← Back to Studio</button>
+    </div>
+  </div>
+  <p class="subtitle">Review and edit your topic before generating the video</p>
+
+  <div class="container">
+    <!-- Left Column: Topic Details -->
+    <div class="panel">
+      <h3>📋 Topic Details</h3>
+
+      <div class="form-group">
+        <label>Title</label>
+        <input type="text" id="title" placeholder="Topic title...">
+      </div>
+
+      <div class="form-group">
+        <label>Angle / Hook</label>
+        <textarea id="angle" placeholder="The unique perspective or hook for this topic..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>YouTube Title (≤65 chars)</label>
+        <input type="text" id="ytTitle" placeholder="SEO-optimized YouTube title..." maxlength="65">
+        <div class="help-text" id="titleCount">0/65 characters</div>
+      </div>
+
+      <div class="form-group">
+        <label>YouTube Description</label>
+        <textarea id="ytDescription" class="large" placeholder="2-3 sentences with keywords in first 2 sentences..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Keywords (press Enter to add)</label>
+        <div class="tag-input" id="keywordsContainer">
+          <input type="text" id="keywordInput" placeholder="Type keyword and press Enter..."
+                 style="border:none; background:transparent; flex:1; min-width:150px; padding:4px;">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>YouTube Tags (press Enter to add)</label>
+        <div class="tag-input" id="tagsContainer">
+          <input type="text" id="tagInput" placeholder="Type tag and press Enter..."
+                 style="border:none; background:transparent; flex:1; min-width:150px; padding:4px;">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Outline (one point per line)</label>
+        <textarea id="outline" class="large" placeholder="• Point 1&#10;• Point 2&#10;• Point 3..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Narration Script</label>
+        <textarea id="narration" class="large" placeholder="Edit the full narration script here...&#10;&#10;This is what will be spoken in the video."></textarea>
+        <div class="help-text">Edit the narration that will be converted to speech</div>
+      </div>
+    </div>
+
+    <!-- Right Column: Prompt Customization -->
+    <div class="panel">
+      <h3>🎨 Prompt Customization</h3>
+
+      <div class="form-group">
+        <label>Header Text (prepended to topic generation prompt)</label>
+        <textarea id="headerText" class="prompt" placeholder="Additional context or instructions that will be added BEFORE the topic generation prompt...&#10;&#10;Example:&#10;Focus on controversial takes&#10;Target audience: tech professionals&#10;Tone: authoritative but accessible"></textarea>
+        <div class="help-text">This text is added at the beginning of the prompt sent to ChatGPT</div>
+      </div>
+
+      <div class="form-group">
+        <label>Footer Text (appended to topic generation prompt)</label>
+        <textarea id="footerText" class="prompt" placeholder="Additional constraints or requirements that will be added AFTER the topic generation prompt...&#10;&#10;Example:&#10;Avoid political topics&#10;Include data/statistics&#10;Maximum 90 second narration"></textarea>
+        <div class="help-text">This text is added at the end of the prompt sent to ChatGPT</div>
+      </div>
+
+      <div class="preview-section">
+        <h4>Preview: Full Prompt to ChatGPT (Editable)</h4>
+        <textarea id="promptPreview" class="prompt large"
+                  style="background:#0a0d12; border-color:#1e293b;"></textarea>
+        <div class="help-text">You can edit the full prompt directly here before generating the script</div>
+        <button onclick="savePromptChanges()" style="margin-top: 10px; width: 100%; background: #22c55e; border-color: #22c55e;">💾 Save Prompt Changes</button>
+        <div id="promptSaveStatus" style="font-size: 12px; margin-top: 8px; text-align: center;"></div>
+      </div>
+
+      <div class="form-group" style="margin-top: 20px;">
+        <label>
+          <input type="checkbox" id="useCustomPrompt" checked style="width:auto; display:inline; margin-right:8px;">
+          Use custom header/footer for this generation
+        </label>
+        <div class="help-text">When checked, your custom text will be used when generating the script</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Thumbnail Generation -->
+  <div class="panel full-width">
+    <h3>🖼️ Thumbnail Generation</h3>
+    <div class="form-group">
+      <label>
+        <input type="checkbox" id="generateThumbnail" checked style="width:auto; display:inline; margin-right:8px;">
+        Generate AI thumbnail with DALL-E (Bold Contrast News Cut style)
+      </label>
+      <div class="help-text">Uses ChatGPT's DALL-E to create a professional news-style thumbnail with bold contrast and text overlay</div>
+    </div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="button-group">
+    <button onclick="window.location.href='studio.html'" class="button-secondary">← Back to Studio</button>
+    <button onclick="saveAndPreview()">Save & Preview Script</button>
+    <button onclick="generateVideo()" style="background:#22c55e; border-color:#22c55e;">🎬 Generate Video</button>
+  </div>
+
+  <div style="margin:8px 0; display:flex; gap:12px; align-items:center;"><label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="optIncludeAvatar" checked> Include avatar (lower right)</label><label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="optIncludeLogo" checked> Include logo (bottom left)</label></div><div id="status"></div>
+
+  <script>
+    const API_BASE = window.location.origin;
+    let currentTopic = {};
+    let keywords = [];
+    let tags = [];
+
+    // Load topic from localStorage
+    function loadTopic() {
+      const savedTopic = localStorage.getItem('editingTopic');
+      if (savedTopic) {
+        currentTopic = JSON.parse(savedTopic);
+        populateForm();
+      }
+
+      // Load saved custom prompts
+      const savedHeader = localStorage.getItem('customHeaderText');
+      const savedFooter = localStorage.getItem('customFooterText');
+      if (savedHeader) document.getElementById('headerText').value = savedHeader;
+      if (savedFooter) document.getElementById('footerText').value = savedFooter;
+
+      updatePromptPreview();
+
+      // Load saved edited full prompt if available
+      const savedPrompt = localStorage.getItem('editedFullPrompt');
+      if (savedPrompt) {
+        document.getElementById('promptPreview').value = savedPrompt;
+      }
+    }
+
+    function populateForm() {
+      document.getElementById('title').value = currentTopic.title || '';
+      document.getElementById('angle').value = currentTopic.angle || '';
+      document.getElementById('ytTitle').value = currentTopic.yt_title || currentTopic.title || '';
+      document.getElementById('ytDescription').value = currentTopic.yt_description || '';
+      document.getElementById('outline').value = (currentTopic.outline || []).join('\n');
+      document.getElementById('narration').value = currentTopic.narration || '';
+
+      keywords = currentTopic.keywords || [];
+      tags = currentTopic.yt_tags || [];
+
+      renderKeywords();
+      renderTags();
+      updateTitleCount();
+    }
+
+    function renderKeywords() {
+      const container = document.getElementById('keywordsContainer');
+      const input = document.getElementById('keywordInput');
+      container.innerHTML = '';
+
+      keywords.forEach((kw, idx) => {
+        const tag = document.createElement('span');
+        tag.className = 'tag';
+        tag.innerHTML = `${kw} <button onclick="removeKeyword(${idx})">×</button>`;
+        container.appendChild(tag);
+      });
+
+      container.appendChild(input);
+    }
+
+    function renderTags() {
+      const container = document.getElementById('tagsContainer');
+      const input = document.getElementById('tagInput');
+      container.innerHTML = '';
+
+      tags.forEach((t, idx) => {
+        const tag = document.createElement('span');
+        tag.className = 'tag';
+        tag.innerHTML = `${t} <button onclick="removeTag(${idx})">×</button>`;
+        container.appendChild(tag);
+      });
+
+      container.appendChild(input);
+    }
+
+    function removeKeyword(idx) {
+      keywords.splice(idx, 1);
+      renderKeywords();
+    }
+
+    function removeTag(idx) {
+      tags.splice(idx, 1);
+      renderTags();
+    }
+
+    // Event listeners for tag inputs
+    document.addEventListener('DOMContentLoaded', () => {
+      loadTopic();
+
+      const keywordInput = document.getElementById('keywordInput');
+      keywordInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const value = keywordInput.value.trim();
+          if (value && !keywords.includes(value)) {
+            keywords.push(value);
+            renderKeywords();
+            keywordInput.value = '';
+          }
+        }
+      });
+
+      const tagInput = document.getElementById('tagInput');
+      tagInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const value = tagInput.value.trim();
+          if (value && !tags.includes(value)) {
+            tags.push(value);
+            renderTags();
+            tagInput.value = '';
+          }
+        }
+      });
+
+      document.getElementById('ytTitle').addEventListener('input', updateTitleCount);
+      document.getElementById('headerText').addEventListener('input', () => {
+        updatePromptPreview();
+        localStorage.setItem('customHeaderText', document.getElementById('headerText').value);
+      });
+      document.getElementById('footerText').addEventListener('input', () => {
+        updatePromptPreview();
+        localStorage.setItem('customFooterText', document.getElementById('footerText').value);
+      });
+    });
+
+    function updateTitleCount() {
+      const title = document.getElementById('ytTitle').value;
+      document.getElementById('titleCount').textContent = `${title.length}/65 characters`;
+    }
+
+    function updatePromptPreview() {
+      const header = document.getElementById('headerText').value;
+      const footer = document.getElementById('footerText').value;
+
+      const basePrompt = `You are an expert YouTube scriptwriter. Create engaging 90-150 second scripts with strong hooks. Return JSON only.
+
+Create a concise script for the topic below. Use the SEO metadata but do not fluff.
+
+Return JSON with keys: narration (90-150s), overlays (6-10 lines), yt_title, yt_description, yt_tags.
+
+Topic: ${document.getElementById('title').value || '[Topic Title]'}
+Angle: ${document.getElementById('angle').value || '[Topic Angle]'}
+Keywords: ${keywords.join(', ') || '[Keywords]'}`;
+
+      const fullPrompt = `${header ? header + '\n\n' : ''}${basePrompt}${footer ? '\n\n' + footer : ''}`;
+
+      document.getElementById('promptPreview').value = fullPrompt;
+    }
+
+    function savePromptChanges() {
+      const editedPrompt = document.getElementById('promptPreview').value;
+      const statusEl = document.getElementById('promptSaveStatus');
+
+      // Store the edited prompt
+      localStorage.setItem('editedFullPrompt', editedPrompt);
+
+      // Show success message
+      statusEl.innerHTML = '<span style="color: #22c55e;">✓ Prompt changes saved! These will be used when generating the video.</span>';
+      setTimeout(() => {
+        statusEl.innerHTML = '';
+      }, 3000);
+    }
+
+    function showStatus(message, type = 'info') {
+      const statusEl = document.getElementById('status');
+      statusEl.className = `status ${type}`;
+      statusEl.innerHTML = message;
+    }
+
+    function collectTopicData() {
+      // Use the saved edited prompt if available, otherwise use the current preview
+      const savedPrompt = localStorage.getItem('editedFullPrompt');
+      const fullPrompt = savedPrompt || document.getElementById('promptPreview').value;
+
+      return {
+        title: document.getElementById('title').value,
+        angle: document.getElementById('angle').value,
+        yt_title: document.getElementById('ytTitle').value,
+        yt_description: document.getElementById('ytDescription').value,
+        keywords: keywords,
+        yt_tags: tags,
+        outline: document.getElementById('outline').value.split('\n').filter(l => l.trim()),
+        narration: document.getElementById('narration').value,  // Include edited narration
+        custom_header: document.getElementById('useCustomPrompt').checked ? document.getElementById('headerText').value : '',
+        custom_footer: document.getElementById('useCustomPrompt').checked ? document.getElementById('footerText').value : '',
+        full_prompt: fullPrompt,  // Use saved edited prompt
+        generate_ai_thumbnail: document.getElementById('generateThumbnail').checked
+      };
+    }
+
+    async function saveAndPreview() {
+      const topicData = collectTopicData();
+      showStatus('<span class="loading"></span>Generating script preview...', 'info');
+
+      try {
+        const response = await fetch(`${API_BASE}/preview-script`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic: topicData, include_avatar: (document.getElementById("optIncludeAvatar")?.checked ?? true), include_logo: (document.getElementById("optIncludeLogo")?.checked ?? true) })
+        });
+
+        if (!response.ok) throw new Error(await response.text());
+
+        const data = await response.json();
+
+        showStatus(`✅ Script preview generated!<br><br><strong>Narration:</strong> ${data.narration.substring(0, 200)}...<br><br><strong>Word count:</strong> ${data.word_count}`, 'success');
+
+      } catch (error) {
+        showStatus(`❌ Error: ${error.message}`, 'error');
+      }
+    }
+
+    async function generateVideo() {
+      const topicData = collectTopicData();
+
+      if (!topicData.title) {
+        showStatus('❌ Please enter a topic title', 'error');
+        return;
+      }
+
+      showStatus('<span class="loading"></span>Generating video (this may take 2-3 minutes)...', 'info');
+
+      try {
+        const response = await fetch(`${API_BASE}/create-video-enhanced`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic: topicData, include_avatar: (document.getElementById("optIncludeAvatar")?.checked ?? true), include_logo: (document.getElementById("optIncludeLogo")?.checked ?? true) })
+        });
+
+        if (!response.ok) throw new Error(await response.text());
+
+        const data = await response.json();
+
+        let message = `✅ Video generation complete!<br><br>`;
+        message += `📁 Output directory: ${data.output_dir}<br>`;
+        message += `📝 Script: ${data.files.script}<br>`;
+        message += `🎵 Audio: ${data.files.audio}<br>`;
+        message += `🖼️ Thumbnails: ${data.files.thumbnails} variants created<br>`;
+
+        if (data.files.ai_thumbnail) {
+          message += `🎨 AI Thumbnail: ${data.files.ai_thumbnail}<br>`;
+        }
+
+        if (data.files.shorts && data.files.wide) {
+          message += `<br>🎬 Videos rendered successfully!<br>`;
+          message += `📱 Shorts: ${data.files.shorts}<br>`;
+          message += `🖥️ Wide: ${data.files.wide}<br><br>`;
+          message += `<strong>Redirecting to preview page...</strong>`;
+        }
+
+        showStatus(message, 'success');
+
+        // Update narration field if present in response
+        if (data.narration) {
+          document.getElementById('narration').value = data.narration;
+        }
+
+        // Redirect to preview page after successful video generation
+        if (data.files.shorts && data.files.wide) {
+          setTimeout(() => {
+            window.location.href = 'preview.html';
+          }, 2000);
+        }
+
+      } catch (error) {
+        showStatus(`❌ Error: ${error.message}`, 'error');
+      }
+    }
+  </script>
+</body>
+</html>
+
+
+

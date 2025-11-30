@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSS System Reset</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+
+        .card {
+            background: #2d2d2d;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            max-width: 400px;
+        }
+
+        h1 {
+            color: #ff4444;
+            margin-top: 0;
+        }
+
+        p {
+            color: #cccccc;
+            margin-bottom: 1.5rem;
+        }
+
+        button {
+            background: #ff4444;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #cc0000;
+        }
+
+        button:disabled {
+            background: #666;
+            cursor: wait;
+        }
+
+        #status {
+            margin-top: 1rem;
+            font-weight: bold;
+        }
+
+        .success {
+            color: #00cc00;
+        }
+
+        .error {
+            color: #ff4444;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>System Reset</h1>
+        <p>This will clear all cached data, local storage, and databases to fix the "Disk Full" error.</p>
+        <button id="btn" onclick="resetSystem()">⚠️ Clear All Data & Fix</button>
+        <div id="status"></div>
+    </div>
+
+    <script>
+        async function resetSystem() {
+            const btn = document.getElementById('btn');
+            const status = document.getElementById('status');
+
+            btn.disabled = true;
+            btn.innerText = "Cleaning...";
+            status.innerText = "Starting cleanup...";
+            status.className = "";
+
+            try {
+                // 1. Clear LocalStorage
+                localStorage.clear();
+                console.log("LocalStorage cleared");
+
+                // 2. Clear SessionStorage
+                sessionStorage.clear();
+                console.log("SessionStorage cleared");
+
+                // 3. Clear Caches
+                if (window.caches) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(key => caches.delete(key)));
+                    console.log("Caches cleared");
+                }
+
+                // 4. Clear IndexedDB
+                if (window.indexedDB && window.indexedDB.databases) {
+                    const dbs = await window.indexedDB.databases();
+                    await Promise.all(dbs.map(db => {
+                        return new Promise((resolve, reject) => {
+                            const req = window.indexedDB.deleteDatabase(db.name);
+                            req.onsuccess = () => {
+                                console.log(`Deleted DB: ${db.name}`);
+                                resolve();
+                            };
+                            req.onerror = () => {
+                                console.error(`Failed to delete DB: ${db.name}`);
+                                resolve(); // Continue anyway
+                            };
+                            req.onblocked = () => {
+                                console.warn(`Delete blocked for DB: ${db.name}`);
+                                resolve();
+                            };
+                        });
+                    }));
+                }
+
+                status.innerText = "✅ Success! Redirecting...";
+                status.className = "success";
+
+                setTimeout(() => {
+                    window.location.href = "/";
+                }, 1500);
+
+            } catch (e) {
+                console.error(e);
+                status.innerText = "❌ Error: " + e.message;
+                status.className = "error";
+                btn.disabled = false;
+                btn.innerText = "Try Again";
+            }
+        }
+    </script>
+</body>
+
+</html>

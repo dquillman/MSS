@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multi-Platform Manager - MSS Studio</title>
+  <link rel="stylesheet" href="studio.css">
+  <link rel="stylesheet" href="premium_theme.css">
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <!-- Favicon -->
+  <link rel="icon" href="favicon.jpg">
+  <script src="version.js" defer></script>
+  <style>
+    .channel-card {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(17, 24, 39, 0.5));
+      border: 1px solid #3b82f6;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      transition: all 0.3s;
+    }
+
+    .channel-card.default {
+      border-color: #22c55e;
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(17, 24, 39, 0.5));
+    }
+
+    .channel-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+    }
+
+    .channel-thumbnail {
+      width: 80px !important;
+      height: 80px !important;
+      min-width: 80px;
+      min-height: 80px;
+      max-width: 80px;
+      max-height: 80px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid #3b82f6;
+      flex-shrink: 0;
+    }
+
+    .channel-card.default .channel-thumbnail {
+      border-color: #22c55e;
+    }
+
+    .channel-info {
+      flex: 1;
+    }
+
+    .channel-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #E8EBFF;
+      margin-bottom: 4px;
+    }
+
+    .channel-id {
+      font-size: 12px;
+      color: #A8B3CF;
+      font-family: 'Courier New', monospace;
+    }
+
+    .channel-stats {
+      display: flex;
+      gap: 16px;
+      margin-top: 8px;
+      font-size: 13px;
+      color: #A8B3CF;
+    }
+
+    .channel-actions {
+      display: flex;
+      gap: 8px;
+      flex-direction: column;
+    }
+
+    .default-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+      margin-bottom: 8px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #A8B3CF;
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .btn-small {
+      padding: 6px 12px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Theme Switcher Button -->
+  <button class="theme-toggle-fixed" onclick="toggleTheme()" title="Switch Theme">
+    <i class="ph ph-arrows-left-right"></i>
+    <span>Switch Theme</span>
+  </button>
+
+  <!-- Premium Background -->
+  <div class="bg-mesh"></div>
+
+  <!-- Premium Sidebar -->
+  <nav class="sidebar glass-panel">
+    <div class="brand">
+      <i class="ph-fill ph-video-camera" style="color: var(--primary);"></i>
+      MSS Studio
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <a href="/dashboard" class="nav-item"><i class="ph ph-squares-four"></i> Dashboard</a>
+      <a href="studio.html" class="nav-item"><i class="ph ph-magic-wand"></i> Studio</a>
+      <a href="/analytics-dashboard" class="nav-item"><i class="ph ph-chart-line-up"></i> Analytics</a>
+      <a href="trends-calendar.html" class="nav-item"><i class="ph ph-calendar"></i> Trends</a>
+      <a href="workflow.html" class="nav-item"><i class="ph ph-kanban"></i> Workflow</a>
+    </div>
+    <div style="margin-top: auto;">
+      <a href="settings.html" class="nav-item"><i class="ph ph-gear"></i> Settings</a>
+      <a href="#" onclick="logout()" class="nav-item" style="color: var(--accent);"><i class="ph ph-sign-out"></i>
+        Logout</a>
+    </div>
+  </nav>
+
+  <!-- Premium Header -->
+  <header class="header glass-panel premium-header" style="border-top: none; border-left: none; border-right: none;">
+    <div class="breadcrumbs">Home / <span>Channel Manager</span></div>
+    <div class="user-actions">
+      <button class="icon-btn" onclick="window.location.href='settings.html'"><i class="ph ph-gear"></i></button>
+      <div
+        style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #ec4899);">
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Wrapper -->
+  <main class="main-content">
+    <div class="content-scroll">
+
+      <div id="loadingBar" class="loading-bar"></div>
+
+      <!-- Header -->
+      <div class="card classic-nav"
+        style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+        <h1 style="margin:0;">Multi-Platform Manager <span id="appVersion"
+            style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
+          <button class="btn btn-primary" onclick="window.location.href='workflow.html'">📋 Workflow</button>
+          <button class="btn btn-primary" onclick="window.location.href='/dashboard'">Dashboard</button>
+          <button class="btn btn-primary" onclick="window.location.href='/analytics-dashboard'">Analytics</button>
+          <button class="btn btn-primary" onclick="window.location.href='studio.html'">Studio</button>
+        </div>
+      </div>
+
+      <!-- Instructions -->
+      <div class="card">
+        <h2 style="margin-top:0;">Connect Your Social Media Accounts</h2>
+        <p style="color:#A8B3CF; line-height:1.6;">
+          Connect YouTube, TikTok, Instagram, and Facebook to publish videos and track analytics across all your
+          platforms.
+          Your <strong>default channel</strong> for each platform will be used for publishing by default.
+        </p>
+      </div>
+
+      <!-- Platform Tabs -->
+      <div style="display:flex; gap:10px; margin-bottom:20px; border-bottom:2px solid #2a3550; justify-content:center;">
+        <button class="platform-tab active" onclick="switchPlatform('youtube')" data-platform="youtube"
+          style="padding:12px 24px; background:transparent; border:none; color:#A8B3CF; font-weight:600; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; transition:all 0.2s;">
+          📺 YouTube
+        </button>
+        <button class="platform-tab" onclick="switchPlatform('tiktok')" data-platform="tiktok"
+          style="padding:12px 24px; background:transparent; border:none; color:#A8B3CF; font-weight:600; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; transition:all 0.2s;">
+          🎵 TikTok
+        </button>
+        <button class="platform-tab" onclick="switchPlatform('instagram')" data-platform="instagram"
+          style="padding:12px 24px; background:transparent; border:none; color:#A8B3CF; font-weight:600; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; transition:all 0.2s;">
+          📸 Instagram
+        </button>
+        <button class="platform-tab" onclick="switchPlatform('facebook')" data-platform="facebook"
+          style="padding:12px 24px; background:transparent; border:none; color:#A8B3CF; font-weight:600; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; transition:all 0.2s;">
+          👥 Facebook
+        </button>
+        <button class="platform-tab" onclick="switchPlatform('google_calendar')" data-platform="google_calendar"
+          style="padding:12px 24px; background:transparent; border:none; color:#A8B3CF; font-weight:600; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; transition:all 0.2s;">
+          📅 Google Calendar
+        </button>
+      </div>
+
+      <!-- Channels List -->
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+          <h2 style="margin:0;" data-no-version="true"><span id="platformTitle" data-no-version="true">YouTube</span>
+            Accounts</h2>
+          <button class="btn btn-danger" id="addAccountBtn" onclick="addNewAccount()">
+            + Connect YouTube
+          </button>
+        </div>
+
+        <div id="channelsList">
+          <div style="text-align:center; padding:40px; color:#A8B3CF;">Loading accounts...</div>
+        </div>
+      </div>
+
+      <!-- Platform-specific Instructions -->
+      <div class="card" id="platformInstructions" style="background:rgba(251, 191, 36, 0.05); border-color:#fbbf24;">
+        <h3 style="color:#fbbf24; margin-top:0;">How to Connect</h3>
+        <div id="instructionsContent"></div>
+      </div>
+
+      <script>
+        const API_BASE = window.location.origin;
+        let currentPlatform = 'youtube';
+
+        const platformConfig = {
+          youtube: {
+            name: 'YouTube',
+            icon: '📺',
+            color: '#FF0000',
+            oauth: '/api/oauth/youtube/authorize',
+            instructions: `
+          <ol style="color:#A8B3CF; line-height:1.8;">
+            <li>Click "<strong>+ Connect YouTube</strong>" above</li>
+            <li>Sign in with your Google account</li>
+            <li>Grant permissions to MSS</li>
+            <li>Your channel will be automatically detected and added</li>
+            <li>Set a channel as default by clicking "Set as Default"</li>
+          </ol>
+          <p style="color:#A8B3CF; margin-top:16px;">
+            <strong>Tip:</strong> You can connect multiple YouTube channels by using different Google accounts.
+          </p>
+        `
+          },
+          tiktok: {
+            name: 'TikTok',
+            icon: '🎵',
+            color: '#000000',
+            oauth: '/api/oauth/tiktok/authorize',
+            instructions: `
+          <ol style="color:#A8B3CF; line-height:1.8;">
+            <li>Click "<strong>+ Connect TikTok</strong>" above</li>
+            <li>Sign in with your TikTok account</li>
+            <li>Grant permissions to MSS</li>
+            <li>Your TikTok profile will be connected</li>
+          </ol>
+          <p style="color:#A8B3CF; margin-top:16px;">
+            <strong>Note:</strong> TikTok API access requires approval. Make sure your app is approved by TikTok.
+          </p>
+        `
+          },
+          instagram: {
+            name: 'Instagram',
+            icon: '📸',
+            color: '#E1306C',
+            oauth: '/api/oauth/instagram/authorize',
+            instructions: `
+          <ol style="color:#A8B3CF; line-height:1.8;">
+            <li>Click "<strong>+ Connect Instagram</strong>" above</li>
+            <li>Sign in with your Facebook account (Instagram uses Facebook login)</li>
+            <li>Grant permissions to MSS</li>
+            <li>Select the Instagram Business account to connect</li>
+          </ol>
+          <p style="color:#A8B3CF; margin-top:16px;">
+            <strong>Note:</strong> Only Instagram Business accounts can be connected via API.
+          </p>
+        `
+          },
+          facebook: {
+            name: 'Facebook',
+            icon: '👥',
+            color: '#1877F2',
+            oauth: '/api/oauth/facebook/authorize',
+            instructions: `
+          <ol style="color:#A8B3CF; line-height:1.8;">
+            <li>Click "<strong>+ Connect Facebook</strong>" above</li>
+            <li>Sign in with your Facebook account</li>
+            <li>Grant permissions to MSS</li>
+            <li>Your Facebook page will be connected</li>
+          </ol>
+          <p style="color:#A8B3CF; margin-top:16px;">
+            <strong>Status:</strong> Facebook integration coming soon. OAuth endpoints need to be configured.
+          </p>
+        `
+          },
+          google_calendar: {
+            name: 'Google Calendar',
+            icon: '📅',
+            color: '#4285F4',
+            oauth: '/api/oauth/google-calendar/authorize',
+            instructions: `
+          <ol style="color:#A8B3CF; line-height:1.8;">
+            <li>Click "<strong>+ Connect Google Calendar</strong>" above</li>
+            <li>Sign in with your Google account</li>
+            <li>Grant calendar permissions to MSS</li>
+            <li>Your calendar will be connected for automatic event creation</li>
+          </ol>
+          <p style="color:#A8B3CF; margin-top:16px;">
+            <strong>Benefits:</strong> Automatically add video schedule events to your Google Calendar when using the Content Calendar feature.
+          </p>
+        `
+          }
+        };
+
+        function switchPlatform(platform) {
+          currentPlatform = platform;
+
+          // Update tab styling
+          document.querySelectorAll('.platform-tab').forEach(tab => {
+            tab.classList.remove('active');
+            tab.style.color = '#A8B3CF';
+            tab.style.borderBottomColor = 'transparent';
+          });
+
+          const activeTab = document.querySelector(`[data-platform="${platform}"]`);
+          activeTab.classList.add('active');
+          activeTab.style.color = '#8b5cf6';
+          activeTab.style.borderBottomColor = '#8b5cf6';
+
+          // Update UI
+          const config = platformConfig[platform];
+          document.getElementById('platformTitle').textContent = config.name;
+          document.getElementById('addAccountBtn').textContent = `+ Connect ${config.name}`;
+          document.getElementById('addAccountBtn').style.background = config.color;
+          document.getElementById('addAccountBtn').style.borderColor = config.color;
+          document.getElementById('instructionsContent').innerHTML = config.instructions;
+
+          // Load channels for this platform
+          loadChannels();
+        }
+
+        async function loadChannels() {
+          const container = document.getElementById('channelsList');
+          const config = platformConfig[currentPlatform];
+          container.innerHTML = '<div style="text-align:center; padding:40px; color:#A8B3CF;">Loading accounts...</div>';
+
+          // Special handling for Google Calendar (uses platform_connections, not channels)
+          if (currentPlatform === 'google_calendar') {
+            try {
+              const res = await fetch(`${API_BASE}/api/platform/connections`, { credentials: 'include' });
+              const data = await res.json();
+
+              if (data.success) {
+                const connected = data.platforms?.find(p => p.platform === 'google_calendar');
+
+                if (connected) {
+                  container.innerHTML = `
+                <div class="channel-card default" style="border-color:#22c55e;">
+                  <div style="width:80px; height:80px; border-radius:50%; background:linear-gradient(135deg, #4285F4, #34A853); display:flex; align-items:center; justify-content:center; font-size:40px;">
+                    📅
+                  </div>
+                  <div class="channel-info">
+                    <span class="default-badge">✓ Connected</span>
+                    <div class="channel-name">Google Calendar</div>
+                    <div style="font-size:13px; color:#A8B3CF; margin-top:8px;">
+                      Connected: ${formatDate(connected.connected_at)}
+                    </div>
+                    <div style="font-size:12px; color:#22c55e; margin-top:4px;">
+                      ✓ Calendar events will be automatically synced
+                    </div>
+                  </div>
+                  <div class="channel-actions">
+                    <button class="btn btn-small btn-danger" onclick="disconnectGoogleCalendar()">
+                      Disconnect
+                    </button>
+                  </div>
+                </div>
+              `;
+                } else {
+                  container.innerHTML = `
+                <div class="empty-state">
+                  <div class="empty-state-icon">📅</div>
+                  <div>Google Calendar not connected yet</div>
+                  <div style="font-size:14px; margin-top:8px;">Click "+ Connect Google Calendar" above to enable automatic calendar sync</div>
+                </div>
+              `;
+                }
+              }
+            } catch (error) {
+              container.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444;">Error: ${error.message}</div>`;
+            }
+            return;
+          }
+
+          try {
+            const res = await fetch(`${API_BASE}/api/channels/list?platform=${currentPlatform}`, {
+              credentials: 'include'
+            });
+
+            const data = await res.json();
+
+            if (!data.success) {
+              throw new Error(data.error || 'Failed to load channels');
+            }
+
+            const channels = data.channels || [];
+
+            // Debug: Log channel data to see what's being returned
+            console.log('[CHANNEL-MANAGER] Loaded channels:', channels);
+            channels.forEach(ch => {
+              console.log('[CHANNEL-MANAGER] Channel:', ch.channel_name || ch.username,
+                'thumbnail_url:', ch.thumbnail_url,
+                'profile_image_url:', ch.profile_image_url);
+            });
+
+            if (channels.length === 0) {
+              container.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">${config.icon}</div>
+              <div>No ${config.name} accounts connected yet</div>
+              <div style="font-size:14px; margin-top:8px;">Click "+ Connect ${config.name}" to connect your first account</div>
+            </div>
+          `;
+              return;
+            }
+
+            container.innerHTML = channels.map(channel => {
+              const displayName = channel.channel_name || channel.username || 'Unknown Account';
+              const accountId = channel.channel_id || channel.account_id || 'No ID';
+              const handle = channel.channel_handle || channel.handle || '';
+
+              const imgUrl = channel.thumbnail_url || channel.profile_image_url || '';
+
+              return `
+            <div class="channel-card ${channel.is_default ? 'default' : ''}">
+              <img src="${imgUrl}"
+                   alt="${displayName}"
+                   class="channel-thumbnail"
+                   referrerpolicy="no-referrer"
+                   loading="lazy"
+                   onerror="this.style.display='none'">
+
+              <div class="channel-info">
+                ${channel.is_default ? '<span class="default-badge">⭐ Default Account</span>' : ''}
+                <div class="channel-name">${displayName}</div>
+                <div class="channel-id">${accountId}</div>
+                ${handle ? `<div style="font-size:13px; color:#3b82f6; margin-top:4px;">@${handle}</div>` : ''}
+                <div class="channel-stats">
+                  <span>Added: ${formatDate(channel.added_at)}</span>
+                  ${channel.last_synced_at ? `<span>Last Synced: ${formatDate(channel.last_synced_at)}</span>` : '<span>Not synced yet</span>'}
+                </div>
+              </div>
+
+              <div class="channel-actions">
+                <button class="btn btn-small btn-primary" onclick="syncChannelVideos('${channel.channel_id}')" style="background-color: #FF0000; border-color: #FF0000;">
+                  Sync Videos
+                </button>
+                ${!channel.is_default ? `
+                  <button class="btn btn-small btn-success" onclick="setDefaultChannel(${channel.id})">
+                    Set as Default
+                  </button>
+                ` : ''}
+                <button class="btn btn-small btn-danger" onclick="removeChannel(${channel.id}, '${displayName.replace(/'/g, "\\'")}')">
+                  Remove
+                </button>
+              </div>
+            </div>
+          `;
+            }).join('');
+
+          } catch (error) {
+            console.error('Error loading channels:', error);
+            container.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444;">Error: ${error.message}</div>`;
+          }
+        }
+
+        async function addNewAccount() {
+          const config = platformConfig[currentPlatform];
+
+          if (currentPlatform === 'facebook') {
+            alert('Facebook OAuth is not yet configured.\n\nPlease check the backend setup to enable Facebook connections.');
+            return;
+          }
+
+          if (!confirm(`Connect a new ${config.name} account?\n\nYou'll be redirected to sign in with ${config.name}.`)) {
+            return;
+          }
+
+          try {
+            // Redirect to platform OAuth
+            window.location.href = `${API_BASE}${config.oauth}`;
+          } catch (error) {
+            alert('Failed to start OAuth flow: ' + error.message);
+          }
+        }
+
+        async function setDefaultChannel(channelAccountId) {
+          try {
+            const res = await fetch(`${API_BASE}/api/channels/set-default`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ channel_account_id: channelAccountId })
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+              alert('✓ Default channel updated!');
+              loadChannels(); // Refresh list
+            } else {
+              throw new Error(data.error || 'Failed to set default channel');
+            }
+          } catch (error) {
+            alert('Error: ' + error.message);
+          }
+        }
+
+        async function disconnectGoogleCalendar() {
+          if (!confirm('Disconnect Google Calendar?\n\nCalendar events will no longer be automatically synced.')) {
+            return;
+          }
+
+          try {
+            // For now, we'll need to add a disconnect endpoint
+            alert('Disconnect feature coming soon. For now, you can revoke access from your Google Account settings.');
+          } catch (error) {
+            alert('Error disconnecting: ' + error.message);
+          }
+        }
+
+        async function removeChannel(channelAccountId, channelName) {
+          if (!confirm(`Remove channel "${channelName}"?\n\nThis will not delete the channel from YouTube, only remove it from MSS. Videos synced from this channel will remain in analytics.`)) {
+            return;
+          }
+
+          try {
+            const res = await fetch(`${API_BASE}/api/channels/remove`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ channel_account_id: channelAccountId })
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+              alert('✓ Channel removed!');
+              loadChannels(); // Refresh list
+            } else {
+              throw new Error(data.error || 'Failed to remove channel');
+            }
+          } catch (error) {
+            alert('Error: ' + error.message);
+          }
+        }
+
+        async function syncChannelVideos(channelId) {
+          if (!confirm('Sync videos from YouTube?\n\nThis will fetch the latest videos and metrics from your channel.')) {
+            return;
+          }
+
+          // Find the button to update text
+          const buttons = document.querySelectorAll('button');
+          let btn;
+          for (const b of buttons) {
+            if (b.textContent.includes('Sync Videos') && b.getAttribute('onclick').includes(channelId)) {
+              btn = b;
+              break;
+            }
+          }
+
+          if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Syncing...';
+          }
+
+          try {
+            const res = await fetch(`${API_BASE}/api/youtube/sync-metrics`, {
+              method: 'POST',
+              credentials: 'include'
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+              alert(`✓ Sync Complete!\n\nFound ${data.total} videos.\nNew: ${data.synced}\nUpdated: ${data.updated}`);
+              loadChannels(); // Refresh to update "Last Synced"
+            } else {
+              throw new Error(data.error || 'Sync failed');
+            }
+          } catch (error) {
+            alert('Error syncing videos: ' + error.message);
+          } finally {
+            if (btn) {
+              btn.disabled = false;
+              btn.textContent = 'Sync Videos';
+            }
+          }
+        }
+
+        function formatDate(dateString) {
+          if (!dateString) return 'N/A';
+          const date = new Date(dateString);
+          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+
+        // Authentication check - must be logged in to access channel manager
+        (async function checkAuth() {
+          try {
+            const res = await fetch(`${API_BASE}/api/me`, {
+              credentials: 'include'
+            });
+
+            if (!res.ok) {
+              // Request failed, redirect to auth page
+              window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
+              return;
+            }
+
+            const data = await res.json();
+            if (!data.success) {
+              // Not authenticated or session invalid, redirect to auth
+              window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
+              return;
+            }
+
+            // User is authenticated, continue loading page
+            switchPlatform('youtube'); // Initialize with YouTube
+          } catch (error) {
+            console.error('Auth check failed:', error);
+            window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname);
+          }
+        })();
+      </script>
+      <script>
+        // Theme Switcher Logic
+        function toggleTheme() {
+          const body = document.body;
+          if (body.classList.contains('premium-mode')) {
+            body.classList.remove('premium-mode');
+            localStorage.setItem('mss_theme', 'classic');
+          } else {
+            body.classList.add('premium-mode');
+            localStorage.setItem('mss_theme', 'premium');
+          }
+        }
+
+        // Load saved theme
+        (function () {
+          const savedTheme = localStorage.getItem('mss_theme');
+          if (savedTheme === 'premium') {
+            document.body.classList.add('premium-mode');
+          }
+        })();
+      </script>
+</body>
+</div> <!-- End content-scroll -->
+</main> <!-- End main-content -->
+
+</html>

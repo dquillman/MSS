@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings - MSS Studio</title>
+  <link rel="stylesheet" href="studio.css">
+  <script src="version.js" defer></script>
+  <style>
+    @media (max-width: 768px) {
+      .card {
+        padding: 16px;
+      }
+      .card h1 {
+        font-size: 24px;
+      }
+      .card > div[style*="display:flex"] {
+        flex-direction: column;
+        gap: 10px;
+      }
+      .btn {
+        width: 100%;
+        padding: 12px;
+        font-size: 14px;
+      }
+      .row[style*="grid-template-columns: 1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+      }
+    }
+    @media (max-width: 480px) {
+      .card {
+        padding: 12px;
+      }
+      .card h1 {
+        font-size: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="loadingBar" class="loading-bar"></div>
+  <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+    <h1 style="margin:0;">Settings <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; position:relative;">
+      <button class="btn btn-primary" onclick="window.location.href='studio.html'">Studio</button>
+      <button class="btn" onclick="window.location.href='avatar-manager.html'">Avatars</button>
+      <button class="btn" onclick="window.location.href='logo-manager.html'">Logos</button>
+      <button class="btn" onclick="window.location.href='meme-library.html'">Thumbnails</button>
+      <button class="btn" onclick="window.location.href='intro-outro.html'">Intro/Outro</button>
+      <div class="dropdown" id="oldMenusContainer" style="position:relative;display:none;">
+        <button class="btn" id="oldMenusBtn">Old Menus</button>
+        <div class="dropdown-content" id="oldMenus" style="display:none; position:absolute; top:110%; left:0; background:#0B0F19; border:1px solid #334; border-radius:8px; min-width:180px; z-index:20; box-shadow:0 6px 18px rgba(0,0,0,0.4);">
+          <a href="script-generator.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Script Generator</a>
+          <a href="thumbnail-manager.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Thumbnails</a>
+          <a href="video-composer.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Composer</a>
+          <a href="post-process.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Post-Process</a>
+          <a href="preview.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Preview</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>(function(){ const btn=document.getElementById("oldMenusBtn"); const menu=document.getElementById("oldMenus"); const $oldMenusContainer = document.getElementById('oldMenusContainer'); if(btn&&menu&&$oldMenusContainer){ btn.addEventListener("click",(e)=>{ e.stopPropagation(); menu.style.display=(menu.style.display==="block"?"none":"block");}); document.addEventListener("click",()=>{ menu.style.display="none";}); menu.addEventListener("click",(e)=>e.stopPropagation()); document.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key.toLowerCase()==='o'){ e.preventDefault(); $oldMenusContainer.style.display = ($oldMenusContainer.style.display==='none'||!$oldMenusContainer.style.display)?'block':'none'; } }); }})();</script>
+
+  <!-- General Settings -->
+  <div class="card">
+    <h1>General Settings</h1>
+    <div class="row" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+      <div>
+        <label>API Server URL</label>
+        <input id="apiServerUrl" type="text" placeholder="Auto-detected from current origin" style="width:100%;">
+        <div class="help-text">Usually auto-detected. Change only if API server is on different host/port</div>
+      </div>
+      <div>
+        <label>Default Start Page</label>
+        <select id="defaultStartPage" style="width:100%; padding:10px;">
+          <option value="landing.html">Landing Page</option>
+          <option value="studio.html">Studio</option>
+        </select>
+        <div class="help-text">Page to open when launching MSS</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- YouTube Settings -->
+  <div class="card">
+    <h1>YouTube Upload Defaults</h1>
+    <div class="row" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+      <div style="grid-column: 1 / span 2; display:flex; align-items:center; gap:10px;">
+        <input type="checkbox" id="enableYtUploadUI">
+        <label for="enableYtUploadUI">Show YouTube upload section automatically after processing</label>
+      </div>
+      <div>
+        <label>Default Privacy</label>
+        <select id="ytDefaultPrivacy" style="width:100%; padding:10px;">
+          <option value="private">Private</option>
+          <option value="unlisted">Unlisted</option>
+          <option value="public">Public</option>
+        </select>
+      </div>
+      <div>
+        <label>Default Category</label>
+        <select id="ytDefaultCategory" style="width:100%; padding:10px;">
+          <option value="22">People & Blogs</option>
+          <option value="24">Entertainment</option>
+          <option value="27">Education</option>
+          <option value="28">Science & Technology</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Video Processing Defaults -->
+  <div class="card">
+    <h1>Video Processing Defaults</h1>
+    <div class="row">
+      <label style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="defaultIncludeAvatar" checked>
+        Include Avatar by default
+      </label>
+    </div>
+    <div class="row">
+      <label style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="defaultAvatarAnimated" checked>
+        Animated Avatar by default
+      </label>
+    </div>
+    <div class="row">
+      <label style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="defaultSkipDID" checked>
+        Skip D-ID (use local animation) by default
+      </label>
+    </div>
+    <div class="row">
+      <label style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="defaultIncludeLogo" checked>
+        Include Logo by default
+      </label>
+    </div>
+    <div class="row">
+      <label>Default Logo Position</label>
+      <select id="defaultLogoPosition" style="width:100%; max-width:300px; padding:10px;">
+        <option value="bottom-left">Bottom-Left</option>
+        <option value="bottom-right">Bottom-Right</option>
+        <option value="top-left">Top-Left</option>
+        <option value="top-right">Top-Right</option>
+        <option value="center">Center</option>
+      </select>
+    </div>
+    <div class="row">
+      <label style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="defaultIncludeIntroOutro">
+        Include Intro/Outro by default
+      </label>
+    </div>
+  </div>
+
+  <!-- Thumbnail Generator Defaults -->
+  <div class="card">
+    <h1>Thumbnail Generator Defaults</h1>
+    <div class="row">
+      <label>Default Font</label>
+      <select id="defaultMemeFont" style="width:100%; max-width:300px; padding:10px;">
+        <option value="Impact">Impact (Classic Thumbnail)</option>
+        <option value="Arial Black">Arial Black (Bold)</option>
+        <option value="Bebas Neue">Bebas Neue (Modern)</option>
+        <option value="Anton">Anton (Heavy)</option>
+        <option value="Oswald">Oswald (Clean)</option>
+        <option value="Archivo Black">Archivo Black (Strong)</option>
+      </select>
+    </div>
+    <div class="row" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
+      <div>
+        <label>Top Text Color</label>
+        <input type="color" id="defaultTopTextColor" value="#FFD700" style="width:100%; height:40px; cursor:pointer;">
+      </div>
+      <div>
+        <label>Bottom Text Color</label>
+        <input type="color" id="defaultBottomTextColor" value="#FFFFFF" style="width:100%; height:40px; cursor:pointer;">
+      </div>
+      <div>
+        <label>Text Stroke Color</label>
+        <input type="color" id="defaultStrokeColor" value="#000000" style="width:100%; height:40px; cursor:pointer;">
+      </div>
+    </div>
+    <div class="row">
+      <label>Stroke Width (px)</label>
+      <input type="number" id="defaultStrokeWidth" value="10" min="0" max="20" style="width:100%; max-width:150px; padding:10px;">
+    </div>
+    <div class="row">
+      <label style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="defaultForceCleanBg" checked>
+        Force clean backgrounds (no text) by default
+      </label>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="card">
+    <h1>Actions</h1>
+    <div class="row" style="display:flex; gap:12px; flex-wrap:wrap;">
+      <button class="btn btn-success" id="saveSettingsBtn">💾 Save All Settings</button>
+      <button class="btn btn-danger" id="resetSettingsBtn">🔄 Reset to Defaults</button>
+      <button class="btn btn-info" id="exportSettingsBtn">⬇ Export Settings</button>
+      <button class="btn btn-info" id="importSettingsBtn">⬆ Import Settings</button>
+    </div>
+    <div id="settingsStatus" class="status"></div>
+    <input type="file" id="importFileInput" accept=".json" style="display:none;">
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+
+    // Load version
+    (function loadVersion(){
+      fetch(`${API_BASE}/health`).then(r => r.json()).then(j => {
+        const el = document.getElementById('appVersion');
+        if (el && j && j.Version) el.textContent = 'v-' + j.Version;
+      }).catch(()=>{});
+    })();
+
+    function showStatus(msg, type = 'ok') {
+      const el = document.getElementById('settingsStatus');
+      el.textContent = msg;
+      el.className = 'status ' + type;
+      el.style.display = 'block';
+      setTimeout(() => el.style.display = 'none', 3000);
+    }
+
+    // Load settings from localStorage
+    function loadSettings() {
+      const settings = JSON.parse(localStorage.getItem('mss_settings') || '{}');
+
+      // General - Default API URL to current origin if not set
+      const apiUrlInput = document.getElementById('apiServerUrl');
+      if (settings.apiServerUrl) {
+        apiUrlInput.value = settings.apiServerUrl;
+      } else {
+        // Auto-detect: use current origin (works for both localhost and production)
+        apiUrlInput.value = window.location.origin;
+      }
+      
+      if (settings.defaultStartPage) document.getElementById('defaultStartPage').value = settings.defaultStartPage;
+
+      // YouTube
+      const ytUI = localStorage.getItem('enableYtUploadUI');
+      if (ytUI !== null) document.getElementById('enableYtUploadUI').checked = (ytUI === 'true');
+      if (settings.ytDefaultPrivacy) document.getElementById('ytDefaultPrivacy').value = settings.ytDefaultPrivacy;
+      if (settings.ytDefaultCategory) document.getElementById('ytDefaultCategory').value = settings.ytDefaultCategory;
+
+      // Video Processing
+      if (settings.defaultIncludeAvatar !== undefined) document.getElementById('defaultIncludeAvatar').checked = settings.defaultIncludeAvatar;
+      if (settings.defaultAvatarAnimated !== undefined) document.getElementById('defaultAvatarAnimated').checked = settings.defaultAvatarAnimated;
+      if (settings.defaultSkipDID !== undefined) document.getElementById('defaultSkipDID').checked = settings.defaultSkipDID;
+      if (settings.defaultIncludeLogo !== undefined) document.getElementById('defaultIncludeLogo').checked = settings.defaultIncludeLogo;
+      if (settings.defaultLogoPosition) document.getElementById('defaultLogoPosition').value = settings.defaultLogoPosition;
+      if (settings.defaultIncludeIntroOutro !== undefined) document.getElementById('defaultIncludeIntroOutro').checked = settings.defaultIncludeIntroOutro;
+
+      // Thumbnail
+      if (settings.defaultMemeFont) document.getElementById('defaultMemeFont').value = settings.defaultMemeFont;
+      if (settings.defaultTopTextColor) document.getElementById('defaultTopTextColor').value = settings.defaultTopTextColor;
+      if (settings.defaultBottomTextColor) document.getElementById('defaultBottomTextColor').value = settings.defaultBottomTextColor;
+      if (settings.defaultStrokeColor) document.getElementById('defaultStrokeColor').value = settings.defaultStrokeColor;
+      if (settings.defaultStrokeWidth) document.getElementById('defaultStrokeWidth').value = settings.defaultStrokeWidth;
+      if (settings.defaultForceCleanBg !== undefined) document.getElementById('defaultForceCleanBg').checked = settings.defaultForceCleanBg;
+    }
+
+    // Save settings to localStorage
+    function saveSettings() {
+      const settings = {
+        // General
+        apiServerUrl: document.getElementById('apiServerUrl').value,
+        defaultStartPage: document.getElementById('defaultStartPage').value,
+
+        // YouTube
+        ytDefaultPrivacy: document.getElementById('ytDefaultPrivacy').value,
+        ytDefaultCategory: document.getElementById('ytDefaultCategory').value,
+
+        // Video Processing
+        defaultIncludeAvatar: document.getElementById('defaultIncludeAvatar').checked,
+        defaultAvatarAnimated: document.getElementById('defaultAvatarAnimated').checked,
+        defaultSkipDID: document.getElementById('defaultSkipDID').checked,
+        defaultIncludeLogo: document.getElementById('defaultIncludeLogo').checked,
+        defaultLogoPosition: document.getElementById('defaultLogoPosition').value,
+        defaultIncludeIntroOutro: document.getElementById('defaultIncludeIntroOutro').checked,
+
+        // Thumbnail
+        defaultMemeFont: document.getElementById('defaultMemeFont').value,
+        defaultTopTextColor: document.getElementById('defaultTopTextColor').value,
+        defaultBottomTextColor: document.getElementById('defaultBottomTextColor').value,
+        defaultStrokeColor: document.getElementById('defaultStrokeColor').value,
+        defaultStrokeWidth: document.getElementById('defaultStrokeWidth').value,
+        defaultForceCleanBg: document.getElementById('defaultForceCleanBg').checked,
+      };
+
+      // YouTube UI preference is stored as a standalone flag
+      localStorage.setItem('enableYtUploadUI', document.getElementById('enableYtUploadUI').checked ? 'true' : 'false');
+
+      localStorage.setItem('mss_settings', JSON.stringify(settings));
+      showStatus('Settings saved successfully!', 'ok');
+    }
+
+    // Reset to defaults
+    function resetSettings() {
+      if (!confirm('Reset all settings to defaults?')) return;
+
+      localStorage.removeItem('mss_settings');
+
+      // Reset UI to defaults
+      document.getElementById('apiServerUrl').value = window.location.origin; // Auto-detect from current origin
+      document.getElementById('defaultStartPage').value = 'landing.html';
+      document.getElementById('ytDefaultPrivacy').value = 'private';
+      document.getElementById('ytDefaultCategory').value = '22';
+      document.getElementById('defaultIncludeAvatar').checked = true;
+      document.getElementById('defaultAvatarAnimated').checked = true;
+      document.getElementById('defaultSkipDID').checked = true;
+      document.getElementById('defaultIncludeLogo').checked = true;
+      document.getElementById('defaultLogoPosition').value = 'bottom-left';
+      document.getElementById('defaultIncludeIntroOutro').checked = false;
+      document.getElementById('defaultMemeFont').value = 'Impact';
+      document.getElementById('defaultTopTextColor').value = '#FFD700';
+      document.getElementById('defaultBottomTextColor').value = '#FFFFFF';
+      document.getElementById('defaultStrokeColor').value = '#000000';
+      document.getElementById('defaultStrokeWidth').value = '10';
+      document.getElementById('defaultForceCleanBg').checked = true;
+
+      showStatus('Settings reset to defaults', 'ok');
+    }
+
+    // Export settings
+    function exportSettings() {
+      const settings = JSON.parse(localStorage.getItem('mss_settings') || '{}');
+      const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'mss_settings.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      showStatus('Settings exported!', 'ok');
+    }
+
+    // Import settings
+    function importSettings() {
+      const input = document.getElementById('importFileInput');
+      input.click();
+    }
+
+    document.getElementById('importFileInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const settings = JSON.parse(e.target.result);
+          localStorage.setItem('mss_settings', JSON.stringify(settings));
+          loadSettings();
+          showStatus('Settings imported successfully!', 'ok');
+        } catch (err) {
+          showStatus('Error importing settings: ' + err.message, 'err');
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    // Event listeners
+    document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+    // Save YouTube UI toggle immediately when changed
+    document.getElementById('enableYtUploadUI').addEventListener('change', () => {
+      localStorage.setItem('enableYtUploadUI', document.getElementById('enableYtUploadUI').checked ? 'true' : 'false');
+      showStatus('YouTube upload UI preference saved', 'ok');
+    });
+    document.getElementById('resetSettingsBtn').addEventListener('click', resetSettings);
+    document.getElementById('exportSettingsBtn').addEventListener('click', exportSettings);
+    document.getElementById('importSettingsBtn').addEventListener('click', importSettings);
+
+    // Load settings on page load
+    loadSettings();
+  </script>
+</body>
+</html>

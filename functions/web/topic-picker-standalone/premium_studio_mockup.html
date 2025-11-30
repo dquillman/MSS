@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSS Studio - Create</title>
+    <link rel="stylesheet" href="premium_theme.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        /* Studio Specific Overrides */
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-label {
+            display: block;
+            color: var(--text-muted);
+            font-size: 13px;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .glass-input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
+            color: var(--text-main);
+            font-family: inherit;
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+
+        .glass-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: rgba(0, 0, 0, 0.4);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+        }
+
+        .glass-textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .step-number {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+        }
+
+        /* Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: var(--primary);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(20px);
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .control-row:last-child {
+            border-bottom: none;
+        }
+
+        /* File Upload Zone */
+        .upload-zone {
+            border: 2px dashed var(--glass-border);
+            border-radius: var(--radius-lg);
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s;
+            background: rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+        }
+
+        .upload-zone:hover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="bg-mesh"></div>
+
+    <!-- Sidebar -->
+    <nav class="sidebar glass-panel">
+        <div class="brand">
+            <i class="ph-fill ph-video-camera" style="color: var(--primary);"></i>
+            MSS Studio
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+            <a href="premium_layout_mockup.html" class="nav-item">
+                <i class="ph ph-squares-four"></i>
+                Dashboard
+            </a>
+            <a href="#" class="nav-item active">
+                <i class="ph ph-magic-wand"></i>
+                Studio
+            </a>
+            <a href="#" class="nav-item">
+                <i class="ph ph-chart-line-up"></i>
+                Analytics
+            </a>
+            <a href="#" class="nav-item">
+                <i class="ph ph-calendar"></i>
+                Content Calendar
+            </a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="header glass-panel" style="border-top: none; border-left: none; border-right: none;">
+            <div class="breadcrumbs">
+                Home / <span>Studio</span>
+            </div>
+            <div class="user-actions">
+                <button class="btn-primary" style="padding: 8px 16px; font-size: 14px;">
+                    <i class="ph ph-floppy-disk"></i> Save Draft
+                </button>
+            </div>
+        </header>
+
+        <div class="content-scroll">
+
+            <div style="max-width: 1200px; margin: 0 auto;">
+                <h1 style="margin-bottom: 32px;">Create New Video</h1>
+
+                <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 32px;">
+
+                    <!-- Left Column: Inputs -->
+                    <div style="display: flex; flex-direction: column; gap: 24px;">
+
+                        <!-- Step 1: Topic -->
+                        <div class="glass-panel" style="padding: 24px; border-radius: var(--radius-xl);">
+                            <div class="section-title">
+                                <span class="step-number">1</span>
+                                Video Topic
+                            </div>
+
+                            <div class="input-group">
+                                <label class="input-label">Video Title</label>
+                                <input type="text" class="glass-input" placeholder="e.g. The Future of AI in 2025"
+                                    value="AI Revolution: What's Coming Next?">
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                <div class="input-group">
+                                    <label class="input-label">Hook / Angle</label>
+                                    <input type="text" class="glass-input" placeholder="e.g. Why you're not ready..."
+                                        value="The scary truth about automation">
+                                </div>
+                                <div class="input-group">
+                                    <label class="input-label">Keywords</label>
+                                    <input type="text" class="glass-input" placeholder="Comma separated"
+                                        value="AI, Tech, Future, Jobs">
+                                </div>
+                            </div>
+
+                            <div style="display: flex; gap: 12px; margin-top: 10px;">
+                                <button class="btn-primary"
+                                    style="background: var(--glass-highlight); border: 1px solid var(--glass-border);">
+                                    <i class="ph ph-magic-wand"></i> AI Suggest
+                                </button>
+                                <button class="btn-primary"
+                                    style="background: var(--glass-highlight); border: 1px solid var(--glass-border); color: var(--text-muted);">
+                                    Clear
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Step 2: Script/Prompt -->
+                        <div class="glass-panel" style="padding: 24px; border-radius: var(--radius-xl);">
+                            <div class="section-title">
+                                <span class="step-number">2</span>
+                                Script & Prompt
+                            </div>
+
+                            <div class="input-group">
+                                <label class="input-label">Generated Prompt</label>
+                                <textarea
+                                    class="glass-input glass-textarea">Analyze "AI Revolution: What's Coming Next?" from the perspective of The scary truth about automation. Discuss the key themes and insights related to AI, Tech, Future, Jobs, providing a comprehensive overview that educates and informs viewers.</textarea>
+                            </div>
+
+                            <div style="display: flex; gap: 12px;">
+                                <button class="btn-primary">
+                                    <i class="ph ph-lightning"></i> Generate Script
+                                </button>
+                                <button class="btn-primary"
+                                    style="background: var(--glass-highlight); border: 1px solid var(--glass-border);">
+                                    <i class="ph ph-copy"></i> Copy
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Right Column: Media & Preview -->
+                    <div style="display: flex; flex-direction: column; gap: 24px;">
+
+                        <!-- Step 3: Media -->
+                        <div class="glass-panel" style="padding: 24px; border-radius: var(--radius-xl);">
+                            <div class="section-title">
+                                <span class="step-number">3</span>
+                                Media Assets
+                            </div>
+
+                            <div class="upload-zone">
+                                <i class="ph ph-upload-simple"
+                                    style="font-size: 32px; color: var(--primary); margin-bottom: 12px;"></i>
+                                <div style="font-weight: 600; margin-bottom: 4px;">Drop Main Video Here</div>
+                                <div style="font-size: 12px; color: var(--text-muted);">MP4, MOV up to 500MB</div>
+                            </div>
+
+                            <div style="margin-top: 24px;">
+                                <div class="control-row">
+                                    <div style="display: flex; align-items: center; gap: 12px;">
+                                        <i class="ph ph-user-circle" style="font-size: 20px; color: var(--accent);"></i>
+                                        <div>
+                                            <div style="font-size: 14px; font-weight: 500;">Avatar Overlay</div>
+                                            <div style="font-size: 12px; color: var(--text-muted);">Show avatar in
+                                                corner</div>
+                                        </div>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+
+                                <div class="control-row">
+                                    <div style="display: flex; align-items: center; gap: 12px;">
+                                        <i class="ph ph-image-square"
+                                            style="font-size: 20px; color: var(--success);"></i>
+                                        <div>
+                                            <div style="font-size: 14px; font-weight: 500;">Brand Logo</div>
+                                            <div style="font-size: 12px; color: var(--text-muted);">Watermark video
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+
+                                <div class="control-row">
+                                    <div style="display: flex; align-items: center; gap: 12px;">
+                                        <i class="ph ph-film-strip" style="font-size: 20px; color: var(--warning);"></i>
+                                        <div>
+                                            <div style="font-size: 14px; font-weight: 500;">Intro / Outro</div>
+                                            <div style="font-size: 12px; color: var(--text-muted);">Add standard
+                                                branding</div>
+                                        </div>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- Action -->
+                        <div class="glass-panel"
+                            style="padding: 24px; border-radius: var(--radius-xl); text-align: center;">
+                            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+                                Estimated processing time: <span style="color: var(--text-main);">~2 mins</span>
+                            </div>
+                            <button class="btn-primary" style="width: 100%; padding: 16px; font-size: 16px;">
+                                <i class="ph ph-play-circle"
+                                    style="font-size: 20px; vertical-align: middle; margin-right: 8px;"></i>
+                                Process Video
+                            </button>
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+</body>
+
+</html>

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSS Studio - Theme Switcher Demo</title>
+    <link rel="stylesheet" href="premium_theme.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        /* Styles for the Demo Switcher */
+        body.theme-classic {
+            background-color: #1a1a1a;
+            /* Old dark grey */
+            font-family: sans-serif;
+        }
+
+        body.theme-classic .bg-mesh {
+            display: none;
+        }
+
+        body.theme-classic .sidebar {
+            display: none;
+        }
+
+        body.theme-classic .premium-header {
+            display: none;
+        }
+
+        body.theme-classic .glass-panel {
+            background: #2d2d2d;
+            border: 1px solid #444;
+            backdrop-filter: none;
+            box-shadow: none;
+        }
+
+        body.theme-classic .classic-nav {
+            display: flex;
+        }
+
+        /* Classic Nav Styles (Hidden by default in Premium) */
+        .classic-nav {
+            display: none;
+            background: #333;
+            padding: 10px;
+            gap: 10px;
+            border-bottom: 1px solid #444;
+        }
+
+        .classic-btn {
+            background: #444;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            cursor: pointer;
+        }
+
+        /* Layout adjustments */
+        body.theme-classic .main-content {
+            margin-left: 0;
+        }
+
+        /* Toggle Button Fixed Position */
+        .theme-toggle-fixed {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: transform 0.2s;
+        }
+
+        .theme-toggle-fixed:hover {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+
+<body class="theme-premium">
+
+    <!-- Theme Toggle Button -->
+    <button class="theme-toggle-fixed" onclick="toggleTheme()">
+        <i class="ph ph-arrows-left-right"></i> Switch Theme
+    </button>
+
+    <!-- Animated Background (Premium Only) -->
+    <div class="bg-mesh"></div>
+
+    <!-- Classic Navigation (Hidden in Premium) -->
+    <div class="classic-nav">
+        <button class="classic-btn">Dashboard</button>
+        <button class="classic-btn">Studio</button>
+        <button class="classic-btn">Analytics</button>
+    </div>
+
+    <!-- Premium Sidebar (Hidden in Classic) -->
+    <nav class="sidebar glass-panel">
+        <div class="brand">
+            <i class="ph-fill ph-video-camera" style="color: var(--primary);"></i>
+            MSS Studio
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+            <a href="#" class="nav-item active"><i class="ph ph-magic-wand"></i> Studio</a>
+            <a href="#" class="nav-item"><i class="ph ph-chart-line-up"></i> Analytics</a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+        <!-- Premium Header -->
+        <header class="header glass-panel premium-header"
+            style="border-top: none; border-left: none; border-right: none;">
+            <div class="breadcrumbs">Home / <span>Studio</span></div>
+            <div class="user-actions">
+                <div
+                    style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #ec4899);">
+                </div>
+            </div>
+        </header>
+
+        <div class="content-scroll">
+            <div style="max-width: 1200px; margin: 0 auto; padding-top: 20px;">
+
+                <h1 id="page-title">Create New Video</h1>
+                <p style="color: var(--text-muted); margin-bottom: 30px;">
+                    Current Theme: <span id="theme-name" style="color: var(--primary); font-weight: 700;">Premium (Slate
+                        Blue)</span>
+                </p>
+
+                <!-- Example Content Card -->
+                <div class="glass-panel" style="padding: 30px; border-radius: var(--radius-xl);">
+                    <h2 style="margin-top: 0;">Video Configuration</h2>
+                    <p>This panel adapts to the active theme. Try the toggle button in the bottom right!</p>
+
+                    <div style="margin-top: 20px;">
+                        <label style="display: block; margin-bottom: 8px; color: var(--text-muted);">Project
+                            Name</label>
+                        <input type="text"
+                            style="width: 100%; padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 8px;"
+                            value="My Awesome Video">
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function toggleTheme() {
+            const body = document.body;
+            const themeName = document.getElementById('theme-name');
+
+            if (body.classList.contains('theme-premium')) {
+                // Switch to Classic
+                body.classList.remove('theme-premium');
+                body.classList.add('theme-classic');
+                themeName.textContent = "Classic (Old Design)";
+                themeName.style.color = "#aaa";
+            } else {
+                // Switch to Premium
+                body.classList.remove('theme-classic');
+                body.classList.add('theme-premium');
+                themeName.textContent = "Premium (Slate Blue)";
+                themeName.style.color = "var(--primary)";
+            }
+        }
+    </script>
+
+</body>
+
+</html>

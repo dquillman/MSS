@@ -1,0 +1,29 @@
+{
+  "thumbnails": [
+    {
+      "id": "1759640844249",
+      "name": "thumbnail_1759640510704_3.png",
+      "url": "http://localhost:5000/thumbnails/thumbnail_1759640844.png",
+      "filename": "thumbnail_1759640844.png",
+      "active": false,
+      "uploadedAt": "2025-10-05 00:07:24"
+    },
+    {
+      "id": "1759642914995",
+      "name": "thumbnail_1759641094591_3.png",
+      "url": "http://localhost:5000/thumbnails/thumbnail_1759642914.png",
+      "filename": "thumbnail_1759642914.png",
+      "active": false,
+      "uploadedAt": "2025-10-05 00:41:54"
+    },
+    {
+      "active": true,
+      "filename": "thumbnail_1759643663121_1.png",
+      "id": "1759643663122",
+      "name": "the aliens are coming - Variation 1",
+      "url": "http://localhost:5000/thumbnails/thumbnail_1759643663121_1.png",
+      "variation": "Bold",
+      "uploadedAt": "2025-10-05 00:55:51"
+    }
+  ]
+}

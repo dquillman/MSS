@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multi-Platform Publisher - MSS Studio</title>
+  <link rel="stylesheet" href="studio.css">
+  <script src="version.js" defer></script>
+  <style>
+    .platform-card {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(17, 24, 39, 0.5));
+      border: 1px solid #8b5cf6;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 16px;
+      transition: all 0.3s;
+    }
+
+    .platform-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);
+    }
+
+    .platform-card.disabled {
+      opacity: 0.5;
+      border-color: #64748b;
+    }
+
+    .platform-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 16px;
+    }
+
+    .platform-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+    }
+
+    .platform-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #E8EBFF;
+      margin-bottom: 8px;
+    }
+
+    .platform-specs {
+      font-size: 12px;
+      color: #A8B3CF;
+      margin-bottom: 12px;
+    }
+
+    .platform-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .platform-checkbox input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+
+    .queue-item {
+      background: #1a202c;
+      border: 1px solid #2a3550;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+      transition: all 0.2s;
+    }
+
+    .queue-item:hover {
+      border-color: #3b82f6;
+    }
+
+    .queue-item.pending {
+      border-left: 4px solid #3b82f6;
+    }
+
+    .queue-item.processing {
+      border-left: 4px solid #f59e0b;
+    }
+
+    .queue-item.completed {
+      border-left: 4px solid #22c55e;
+    }
+
+    .queue-item.failed {
+      border-left: 4px solid #ef4444;
+    }
+
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .status-pending {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3b82f6;
+    }
+
+    .status-processing {
+      background: rgba(251, 191, 36, 0.2);
+      color: #f59e0b;
+    }
+
+    .status-completed {
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+    }
+
+    .status-failed {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .tab-nav {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #2a3550;
+    }
+
+    .tab-button {
+      padding: 12px 24px;
+      background: transparent;
+      border: none;
+      color: #A8B3CF;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
+    }
+
+    .tab-button:hover {
+      color: #E8EBFF;
+    }
+
+    .tab-button.active {
+      color: #8b5cf6;
+      border-bottom-color: #8b5cf6;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #A8B3CF;
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .form-section {
+      background: #1a202c;
+      border: 1px solid #2a3550;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      color: #A8B3CF;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 10px;
+      background: #0f1419;
+      border: 1px solid #2a3550;
+      border-radius: 6px;
+      color: #E8EBFF;
+      font-family: inherit;
+    }
+
+    .form-group textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+
+    .video-select {
+      background: #1a202c;
+      border: 1px solid #2a3550;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .video-select:hover {
+      border-color: #8b5cf6;
+      background: rgba(139, 92, 246, 0.05);
+    }
+
+    .video-select.selected {
+      border-color: #8b5cf6;
+      background: rgba(139, 92, 246, 0.1);
+    }
+
+    @media (max-width: 768px) {
+      .platform-grid {
+        grid-template-columns: 1fr;
+      }
+      .platform-card {
+        padding: 16px;
+      }
+      .card {
+        padding: 16px;
+      }
+      .card h1 {
+        font-size: 24px;
+      }
+      .card > div[style*="display:flex"] {
+        flex-direction: column;
+        gap: 10px;
+      }
+      .btn {
+        width: 100%;
+        padding: 12px;
+        font-size: 14px;
+      }
+      .form-section {
+        padding: 16px;
+      }
+    }
+    @media (max-width: 480px) {
+      .platform-card {
+        padding: 12px;
+      }
+      .card {
+        padding: 12px;
+      }
+      .card h1 {
+        font-size: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="loadingBar" class="loading-bar"></div>
+
+  <!-- Header -->
+  <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+    <h1 style="margin:0;">Multi-Platform Publisher</h1>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn" onclick="window.location.href='workflow.html'" style="background:#22c55e; border-color:#22c55e;">📋 Workflow</button>
+      <button class="btn" onclick="window.location.href='/dashboard'" style="background:#3b82f6; border-color:#3b82f6;">Dashboard</button>
+      <button class="btn" onclick="window.location.href='studio.html'" style="background:#22c55e; border-color:#22c55e;">Studio</button>
+    </div>
+  </div>
+
+  <!-- Info Banner -->
+  <div class="card" style="background:linear-gradient(135deg, rgba(139,92,246,0.1), rgba(17,24,39,0.5)); border-color:#8b5cf6;">
+    <div style="display:flex; align-items:start; gap:16px;">
+      <div style="font-size:32px;">🚀</div>
+      <div>
+        <h3 style="margin:0 0 8px 0;">Publish to Multiple Platforms</h3>
+        <p style="margin:0; color:#A8B3CF; font-size:14px;">Automatically optimize and publish your videos to YouTube, TikTok, Instagram Reels, and more. Save time by managing all your content from one place.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-nav" style="max-width:1000px; margin:0 auto;">
+    <button class="tab-button active" onclick="switchTab('publish')">Publish Video</button>
+    <button class="tab-button" onclick="switchTab('queue')">Publishing Queue</button>
+    <button class="tab-button" onclick="switchTab('platforms')">Platforms</button>
+  </div>
+
+  <!-- Publish Tab -->
+  <div id="publishTab" class="tab-content active">
+    <div class="card">
+      <h2 style="margin-top:0;">Publish Video</h2>
+
+      <!-- Step 1: Select Video -->
+      <div class="form-section">
+        <h3 style="margin-top:0;">1. Select Video</h3>
+        <div class="form-group">
+          <label>Video File</label>
+          <input type="file" id="videoFile" accept="video/*" onchange="handleVideoUpload()">
+          <div class="hint">Upload a video file - it will appear in the list below</div>
+          <div id="uploadStatus" style="margin-top:8px;"></div>
+        </div>
+        <div id="recentVideos">
+          <div style="text-align:center; padding:20px; color:#A8B3CF;">Loading videos...</div>
+        </div>
+      </div>
+
+      <!-- Step 2: Select Platforms -->
+      <div class="form-section">
+        <h3 style="margin-top:0;">2. Select Platforms</h3>
+        <div class="platform-grid" id="platformGrid">
+          <div style="text-align:center; padding:40px; color:#A8B3CF; grid-column:1/-1;">Loading platforms...</div>
+        </div>
+      </div>
+
+      <!-- Step 3: Video Details -->
+      <div class="form-section">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="margin:0;">3. Video Details</h3>
+          <button class="btn" onclick="autoFillVideoDetails()" type="button" style="background:#22c55e; border-color:#22c55e; padding:8px 16px;">✨ Auto-Fill Details</button>
+        </div>
+        <div class="form-group">
+          <label>Title</label>
+          <input type="text" id="publishTitle" placeholder="Enter video title" maxlength="100">
+          <div class="hint">Max 100 characters</div>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="publishDescription" placeholder="Enter video description"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Tags (comma-separated)</label>
+          <input type="text" id="publishTags" placeholder="e.g., ai, automation, technology">
+        </div>
+        <div class="form-group">
+          <label>Schedule Publishing (Optional)</label>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input type="datetime-local" id="scheduledTime" style="flex:1;">
+            <button class="btn" onclick="setOptimalTime()" type="button" style="background:#22c55e; border-color:#22c55e; padding:8px 12px; font-size:12px; white-space:nowrap;">📅 Tomorrow 10 AM</button>
+          </div>
+          <div class="hint">Leave empty to publish immediately. For best engagement, research suggests 10 AM on weekdays.</div>
+        </div>
+      </div>
+
+      <!-- Thumbnail Info -->
+      <div id="thumbnailInfo" style="padding:12px; background:rgba(139,92,246,0.1); border:1px solid #8b5cf6; border-radius:8px; margin-bottom:20px; display:none;">
+        <div style="font-size:14px; color:#a78bfa; font-weight:600; margin-bottom:4px;">📷 Thumbnail Set</div>
+        <div style="font-size:12px; color:#A8B3CF;">A custom thumbnail will be uploaded with this video</div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display:flex; gap:12px;">
+        <button class="btn" onclick="publishNow()" style="background:#22c55e; border-color:#22c55e;">Publish Now</button>
+        <button class="btn" onclick="addToQueue()" style="background:#8b5cf6; border-color:#8b5cf6;">Add to Queue</button>
+        <button class="btn" onclick="clearForm()" style="background:#64748b; border-color:#64748b;">Clear</button>
+      </div>
+      <div id="publishStatus" style="margin-top:16px;"></div>
+    </div>
+  </div>
+
+  <!-- Queue Tab -->
+  <div id="queueTab" class="tab-content">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+        <h2 style="margin:0;">Publishing Queue</h2>
+        <div style="display:flex; gap:10px;">
+          <button class="btn" onclick="loadQueue()" style="background:#22c55e; border-color:#22c55e;">🔄 Refresh</button>
+          <button class="btn" onclick="clearCompleted()" style="background:#ef4444; border-color:#ef4444;">🗑️ Clear Completed</button>
+        </div>
+      </div>
+      <div id="queueContainer">
+        <div style="text-align:center; padding:40px; color:#A8B3CF;">Loading queue...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Platforms Tab -->
+  <div id="platformsTab" class="tab-content">
+    <div class="card">
+      <h2 style="margin-top:0;">Platform Specifications</h2>
+      <div id="platformSpecsContainer">
+        <div style="text-align:center; padding:40px; color:#A8B3CF;">Loading platform specs...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+    let selectedVideo = null;
+    let selectedPlatforms = [];
+    let uploadedThumbnailPath = null;
+    let videoThumbnails = {}; // Store thumbnails for each video filename
+
+    // Tab switching
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      document.getElementById(tabName + 'Tab').classList.add('active');
+
+      if (tabName === 'queue') {
+        loadQueue();
+      } else if (tabName === 'platforms') {
+        loadPlatformSpecs();
+      }
+    }
+
+    // Load platform presets
+    async function loadPlatforms() {
+      const grid = document.getElementById('platformGrid');
+      grid.innerHTML = '<div style="text-align:center; padding:40px; color:#A8B3CF; grid-column:1/-1;">Loading platforms...</div>';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/platforms/presets`, { credentials: 'include' });
+        const data = await res.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to load platforms');
+        }
+
+        const presets = data.presets || [];
+        const platformIcons = {
+          'youtube': '📺',
+          'youtube_shorts': '🎬',
+          'tiktok': '🎵',
+          'instagram_reels': '📸',
+          'instagram_feed': '📷',
+          'facebook': '👥'
+        };
+
+        // Fetch connected channels for each platform
+        const channelsData = await fetchConnectedChannels();
+
+        grid.innerHTML = presets.map(preset => {
+          const platformKey = preset.platform.includes('youtube') ? 'youtube' : preset.platform.split('_')[0];
+          const channel = channelsData[platformKey];
+
+          let accountDisplay = '';
+          if (channel) {
+            accountDisplay = `<div style="margin-top:8px; padding:8px; background:rgba(34,197,94,0.1); border:1px solid #22c55e; border-radius:6px; font-size:12px; color:#22c55e;">✓ ${channel.channel_name || channel.channel_handle || 'Connected'}</div>`;
+          } else {
+            accountDisplay = `<button class="btn" onclick="connectPlatform('${platformKey}')" style="margin-top:8px; width:100%; background:#3b82f6; border-color:#3b82f6; padding:6px 12px; font-size:12px;">🔗 Connect</button>`;
+          }
+
+          return `
+            <div class="platform-card" data-platform="${preset.platform}">
+              <div class="platform-icon">${platformIcons[preset.platform] || '🎥'}</div>
+              <div class="platform-name">${formatPlatformName(preset.platform)}</div>
+              <div class="platform-specs">
+                ${preset.aspect_ratio} • Max ${preset.max_duration_seconds}s<br>
+                ${preset.recommended_resolution}
+              </div>
+              ${accountDisplay}
+              <div class="platform-checkbox">
+                <input type="checkbox" id="platform_${preset.platform}" onchange="togglePlatform('${preset.platform}')" ${!channel ? 'disabled' : ''}>
+                <label for="platform_${preset.platform}" style="cursor:pointer; margin:0;">${channel ? 'Select' : 'Connect to Select'}</label>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+      } catch (error) {
+        console.error('Error loading platforms:', error);
+        grid.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444; grid-column:1/-1;">Error: ${error.message}</div>`;
+      }
+    }
+
+    // Fetch connected channels for all platforms
+    async function fetchConnectedChannels() {
+      const channels = {};
+
+      try {
+        // Fetch YouTube channels
+        const ytRes = await fetch(`${API_BASE}/api/channels/list?platform=youtube`, { credentials: 'include' });
+        if (ytRes.ok) {
+          const ytData = await ytRes.json();
+          if (ytData.success && ytData.channels && ytData.channels.length > 0) {
+            // Get default channel or first channel
+            channels.youtube = ytData.channels.find(ch => ch.is_default) || ytData.channels[0];
+          }
+        }
+
+        // TODO: Add support for TikTok, Instagram, Facebook when their APIs are integrated
+
+      } catch (error) {
+        console.error('Error fetching connected channels:', error);
+      }
+
+      return channels;
+    }
+
+    function connectPlatform(platform) {
+      const width = 600;
+      const height = 700;
+      const left = (screen.width - width) / 2;
+      const top = (screen.height - height) / 2;
+      
+      let url = '';
+      if (platform === 'youtube') {
+        url = `${API_BASE}/api/oauth/youtube/authorize`;
+      } else if (platform === 'tiktok') {
+        url = `${API_BASE}/api/oauth/tiktok/authorize`;
+      } else if (platform === 'instagram') {
+        url = `${API_BASE}/api/oauth/instagram/authorize`;
+      } else if (platform === 'facebook') {
+        url = `${API_BASE}/api/oauth/facebook/authorize`;
+      } else {
+        alert('Platform not supported yet');
+        return;
+      }
+
+      window.open(url, 'Connect Platform', `width=${width},height=${height},top=${top},left=${left}`);
+    }
+
+    function formatPlatformName(platform) {
+      return platform.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    }
+
+    function togglePlatform(platform) {
+      const checkbox = document.getElementById(`platform_${platform}`);
+      if (checkbox.checked) {
+        if (!selectedPlatforms.includes(platform)) {
+          selectedPlatforms.push(platform);
+        }
+      } else {
+        selectedPlatforms = selectedPlatforms.filter(p => p !== platform);
+      }
+      console.log('Selected platforms:', selectedPlatforms);
+    }
+
+    // Publish now
+    async function publishNow() {
+      const status = document.getElementById('publishStatus');
+
+      if (selectedPlatforms.length === 0) {
+        status.innerHTML = '<span style="color:#ef4444;">Please select at least one platform</span>';
+        return;
+      }
+
+      const title = document.getElementById('publishTitle').value.trim();
+      if (!title) {
+        status.innerHTML = '<span style="color:#ef4444;">Please enter a title</span>';
+        return;
+      }
+
+      status.innerHTML = '<span style="color:#3b82f6;">Publishing...</span>';
+
+      try {
+        // This is a mock implementation - in production, you'd upload the video and trigger actual platform APIs
+        alert('Publishing feature requires platform API integration.\n\nSelected platforms: ' + selectedPlatforms.join(', ') + '\nTitle: ' + title);
+
+        status.innerHTML = '<span style="color:#22c55e;">Video queued for publishing! Check the Queue tab for status.</span>';
+
+        // Add to queue
+        await addToQueue();
+
+      } catch (error) {
+        status.innerHTML = `<span style="color:#ef4444;">Error: ${error.message}</span>`;
+      }
+    }
+
+    // Add to queue
+    async function addToQueue() {
+      const status = document.getElementById('publishStatus');
+
+      if (selectedPlatforms.length === 0) {
+        status.innerHTML = '<span style="color:#ef4444;">Please select at least one platform</span>';
+        return;
+      }
+
+      const title = document.getElementById('publishTitle').value.trim();
+      const description = document.getElementById('publishDescription').value.trim();
+      const tags = document.getElementById('publishTags').value.split(',').map(t => t.trim()).filter(t => t);
+      const scheduledTime = document.getElementById('scheduledTime').value;
+
+      if (!title) {
+        status.innerHTML = '<span style="color:#ef4444;">Please enter a title</span>';
+        return;
+      }
+
+      // Convert scheduled time to ISO format if provided
+      let scheduledTimeISO = null;
+      if (scheduledTime) {
+        const localDate = new Date(scheduledTime);
+        scheduledTimeISO = localDate.toISOString();
+      }
+
+      // Mock video filename - in production, this would be the uploaded/selected video
+      const videoFilename = selectedVideo || `video_${Date.now()}.mp4`;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/platforms/queue`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            video_filename: videoFilename,
+            platforms: selectedPlatforms,
+            title: title,
+            description: description,
+            tags: tags,
+            thumbnail_path: uploadedThumbnailPath,
+            scheduled_time: scheduledTimeISO
+          })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          status.innerHTML = '<span style="color:#22c55e;">Added to queue successfully!</span>';
+          setTimeout(() => { status.innerHTML = ''; }, 3000);
+        } else {
+          throw new Error(data.error || 'Failed to add to queue');
+        }
+
+      } catch (error) {
+        status.innerHTML = `<span style="color:#ef4444;">Error: ${error.message}</span>`;
+      }
+    }
+
+    // Generate smart SEO tags based on video title
+    function generateSEOTags(title) {
+      const titleLower = title.toLowerCase();
+      const year = new Date().getFullYear();
+
+      // Category detection with relevant tags
+      const categoryTags = {
+        crypto: ['cryptocurrency', 'bitcoin', 'ethereum', 'blockchain', 'crypto investing', 'crypto news', 'defi'],
+        ai: ['artificial intelligence', 'machine learning', 'chatgpt', 'ai tools', 'automation', 'tech'],
+        politics: ['politics', 'election', 'government', 'policy', 'news', 'current events'],
+        business: ['business', 'entrepreneur', 'startup', 'marketing', 'finance', 'money'],
+        tech: ['technology', 'software', 'programming', 'coding', 'tech news', 'innovation'],
+        health: ['health', 'fitness', 'wellness', 'nutrition', 'exercise', 'healthy living'],
+        finance: ['finance', 'investing', 'stocks', 'trading', 'money', 'wealth'],
+        education: ['education', 'learning', 'study', 'school', 'university', 'online course'],
+        travel: ['travel', 'vacation', 'tourism', 'adventure', 'destinations', 'travel tips'],
+        gaming: ['gaming', 'video games', 'gameplay', 'esports', 'game review'],
+        food: ['cooking', 'recipe', 'food', 'cuisine', 'baking', 'chef']
+      };
+
+      // Detect category
+      let detectedCategory = [];
+      for (const [category, keywords] of Object.entries(categoryTags)) {
+        if (keywords.some(keyword => titleLower.includes(keyword))) {
+          detectedCategory = keywords.slice(0, 3);
+          break;
+        }
+      }
+
+      // Extract keywords from title
+      const commonWords = ['the', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or', 'but', 'how', 'what', 'why', 'when', 'where'];
+      const titleKeywords = title.toLowerCase()
+        .split(' ')
+        .filter(word => word.length > 2 && !commonWords.includes(word))
+        .slice(0, 5);
+
+      // Universal SEO power tags
+      const powerTags = [
+        'tutorial',
+        'guide',
+        'explained',
+        'how to',
+        year.toString(),
+        'tips',
+        'complete guide',
+        'beginner friendly'
+      ];
+
+      // Combine all tags
+      const allTags = [
+        ...titleKeywords,
+        ...detectedCategory,
+        ...powerTags.slice(0, 6)
+      ];
+
+      // Remove duplicates and limit to 15 tags (YouTube recommendation)
+      const uniqueTags = [...new Set(allTags)].slice(0, 15);
+
+      return uniqueTags.join(', ');
+    }
+
+    // Auto-fill video details from selected video
+    async function autoFillVideoDetails() {
+      if (!selectedVideo) {
+        alert('Please select a video first!');
+        return;
+      }
+
+      const titleInput = document.getElementById('publishTitle');
+      const descInput = document.getElementById('publishDescription');
+      const tagsInput = document.getElementById('publishTags');
+
+      let title = '';
+      let description = '';
+      let tags = '';
+      let foundInDatabase = false;
+      let bestMatch = null; // Store best trend match for use in description
+      let videoTopicData = null; // Store topic data from video (includes hook/subtopic)
+
+      // Step 1: Try to get metadata from video database
+      try {
+        const res = await fetch(`${API_BASE}/api/video/metadata/${encodeURIComponent(selectedVideo)}`, {
+          credentials: 'include'
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.metadata) {
+            title = data.metadata.title || '';
+            description = data.metadata.description || '';
+            tags = data.metadata.tags || '';
+            videoTopicData = data.metadata.topic_data;
+            foundInDatabase = true;
+            console.log('[AUTO-FILL] Video found in database');
+            if (videoTopicData) {
+              console.log('[AUTO-FILL] Topic data:', videoTopicData);
+            }
+          }
+        }
+      } catch (error) {
+        console.log('No video metadata found');
+      }
+
+      // Step 2: If no title yet, generate from filename
+      if (!title) {
+        const filename = selectedVideo.replace(/\.[^/.]+$/, '');
+        title = filename
+          .replace(/_\d{10,}$/g, '')
+          .replace(/_final_with_intro_outro/g, '')
+          .replace(/_with_avatar/g, '')
+          .replace(/_video_with_logo/g, '')
+          .replace(/uploaded_video/g, '')
+          .replace(/_/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        title = title.split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ')
+          .substring(0, 100);
+      }
+
+      // Step 3: Try to get keywords from video topic data or trending topics
+      if (!tags) {
+        // Priority 1: Use keywords from video's topic data
+        if (videoTopicData && (videoTopicData.keywords || videoTopicData.yt_tags)) {
+          const videoKeywords = videoTopicData.keywords || videoTopicData.yt_tags || [];
+          if (videoKeywords.length > 0) {
+            tags = Array.isArray(videoKeywords) ? videoKeywords.join(', ') : videoKeywords;
+            console.log('✓ Tags from video topic data:', videoKeywords.slice(0, 5).join(', '));
+          }
+        }
+
+        // Priority 2: If no video keywords, try to match with trending topics
+        if (!tags) {
+          try {
+            const trendsRes = await fetch(`${API_BASE}/api/trends`, {
+              credentials: 'include'
+            });
+
+            if (trendsRes.ok) {
+              const trendsData = await trendsRes.json();
+              if (trendsData.success && trendsData.trends) {
+                // Try to match title to a trend topic (case-insensitive, flexible matching)
+                const normalizeText = (text) => text.toLowerCase().trim().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ');
+                const normalizedTitle = normalizeText(title);
+
+                let bestMatchScore = 0;
+
+                // Find best matching trend
+                for (const trend of trendsData.trends) {
+                  const normalizedTopic = normalizeText(trend.topic);
+
+                  // Calculate match score
+                  let score = 0;
+
+                  // Exact match
+                  if (normalizedTitle === normalizedTopic) {
+                    score = 100;
+                  }
+                  // Contains full topic
+                  else if (normalizedTitle.includes(normalizedTopic) || normalizedTopic.includes(normalizedTitle)) {
+                    score = 80;
+                  }
+                  // Word overlap
+                  else {
+                    const titleWords = normalizedTitle.split(' ').filter(w => w.length > 3);
+                    const topicWords = normalizedTopic.split(' ').filter(w => w.length > 3);
+                    const commonWords = titleWords.filter(w => topicWords.includes(w)).length;
+                    const totalWords = Math.max(titleWords.length, topicWords.length);
+                    if (totalWords > 0) {
+                      score = (commonWords / totalWords) * 60;
+                    }
+                  }
+
+                  if (score > bestMatchScore) {
+                    bestMatchScore = score;
+                    bestMatch = trend;
+                  }
+                }
+
+                // If we found a good match (>40% confidence), use its keywords
+                if (bestMatch && bestMatchScore > 40) {
+                  const keywords = bestMatch.keywords || [];
+                  if (keywords.length > 0) {
+                    tags = keywords.join(', ');
+                    console.log(`✓ Tags from trending topic: "${bestMatch.topic}" (${Math.round(bestMatchScore)}% match)`);
+                    console.log(`✓ Keywords: ${keywords.slice(0, 5).join(', ')}...`);
+                  }
+                } else {
+                  console.log('No matching trend found, will generate generic tags');
+                }
+              }
+            }
+          } catch (error) {
+            console.log('Could not fetch trends, will generate generic tags');
+          }
+        }
+      }
+
+      // Step 4: Generate AI-powered SEO description if still empty
+      if (!description) {
+        // Extract hook and keywords from video topic data or trend match
+        let hook = '';
+        let keywords = [];
+        let mainTopic = '';
+
+        if (videoTopicData) {
+          hook = videoTopicData.hook || videoTopicData.angle || '';
+          keywords = videoTopicData.keywords || videoTopicData.yt_tags || [];
+          mainTopic = videoTopicData.title || videoTopicData.yt_title || '';
+        } else if (bestMatch) {
+          // Fallback to trend match if no video topic data
+          keywords = bestMatch.keywords || [];
+          mainTopic = bestMatch.topic || '';
+        }
+
+        // If we have a main topic but no hook, check if the title is actually the subtopic
+        if (!hook && mainTopic && title.toLowerCase() !== mainTopic.toLowerCase()) {
+          hook = title;
+          console.log(`[AUTO-FILL] Using video title as hook: "${hook}"`);
+        }
+
+        // Generate AI description using ChatGPT
+        try {
+          console.log('[AUTO-FILL] Generating AI description...');
+          const descRes = await fetch(`${API_BASE}/api/generate-description`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: title,
+              hook: hook,
+              keywords: Array.isArray(keywords) ? keywords : (keywords ? keywords.split(',').map(k => k.trim()) : []),
+              main_topic: mainTopic
+            })
+          });
+
+          if (descRes.ok) {
+            const descData = await descRes.json();
+            if (descData.success && descData.description) {
+              description = descData.description;
+              console.log('[AUTO-FILL] ✓ AI description generated!');
+            } else {
+              throw new Error('AI generation failed');
+            }
+          } else {
+            throw new Error('API request failed');
+          }
+        } catch (error) {
+          console.log('[AUTO-FILL] AI generation failed, using fallback template');
+          // Fallback to simple template if AI fails
+          const year = new Date().getFullYear();
+          description = `${title}${hook ? ': ' + hook : ''}
+
+${hook ? `Discover everything you need to know about ${hook.toLowerCase()}.` : `In this video, we break down everything about ${title.toLowerCase()}.`}
+
+🎯 WHAT'S COVERED:
+✓ Complete overview and latest insights
+✓ Key analysis and perspectives
+✓ What you need to know
+✓ Future implications
+
+⏰ TIMESTAMPS:
+0:00 - Introduction
+0:30 - Main content
+[Add your timestamps]
+
+📌 KEY TAKEAWAYS:
+Stay informed with comprehensive coverage of ${title.toLowerCase()}.
+
+🔔 SUBSCRIBE | 👍 LIKE | 💬 COMMENT | 📢 SHARE
+
+#${title.replace(/\s+/g, '')} ${hook ? '#' + hook.replace(/\s+/g, '') : ''} #${year}`;
+        }
+      }
+
+      // Step 5: Generate smart SEO tags if still empty
+      if (!tags) {
+        tags = generateSEOTags(title);
+      }
+
+      // Fill all fields
+      titleInput.value = title;
+      descInput.value = description;
+      tagsInput.value = tags;
+
+      // Show appropriate success message
+      let successMsg = '';
+      if (videoTopicData && videoTopicData.hook) {
+        successMsg = `✨ Auto-filled with AI-generated content!\n\nTopic: "${title}"\nSubtopic/Hook: "${videoTopicData.hook}"\n\n✅ Using original trend keywords\n✅ AI-generated SEO description\n\nReview and customize as needed.`;
+      } else if (foundInDatabase) {
+        successMsg = '✓ Auto-filled from video database with AI-enhanced description!';
+      } else if (bestMatch) {
+        successMsg = `✨ Auto-filled with AI-generated content!\n\nMatched trend: "${bestMatch.topic}"\n\n✅ Using real trend keywords\n✅ AI-generated SEO description\n\nReview and customize as needed.`;
+      } else {
+        successMsg = '✨ Auto-filled with AI-generated SEO content!\n\nNo matching trend found, using smart keyword generation.\n\nReview and customize as needed.';
+      }
+      alert(successMsg);
+    }
+
+    // Set optimal publishing time (Tomorrow at 10 AM)
+    function setOptimalTime() {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(10, 0, 0, 0); // 10:00 AM
+
+      // Format for datetime-local input: YYYY-MM-DDTHH:MM
+      const year = tomorrow.getFullYear();
+      const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+      const day = String(tomorrow.getDate()).padStart(2, '0');
+      const hours = String(tomorrow.getHours()).padStart(2, '0');
+      const minutes = String(tomorrow.getMinutes()).padStart(2, '0');
+
+      const datetimeLocal = `${year}-${month}-${day}T${hours}:${minutes}`;
+      document.getElementById('scheduledTime').value = datetimeLocal;
+    }
+
+    function clearForm() {
+      document.getElementById('publishTitle').value = '';
+      document.getElementById('publishDescription').value = '';
+      document.getElementById('publishTags').value = '';
+      document.getElementById('scheduledTime').value = '';
+      selectedPlatforms = [];
+      document.querySelectorAll('.platform-checkbox input').forEach(cb => cb.checked = false);
+      document.getElementById('publishStatus').innerHTML = '';
+      document.getElementById('thumbnailInfo').style.display = 'none';
+
+      // Clear video selection
+      selectedVideo = null;
+      uploadedThumbnailPath = null;
+      document.querySelectorAll('.video-select').forEach(el => el.classList.remove('selected'));
+    }
+
+    // Load queue
+    async function loadQueue() {
+      const container = document.getElementById('queueContainer');
+      container.innerHTML = '<div style="text-align:center; padding:40px; color:#A8B3CF;">Loading queue...</div>';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/platforms/queue`, { credentials: 'include' });
+        const data = await res.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to load queue');
+        }
+
+        const queue = data.queue || [];
+
+        if (queue.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">📋</div>
+              <div>No videos in queue</div>
+              <div style="font-size:14px; margin-top:8px;">Videos you queue for publishing will appear here</div>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = queue.map(item => {
+          const platforms = JSON.parse(item.platforms || '[]');
+          const createdDate = new Date(item.created_at);
+          const now = new Date();
+          const hoursSince = Math.floor((now - createdDate) / (1000 * 60 * 60));
+          const ageDisplay = hoursSince < 24 ? `${hoursSince}h ago` : `${Math.floor(hoursSince / 24)}d ago`;
+
+          // Show scheduled time if present
+          let scheduledDisplay = '';
+          if (item.scheduled_time) {
+            const scheduledDate = new Date(item.scheduled_time);
+            scheduledDisplay = `
+              <div style="margin-top:8px; padding:8px; background:rgba(34,197,94,0.1); border:1px solid #22c55e; border-radius:6px; font-size:12px; color:#22c55e;">
+                📅 Scheduled: ${scheduledDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </div>
+            `;
+          }
+
+          return `
+            <div class="queue-item ${item.status}">
+              <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:12px; gap:12px;">
+                <div style="flex:1;">
+                  <div style="font-size:16px; font-weight:700; color:#E8EBFF; margin-bottom:4px;">${item.title}</div>
+                  <div style="font-size:12px; color:#A8B3CF;">
+                    ${new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })} (${ageDisplay})
+                  </div>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <span class="status-badge status-${item.status}">${item.status}</span>
+                  ${item.status === 'pending' ? `<button class="btn" onclick="publishQueueItem(${item.id})" style="background:#22c55e; border-color:#22c55e; padding:4px 8px; font-size:11px;">🚀 Publish Now</button>` : ''}
+                  <button class="btn" onclick="deleteQueueItem(${item.id})" style="background:#ef4444; border-color:#ef4444; padding:4px 8px; font-size:11px;">🗑️</button>
+                </div>
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+                ${platforms.map(p => `<span style="padding:4px 10px; background:rgba(139,92,246,0.2); border-radius:12px; font-size:11px; color:#a78bfa;">${formatPlatformName(p)}</span>`).join('')}
+              </div>
+              ${scheduledDisplay}
+              ${item.error_message ? `<div style="margin-top:12px; padding:12px; background:rgba(239,68,68,0.1); border:1px solid #ef4444; border-radius:6px; color:#ef4444; font-size:12px;">${item.error_message}</div>` : ''}
+            </div>
+          `;
+        }).join('');
+
+      } catch (error) {
+        console.error('Error loading queue:', error);
+        container.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444;">Error: ${error.message}</div>`;
+      }
+    }
+
+    async function deleteQueueItem(queueId) {
+      if (!confirm('Delete this queue item?')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/platforms/queue/${queueId}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          loadQueue(); // Refresh queue
+        } else {
+          alert('Failed to delete: ' + (data.error || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Error deleting queue item:', error);
+        alert('Error deleting item: ' + error.message);
+      }
+    }
+
+    async function clearCompleted() {
+      if (!confirm('Clear all completed and failed items from the queue?')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/platforms/queue/clear-completed`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          alert(`✓ Cleared ${data.deleted} items from queue`);
+          loadQueue(); // Refresh queue
+        } else {
+          alert('Failed to clear: ' + (data.error || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Error clearing completed:', error);
+        alert('Error clearing completed items: ' + error.message);
+      }
+    }
+
+    async function publishQueueItem(queueId) {
+      if (!confirm('Publish this video to the selected platforms now?')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/platforms/queue/${queueId}/process`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          alert(`✓ Successfully published to all platforms!\n\nCheck your channel for the published video.`);
+          loadQueue(); // Refresh queue to show completed status
+        } else {
+          const errorMsg = data.error || 'Unknown error';
+          const errors = data.errors ? '\n\nDetails:\n' + data.errors.join('\n') : '';
+          alert(`❌ Publishing failed: ${errorMsg}${errors}`);
+          loadQueue(); // Refresh queue to show error status
+        }
+      } catch (error) {
+        console.error('Error publishing queue item:', error);
+        alert('Error publishing: ' + error.message);
+        loadQueue(); // Refresh queue
+      }
+    }
+
+    // Load platform specs
+    async function loadPlatformSpecs() {
+      const container = document.getElementById('platformSpecsContainer');
+      container.innerHTML = '<div style="text-align:center; padding:40px; color:#A8B3CF;">Loading platform specs...</div>';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/platforms/presets`, { credentials: 'include' });
+        const data = await res.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to load platform specs');
+        }
+
+        const presets = data.presets || [];
+
+        container.innerHTML = `
+          <table style="width:100%; border-collapse:collapse;">
+            <thead>
+              <tr style="background:#1a202c; border-bottom:2px solid #2a3550;">
+                <th style="padding:12px; text-align:left; color:#A8B3CF; font-size:12px; text-transform:uppercase;">Platform</th>
+                <th style="padding:12px; text-align:left; color:#A8B3CF; font-size:12px; text-transform:uppercase;">Aspect Ratio</th>
+                <th style="padding:12px; text-align:left; color:#A8B3CF; font-size:12px; text-transform:uppercase;">Max Duration</th>
+                <th style="padding:12px; text-align:left; color:#A8B3CF; font-size:12px; text-transform:uppercase;">Max File Size</th>
+                <th style="padding:12px; text-align:left; color:#A8B3CF; font-size:12px; text-transform:uppercase;">Recommended Resolution</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${presets.map(preset => `
+                <tr style="border-bottom:1px solid #2a3550;">
+                  <td style="padding:12px; color:#E8EBFF;">${formatPlatformName(preset.platform)}</td>
+                  <td style="padding:12px; color:#E8EBFF;">${preset.aspect_ratio}</td>
+                  <td style="padding:12px; color:#E8EBFF;">${formatDuration(preset.max_duration_seconds)}</td>
+                  <td style="padding:12px; color:#E8EBFF;">${preset.max_file_size_mb} MB</td>
+                  <td style="padding:12px; color:#E8EBFF;">${preset.recommended_resolution}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div style="margin-top:20px; padding:16px; background:rgba(59,130,246,0.1); border:1px solid #3b82f6; border-radius:8px; color:#60a5fa; font-size:14px;">
+            💡 Tip: Videos are automatically optimized for each platform's specifications when you publish.
+          </div>
+        `;
+
+      } catch (error) {
+        console.error('Error loading platform specs:', error);
+        container.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444;">Error: ${error.message}</div>`;
+      }
+    }
+
+    function formatDuration(seconds) {
+      if (seconds >= 3600) {
+        return `${Math.floor(seconds / 3600)}h`;
+      } else if (seconds >= 60) {
+        return `${Math.floor(seconds / 60)}m`;
+      } else {
+        return `${seconds}s`;
+      }
+    }
+
+    // Auto-fill form from URL parameters
+    function autoFillFromURL() {
+      const urlParams = new URLSearchParams(window.location.search);
+
+      const title = urlParams.get('title');
+      const description = urlParams.get('description');
+      const tags = urlParams.get('tags');
+      const video = urlParams.get('video');
+
+      if (title) {
+        document.getElementById('publishTitle').value = decodeURIComponent(title);
+      }
+      if (description) {
+        document.getElementById('publishDescription').value = decodeURIComponent(description);
+      }
+      if (tags) {
+        document.getElementById('publishTags').value = decodeURIComponent(tags);
+      }
+      if (video) {
+        selectedVideo = decodeURIComponent(video);
+      }
+    }
+
+    // Handle video file upload
+    async function handleVideoUpload() {
+      const fileInput = document.getElementById('videoFile');
+      const statusDiv = document.getElementById('uploadStatus');
+      const file = fileInput.files[0];
+
+      if (!file) return;
+
+      // Validate file type
+      const allowedTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska'];
+      if (!allowedTypes.includes(file.type) && !file.name.match(/\.(mp4|mov|avi|mkv)$/i)) {
+        statusDiv.innerHTML = '<span style="color:#ef4444;">Please select a valid video file (MP4, MOV, AVI, MKV)</span>';
+        fileInput.value = '';
+        return;
+      }
+
+      statusDiv.innerHTML = '<span style="color:#3b82f6;">⏳ Uploading video...</span>';
+
+      try {
+        const formData = new FormData();
+        formData.append('video', file);
+
+        const res = await fetch(`${API_BASE}/api/upload/video`, {
+          method: 'POST',
+          credentials: 'include',
+          body: formData
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          statusDiv.innerHTML = '<span style="color:#22c55e;">✓ Video uploaded successfully!</span>';
+          setTimeout(() => { statusDiv.innerHTML = ''; }, 3000);
+
+          // Clear the file input
+          fileInput.value = '';
+
+          // Reload the video list
+          await loadRecentVideos();
+
+          // Auto-select the uploaded video
+          if (data.video_path) {
+            setTimeout(() => {
+              const videoTitle = file.name.replace(/\.[^/.]+$/, '');
+              selectVideo(data.video_path, videoTitle);
+            }, 500);
+          }
+        } else {
+          throw new Error(data.error || 'Upload failed');
+        }
+      } catch (error) {
+        console.error('Error uploading video:', error);
+        statusDiv.innerHTML = `<span style="color:#ef4444;">Upload failed: ${error.message}</span>`;
+      }
+    }
+
+    // Delete video from list
+    async function deleteVideo(videoFilename) {
+      if (!confirm(`Delete "${videoFilename}"?\n\nThe video will be moved to trash.`)) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/video/delete/${encodeURIComponent(videoFilename)}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          // Remove from thumbnail storage
+          delete videoThumbnails[videoFilename];
+
+          // Clear selection if this was the selected video
+          if (selectedVideo === videoFilename) {
+            selectedVideo = null;
+            uploadedThumbnailPath = null;
+            document.getElementById('thumbnailInfo').style.display = 'none';
+          }
+
+          // Reload the video list
+          await loadRecentVideos();
+        } else {
+          alert('Failed to delete video: ' + (data.error || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Error deleting video:', error);
+        alert('Error deleting video: ' + error.message);
+      }
+    }
+
+    // Load recent videos
+    async function loadRecentVideos() {
+      const container = document.getElementById('recentVideos');
+      container.innerHTML = '<div style="text-align:center; padding:20px; color:#A8B3CF;">Loading videos...</div>';
+
+      try {
+        const res = await fetch(`${API_BASE}/list-outputs?dir=out&limit=10`);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        let videos = Array.isArray(data.files) ? data.files : [];
+
+        // Filter to only video files
+        videos = videos.filter(v => v.ext && /\.(mp4|mov|avi|mkv)$/i.test(v.ext));
+
+        // Sort by modified time (newest first)
+        videos.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+
+        if (videos.length === 0) {
+          container.innerHTML = '<div style="text-align:center; padding:20px; color:#A8B3CF;">No videos found</div>';
+          return;
+        }
+
+        container.innerHTML = videos.map(video => {
+          const date = video.mtime ? new Date(video.mtime * 1000).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric'
+          }) : 'Unknown';
+
+          const sizeMB = video.size ? (video.size / (1024 * 1024)).toFixed(1) : '0.0';
+
+          // Extract title from filename (remove extension and timestamp)
+          let videoTitle = video.path.replace(/\.(mp4|mov|avi|mkv)$/i, '');
+          // Remove common timestamp patterns
+          videoTitle = videoTitle.replace(/_\d{10,}$/g, '');
+          videoTitle = videoTitle.replace(/_final_with_intro_outro/g, '');
+          videoTitle = videoTitle.replace(/_with_avatar/g, '');
+          videoTitle = videoTitle.replace(/_/g, ' ');
+          // Capitalize first letter of each word
+          videoTitle = videoTitle.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+          return `
+            <div class="video-select" data-filename="${video.path}" data-title="${videoTitle.replace(/"/g, '&quot;')}">
+              <div style="display:flex; gap:12px; align-items:center;">
+                <video src="${API_BASE}/out/${video.path}" style="width:120px; height:68px; object-fit:cover; border-radius:6px; background:#000;" onclick="event.stopPropagation(); selectVideo('${video.path}', '${videoTitle.replace(/'/g, "\\'")}');"></video>
+                <div style="flex:1;" onclick="selectVideo('${video.path}', '${videoTitle.replace(/'/g, "\\'")}');">
+                  <div style="font-weight:600; margin-bottom:4px;">${videoTitle}</div>
+                  <div style="font-size:12px; color:#A8B3CF;">${date} • ${sizeMB} MB</div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+                  <input type="file" id="thumb_${video.path.replace(/[^a-zA-Z0-9]/g, '_')}" accept="image/*" style="display:none;" onchange="handleVideoThumbnail('${video.path}', this)">
+                  <div id="thumb_buttons_${video.path.replace(/[^a-zA-Z0-9]/g, '_')}" style="display:flex; gap:4px;">
+                    <button class="btn" onclick="event.stopPropagation(); document.getElementById('thumb_${video.path.replace(/[^a-zA-Z0-9]/g, '_')}').click();" style="background:#8b5cf6; border-color:#8b5cf6; padding:4px 12px; font-size:12px; white-space:nowrap;">📷 Add Thumbnail</button>
+                    <button class="btn" onclick="event.stopPropagation(); deleteVideo('${video.path}');" style="background:#ef4444; border-color:#ef4444; padding:4px 8px; font-size:12px;">🗑️</button>
+                  </div>
+                  <div id="thumb_preview_${video.path.replace(/[^a-zA-Z0-9]/g, '_')}" style="font-size:11px; color:#22c55e;"></div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+
+      } catch (error) {
+        console.error('Error loading videos:', error);
+        container.innerHTML = `<div style="text-align:center; padding:20px; color:#ef4444;">Error loading videos</div>`;
+      }
+    }
+
+    async function selectVideo(filename, title) {
+      selectedVideo = filename;
+
+      // Set the thumbnail path if this video has one
+      uploadedThumbnailPath = videoThumbnails[filename] || null;
+
+      // Show/hide thumbnail info
+      const thumbnailInfo = document.getElementById('thumbnailInfo');
+      if (uploadedThumbnailPath) {
+        thumbnailInfo.style.display = 'block';
+      } else {
+        thumbnailInfo.style.display = 'none';
+      }
+
+      // Update visual selection
+      document.querySelectorAll('.video-select').forEach(el => {
+        el.classList.remove('selected');
+        if (el.getAttribute('data-filename') === filename) {
+          el.classList.add('selected');
+        }
+      });
+
+      const titleInput = document.getElementById('publishTitle');
+      const descInput = document.getElementById('publishDescription');
+      const tagsInput = document.getElementById('publishTags');
+      const status = document.getElementById('publishStatus');
+
+      // Try to fetch metadata from database
+      try {
+        const res = await fetch(`${API_BASE}/api/video/metadata/${encodeURIComponent(filename)}`, {
+          credentials: 'include'
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+
+          if (data.success && data.metadata) {
+            // Fill fields with metadata (or empty if no metadata)
+            titleInput.value = data.metadata.title || '';
+            descInput.value = data.metadata.description || '';
+            tagsInput.value = data.metadata.tags || '';
+
+            status.innerHTML = `<span style="color:#22c55e;">✓ Selected and auto-filled from database: ${filename}</span>`;
+            setTimeout(() => { status.innerHTML = ''; }, 3000);
+            return;
+          }
+        }
+      } catch (error) {
+        console.log('No metadata found, using filename-based title:', error);
+      }
+
+      // Fallback: Use filename-based title and clear other fields
+      titleInput.value = title;
+      descInput.value = '';
+      tagsInput.value = '';
+
+      status.innerHTML = `<span style="color:#f59e0b;">⚠ Selected: ${filename} (no metadata found, fields cleared)</span>`;
+      setTimeout(() => { status.innerHTML = ''; }, 3000);
+    }
+
+    // Handle thumbnail upload for a specific video
+    async function handleVideoThumbnail(videoFilename, inputElement) {
+      const file = inputElement.files[0];
+      if (!file) return;
+
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        inputElement.value = '';
+        return;
+      }
+
+      const previewId = 'thumb_preview_' + videoFilename.replace(/[^a-zA-Z0-9]/g, '_');
+      const previewDiv = document.getElementById(previewId);
+
+      previewDiv.innerHTML = '<span style="color:#f59e0b;">Uploading...</span>';
+
+      // Upload thumbnail to server
+      try {
+        const formData = new FormData();
+        formData.append('thumbnail', file);
+
+        const res = await fetch(`${API_BASE}/api/upload/thumbnail`, {
+          method: 'POST',
+          credentials: 'include',
+          body: formData
+        });
+
+        const data = await res.json();
+
+        if (data.success && data.thumbnail_path) {
+          // Store thumbnail path for this video
+          videoThumbnails[videoFilename] = data.thumbnail_path;
+
+          previewDiv.innerHTML = '✓ Thumbnail set';
+
+          // Update the video card to show thumbnail preview
+          updateVideoCardWithThumbnail(videoFilename, data.thumbnail_path);
+
+          // If this is the currently selected video, update the thumbnail info banner
+          if (selectedVideo === videoFilename) {
+            uploadedThumbnailPath = data.thumbnail_path;
+            document.getElementById('thumbnailInfo').style.display = 'block';
+          }
+
+          console.log(`Thumbnail set for ${videoFilename}:`, data.thumbnail_path);
+        } else {
+          throw new Error(data.error || 'Upload failed');
+        }
+      } catch (error) {
+        console.error('Error uploading thumbnail:', error);
+        previewDiv.innerHTML = '<span style="color:#ef4444;">Upload failed</span>';
+        alert('Thumbnail upload failed: ' + error.message);
+      }
+    }
+
+    // Update video card to show thumbnail preview
+    function updateVideoCardWithThumbnail(videoFilename, thumbnailPath) {
+      const safeId = videoFilename.replace(/[^a-zA-Z0-9]/g, '_');
+      const card = document.querySelector(`[data-filename="${videoFilename}"]`);
+
+      if (card) {
+        const videoElement = card.querySelector('video');
+        const imgElement = card.querySelector('img');
+
+        if (thumbnailPath) {
+          // Replace video preview with thumbnail image
+          if (videoElement && !imgElement) {
+            const thumbnailImg = document.createElement('img');
+            thumbnailImg.src = `${API_BASE}/${thumbnailPath}`;
+            thumbnailImg.style.cssText = 'width:120px; height:68px; object-fit:cover; border-radius:6px; border:2px solid #8b5cf6; background:#000;';
+            thumbnailImg.onclick = videoElement.onclick;
+            videoElement.parentNode.replaceChild(thumbnailImg, videoElement);
+          } else if (imgElement) {
+            // Update existing thumbnail
+            imgElement.src = `${API_BASE}/${thumbnailPath}`;
+          }
+
+          // Update buttons: Show "Change" and "Remove" buttons
+          const buttonsDiv = document.getElementById(`thumb_buttons_${safeId}`);
+          if (buttonsDiv) {
+            buttonsDiv.innerHTML = `
+              <button class="btn" onclick="event.stopPropagation(); document.getElementById('thumb_${safeId}').click();" style="background:#f59e0b; border-color:#f59e0b; padding:4px 12px; font-size:12px; white-space:nowrap;">🔄 Change</button>
+              <button class="btn" onclick="event.stopPropagation(); removeThumbnail('${videoFilename}');" style="background:#ef4444; border-color:#ef4444; padding:4px 12px; font-size:12px; white-space:nowrap;">✕ Remove</button>
+            `;
+          }
+        }
+      }
+    }
+
+    // Remove thumbnail from video
+    function removeThumbnail(videoFilename) {
+      const safeId = videoFilename.replace(/[^a-zA-Z0-9]/g, '_');
+      const card = document.querySelector(`[data-filename="${videoFilename}"]`);
+
+      if (!card) return;
+
+      // Clear from storage
+      delete videoThumbnails[videoFilename];
+
+      // If this is the selected video, clear the thumbnail path
+      if (selectedVideo === videoFilename) {
+        uploadedThumbnailPath = null;
+        document.getElementById('thumbnailInfo').style.display = 'none';
+      }
+
+      // Replace thumbnail image back to video preview
+      const imgElement = card.querySelector('img');
+      if (imgElement) {
+        const videoElement = document.createElement('video');
+        videoElement.src = `${API_BASE}/out/${videoFilename}`;
+        videoElement.style.cssText = 'width:120px; height:68px; object-fit:cover; border-radius:6px; background:#000;';
+        videoElement.onclick = imgElement.onclick;
+        imgElement.parentNode.replaceChild(videoElement, imgElement);
+      }
+
+      // Reset buttons to "Add Thumbnail"
+      const buttonsDiv = document.getElementById(`thumb_buttons_${safeId}`);
+      if (buttonsDiv) {
+        buttonsDiv.innerHTML = `
+          <button class="btn" onclick="event.stopPropagation(); document.getElementById('thumb_${safeId}').click();" style="background:#8b5cf6; border-color:#8b5cf6; padding:4px 12px; font-size:12px; white-space:nowrap;">📷 Add Thumbnail</button>
+        `;
+      }
+
+      // Clear preview status
+      const previewDiv = document.getElementById(`thumb_preview_${safeId}`);
+      if (previewDiv) {
+        previewDiv.innerHTML = '';
+      }
+
+      console.log(`Thumbnail removed for ${videoFilename}`);
+    }
+
+    // Load platforms on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      autoFillFromURL();
+      loadPlatforms();
+      loadRecentVideos();
+    });
+  </script>
+</body>
+</html>

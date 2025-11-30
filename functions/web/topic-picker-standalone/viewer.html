@@ -1,0 +1,391 @@
+﻿<!doctype html>
+
+<html>
+
+<head>
+
+  <meta charset="utf-8" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>MSS Viewer</title>
+
+  <style>
+
+    body { font-family: Inter, Arial, sans-serif; background:#0B0F19; color:#E8EBFF; margin:0; padding:20px; }
+
+    .card { background:#121826; border:1px solid #2a3550; border-radius:10px; padding:14px; margin-top:14px; }
+
+    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+
+    input, select, button { padding:8px 10px; border-radius:6px; border:1px solid #334; background:#0B0F19; color:#E8EBFF; }
+
+    button { background:#2563eb; border-color:#2563eb; cursor:pointer; font-weight:600; }
+
+    .layout { display:grid; grid-template-columns: 360px 1fr; gap:16px; }
+
+    .list { max-height: 70vh; overflow:auto; display:flex; flex-direction:column; gap:8px; }
+
+    .item { padding:8px; border:1px solid #334; border-radius:8px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; }
+
+    .item:hover { border-color:#3b82f6; }
+
+    .item small { color:#94a3b8; }
+
+    video { width:100%; max-height:70vh; background:#000; border-radius:8px; }
+
+    .muted { color:#A8B3CF; }
+
+  </style>
+
+  <script src="version.js" defer></script>
+</head>
+
+<body>
+
+  <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+
+    <h1 style="margin:0;">MSS Viewer <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn" style="background:#3b82f6; border-color:#3b82f6;" onclick="window.location.href='studio.html'">Studio</button>
+
+    </div>
+
+    
+
+  </div>
+
+
+
+  <div class="card">
+
+    <div class="row">
+
+      <label>Directory <input id="dir" value="out" size="18"></label>
+
+      <label>Min (MB) <input id="minMb" type="number" value="5" min="0" style="width:90px"></label>
+
+      <label>Ext
+
+        <select id="ext">
+
+          <option value="mp4" selected>mp4</option>
+
+          <option value="mov">mov</option>
+
+          <option value="webm">webm</option>
+
+          <option value="mp3">mp3</option>
+
+          <option value="wav">wav</option>
+
+        </select>
+
+      </label>
+
+      <label>Limit <input id="limit" type="number" value="50" min="1" style="width:80px"></label>
+
+      <button id="refresh">Refresh</button>
+
+      <span id="status" class="muted"></span>
+
+    </div>
+
+    <div class="layout" style="margin-top:10px;">
+
+      <div class="list" id="fileList"></div>
+
+      <div>
+
+        <video id="player" controls playsinline></video>
+
+        <div class="row" style="margin-top:8px;">
+
+          <input id="fileUrl" style="flex:1;" readonly>
+
+          <button id="copyUrl">Copy URL</button>
+
+          <a id="openUrl" target="_blank" style="display:inline-block; padding:8px 10px; border-radius:6px; border:1px solid #2563eb; background:#2563eb; color:#E8EBFF; cursor:pointer; font-weight:600; text-decoration:none;">Open</a>
+
+          <a id="downloadBtn" download style="display:inline-block; padding:8px 10px; border-radius:6px; border:1px solid #16a34a; background:#22c55e; color:#E8EBFF; cursor:pointer; font-weight:600; text-decoration:none;">Download</a>
+
+        </div>
+
+        <div class="row" style="margin-top:8px; gap:10px;">
+          <button class="btn" id="deleteBtn" style="background:#dc2626; border-color:#dc2626;">Delete This File</button>
+          <button class="btn" id="emptyTrashBtn" style="background:#6b7280; border-color:#6b7280;">Empty Trash</button>
+          <span id="delStatus" class="muted"></span>
+        </div>
+      </div>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap; position:relative;">
+          <div class="dropdown" style="position:relative; display:none;" id="oldMenusContainer">
+            <button class="btn" id="oldMenusBtn">Old Menus</button>
+            <div class="dropdown-content" id="oldMenus" style="display:none; position:absolute; top:110%; left:0; background:#0B0F19; border:1px solid #334; border-radius:8px; min-width:220px; z-index:20; box-shadow:0 6px 18px rgba(0,0,0,0.4);">
+              <a href="avatar-manager.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Avatar Manager</a>
+              <a href="thumbnail-manager.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Thumbnail Manager</a>
+              <a href="video-composer.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Video Composer</a>
+              <a href="video-composer_lite.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Video Composer (Lite)</a>
+              <a href="intro-outro.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Intro/Outro Builder</a>
+              <a href="preview.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Preview</a>
+            </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+
+
+  <script>
+
+    const API_BASE = window.location.origin;
+
+    // Version handled by shared version.js
+
+
+
+    const $list = document.getElementById('fileList');
+
+    const $player = document.getElementById('player');
+
+    const $fileUrl = document.getElementById('fileUrl');
+
+    const $openUrl = document.getElementById('openUrl');
+
+    const $downloadBtn = document.getElementById('downloadBtn');
+
+    const $status = document.getElementById('status');
+    const $oldMenusBtn = document.getElementById('oldMenusBtn');
+    const $oldMenus = document.getElementById('oldMenus');
+    const $delete = document.getElementById('deleteBtn');
+    const $emptyTrash = document.getElementById('emptyTrashBtn');
+    const $delStatus = document.getElementById('delStatus');
+    let currentSelected = null; // { dir, path }
+
+    // Normalize delete button label in case of encoding artifacts
+
+    if ($delete) $delete.textContent = 'Delete This File';
+
+
+    function humanSize(n){ const u=['B','KB','MB','GB']; let i=0; while(n>=1024 && i<u.length-1){ n/=1024; i++; } return n.toFixed(1)+u[i]; }
+
+
+
+    async function loadFiles(selectFirst=true){
+
+      $status.textContent = 'Loading...';
+
+      try {
+
+        const dir = document.getElementById('dir').value || 'out';
+
+        const limit = parseInt(document.getElementById('limit').value || '50', 10);
+
+        const minMb = document.getElementById('minMb').value || '0';
+
+        const ext = document.getElementById('ext').value;
+
+        const res = await fetch(`${API_BASE}/list-outputs?dir=${encodeURIComponent(dir)}&limit=${limit}&min_mb=${encodeURIComponent(minMb)}`);
+
+        const j = await res.json();
+
+        let items = Array.isArray(j.files) ? j.files : [];
+
+        // filter by extension
+
+        items = items.filter(it => (it.ext||'').replace('.','') === ext);
+
+        $list.innerHTML = '';
+
+        if (!items.length){ $status.textContent='No files.'; return; }
+
+        items.forEach((it, idx)=>{
+
+          const row = document.createElement('div');
+
+          row.className = 'item';
+
+          row.innerHTML = `<div>${it.path}</div><small>${humanSize(it.size)}</small>`;
+
+          row.onclick = ()=> selectFile(it, row);
+
+          $list.appendChild(row);
+
+        });
+
+        $status.textContent = `${items.length} item(s)`;
+
+        if (selectFirst) selectFile(items[0]);
+
+      } catch (e){ $status.textContent = 'Error loading: ' + e.message; }
+
+    }
+
+
+
+    function selectFile(it, rowEl){
+
+      const base = (document.getElementById('dir').value || 'out').replace(/\\/g,'/');
+
+      let url;
+
+      if (base === 'out' || base.startsWith('out')) {
+
+        url = `${API_BASE}/out/${it.path}`;
+
+      } else if (base === 'web/out' || base.startsWith('web/out')) {
+
+        url = `${API_BASE}/webout/${it.path}`;
+
+      } else {
+
+        url = `${API_BASE}/${base}/${it.path}`;
+
+      }
+
+      $player.src = url; $player.play().catch(()=>{});
+
+      $fileUrl.value = url; $openUrl.href = url;
+
+      $downloadBtn.href = url; $downloadBtn.download = it.path;
+
+      // Highlight selection
+
+      [...$list.children].forEach(ch => ch.style.borderColor = '#334');
+
+      if (rowEl) rowEl.style.borderColor = '#3b82f6';
+
+      currentSelected = { dir: base, path: it.path };
+
+    }
+
+
+
+    document.getElementById('refresh').addEventListener('click', ()=> loadFiles(false));
+
+    document.getElementById('copyUrl').addEventListener('click', async ()=>{
+
+      try { await navigator.clipboard.writeText($fileUrl.value); $status.textContent = 'Copied URL'; } catch { $status.textContent='Copy failed'; }
+
+    });
+
+
+
+    // Deep link ?file=xyz
+    (function(){
+      const p = new URLSearchParams(location.search);
+      const f = p.get('file'); if (f){
+        // Load list then try selection
+        loadFiles(false).then(()=>{
+          const nodes = [...$list.children];
+          const match = nodes.find(n => (n.firstChild?.textContent||'').includes(f));
+          if (match) match.click();
+        });
+      } else { loadFiles(true); }
+    })();
+    // Old Menus ▾dropdown toggle
+    const $oldMenusContainer = document.getElementById('oldMenusContainer');
+    if ($oldMenusBtn && $oldMenus && $oldMenusContainer){
+      $oldMenusBtn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        $oldMenus.style.display = ($oldMenus.style.display === 'none' || !$oldMenus.style.display) ? 'block' : 'none';
+      });
+      document.addEventListener('click', ()=>{ $oldMenus.style.display = 'none'; });
+      $oldMenus.addEventListener('click', (e)=> e.stopPropagation());
+      document.addEventListener('keydown', (e)=>{
+        if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key.toLowerCase()==='o'){
+          e.preventDefault();
+          $oldMenusContainer.style.display = ($oldMenusContainer.style.display==='none'||!$oldMenusContainer.style.display)?'block':'none';
+        }
+      });
+    }
+    // Empty trash for current base directory
+    if ($emptyTrash){
+      $emptyTrash.addEventListener('click', async ()=>{
+        const base = (document.getElementById('dir').value || 'out').replace(/\\/g,'/');
+        const top = base.startsWith('web/out') ? 'web/out' : 'out';
+        const ok = confirm(`Empty trash for ${top}/.trash?\n\nThis permanently deletes files.`);
+        if (!ok) return;
+        $delStatus.textContent = 'Emptying trash...';
+        try{
+          const res = await fetch(`${API_BASE}/empty-trash`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ dir: top }) });
+          const j = await res.json();
+          if (!j.success) throw new Error(j.error || 'Empty trash failed');
+          const detail = Array.isArray(j.details) ? j.details.find(d=>d.dir===top) : null;
+          const msg = detail ? `Trash emptied: ${detail.deleted} files, ${detail.freed_human}` : 'Trash emptied.';
+          $delStatus.textContent = msg;
+          await loadFiles(false);
+        }catch(e){ $delStatus.textContent = 'Error: ' + e.message; }
+      });
+    }
+    // Delete selected file with confirmation
+
+    $delete.addEventListener('click', async ()=>{
+
+      if (!currentSelected) { $delStatus.textContent = 'No file selected.'; return; }
+
+      if (!(currentSelected.dir === 'out' || currentSelected.dir === 'web/out')){
+
+        $delStatus.textContent = 'Delete supports only "out" or "web/out".';
+
+        return;
+
+      }
+
+      const ok = confirm(`Delete this file?\n\n${currentSelected.dir}/${currentSelected.path}`);
+
+      if (!ok) return;
+
+      // Stop playback and clear source to release any file locks
+
+      try { $player.pause(); } catch {}
+
+      try { $player.removeAttribute('src'); $player.load(); } catch {}
+
+      $fileUrl.value='';
+
+      $delStatus.textContent = 'Deleting...';
+
+      try{
+
+        const res = await fetch(`${API_BASE}/delete-output`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(currentSelected) });
+
+        const j = await res.json();
+
+        if (!j.success) throw new Error(j.error || 'Delete failed');
+
+        if (j.soft_deleted){
+
+          $delStatus.textContent = 'Moved to trash (in use).';
+
+        } else {
+
+          $delStatus.textContent = 'Deleted.';
+
+        }
+
+        await loadFiles(false);
+
+        currentSelected = null;
+
+      }catch(e){ $delStatus.textContent = 'Error: ' + e.message; }
+
+    });
+
+  </script>
+
+</body>
+
+</html>
+
+
+
+
+
+
+
+
+
+

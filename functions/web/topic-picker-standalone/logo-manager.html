@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Logo Manager - MSS</title>
+  <link rel="stylesheet" href="studio.css">
+  <script src="version.js" defer></script>
+</head>
+<body>
+  <div id="loadingBar" class="loading-bar"></div>
+  <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+    <h1 style="margin:0;">Logo Manager <span id="appVersion" style="font-size:14px; color:#64748b; font-weight:400;">v-</span></h1>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; position:relative;">
+      <button class="btn" style="background:#22c55e; border-color:#22c55e;" onclick="window.location.href='workflow.html'">📋 Workflow</button>
+      <button class="btn" style="background:#3b82f6; border-color:#3b82f6;" onclick="window.location.href='studio.html'">Studio</button>
+      <div class="dropdown" id="oldMenusContainer" style="position:relative;display:none;">
+        <button class="btn" id="oldMenusBtn">Old Menus</button>
+        <div class="dropdown-content" id="oldMenus" style="display:none; position:absolute; top:110%; left:0; background:#0B0F19; border:1px solid #334; border-radius:8px; min-width:180px; z-index:20; box-shadow:0 6px 18px rgba(0,0,0,0.4);">
+          <a href="video-composer.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Composer</a>
+          <a href="post-process.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Post-Process</a>
+          <a href="preview.html" style="display:block; padding:8px 12px; color:#E8EBFF; text-decoration:none;">Preview</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>(function(){ const btn=document.getElementById("oldMenusBtn"); const menu=document.getElementById("oldMenus"); const $oldMenusContainer = document.getElementById('oldMenusContainer'); if(btn&&menu&&$oldMenusContainer){ btn.addEventListener("click",(e)=>{ e.stopPropagation(); menu.style.display=(menu.style.display==="block"?"none":"block");}); document.addEventListener("click",()=>{ menu.style.display="none";}); menu.addEventListener("click",(e)=>e.stopPropagation()); document.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key.toLowerCase()==='o'){ e.preventDefault(); $oldMenusContainer.style.display = ($oldMenusContainer.style.display==='none'||!$oldMenusContainer.style.display)?'block':'none'; } }); }})();</script>
+
+  <div class="card" style="margin-top:16px;">
+    <h1>Upload Logo</h1>
+    <div class="controls">
+      <label>Upload Logo: <input type="file" id="logoUpload" accept="image/png,image/jpeg,image/svg+xml"></label>
+      <button class="btn" id="logoUploadBtn">Upload</button>
+    </div>
+    <div class="row" id="logoStatus" class="status" style="display:none;"></div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h1>Logo Library</h1>
+    <div id="logoGrid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap:12px; margin-top:12px;"></div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+
+    // Load and display logos
+    async function loadLogos() {
+      const grid = document.getElementById('logoGrid');
+      const s = document.getElementById('logoStatus');
+      try {
+        const res = await fetch(`${API_BASE}/get-logo-library`);
+        const data = await res.json();
+        const logos = (data && data.logos) ? data.logos : [];
+        if (logos.length === 0) {
+          grid.innerHTML = '<div style="color:#94a3b8;">No logos found. Upload one using the form above.</div>';
+          return;
+        }
+        grid.innerHTML = '';
+        logos.forEach(logo => {
+          const card = document.createElement('div');
+          const borderColor = logo.active ? '#34d399' : '#334';
+          card.style.cssText = `background: rgba(255,255,255,0.05); border:2px solid ${borderColor}; border-radius:8px; padding:10px; text-align:center; cursor:pointer; transition:all 0.2s;`;
+
+          // Make whole card clickable
+          card.onclick = async (e) => {
+            // Don't trigger if clicking delete button
+            if (e.target.closest('.delete-btn')) return;
+            try {
+              const r = await fetch(`${API_BASE}/set-active-logo`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: logo.id })
+              });
+              const j = await r.json();
+              if (j.success) {
+                s.style.display = 'block';
+                s.className = 'status ok';
+                s.textContent = 'Logo set as active.';
+                loadLogos();
+              } else {
+                s.style.display = 'block';
+                s.className = 'status err';
+                s.textContent = j.error || 'Failed to set logo.';
+              }
+            } catch (e) {
+              s.style.display = 'block';
+              s.className = 'status err';
+              s.textContent = 'Error: ' + e.message;
+            }
+          };
+
+          const img = document.createElement('img');
+          img.src = logo.url;
+          img.style.maxWidth = '120px';
+          img.style.maxHeight = '80px';
+          img.style.objectFit = 'contain';
+          img.alt = logo.name || 'logo';
+
+          const name = document.createElement('div');
+          name.textContent = logo.name || logo.filename || 'Logo';
+          name.style.cssText = 'margin-top:6px; color:#E8EBFF; font-size:13px;';
+
+          // Active badge
+          if (logo.active) {
+            const badge = document.createElement('div');
+            badge.textContent = '✓ ACTIVE';
+            badge.style.cssText = 'margin-top:4px; padding:4px 8px; background:#34d399; color:#0B0F19; font-size:11px; font-weight:700; border-radius:4px; display:inline-block;';
+            card.appendChild(img);
+            card.appendChild(name);
+            card.appendChild(badge);
+          } else {
+            card.appendChild(img);
+            card.appendChild(name);
+          }
+
+          const deleteBtn = document.createElement('button');
+          deleteBtn.className = 'btn delete-btn';
+          deleteBtn.textContent = 'Delete';
+          deleteBtn.style.marginTop = '8px';
+          deleteBtn.style.width = '100%';
+          deleteBtn.style.padding = '6px 10px';
+          deleteBtn.style.fontSize = '12px';
+          deleteBtn.style.background = '#dc2626';
+          deleteBtn.style.borderColor = '#dc2626';
+
+          deleteBtn.onclick = async (e) => {
+            e.stopPropagation(); // Prevent card click
+            if (!confirm(`Delete logo "${logo.name || logo.filename}"? This cannot be undone.`)) {
+              return;
+            }
+            try {
+              const r = await fetch(`${API_BASE}/delete-logo`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: logo.id })
+              });
+              const j = await r.json();
+              if (j.success) {
+                s.style.display = 'block';
+                s.className = 'status ok';
+                s.textContent = 'Logo deleted.';
+                loadLogos();
+              } else {
+                s.style.display = 'block';
+                s.className = 'status err';
+                s.textContent = j.error || 'Failed to delete logo.';
+              }
+            } catch (e) {
+              s.style.display = 'block';
+              s.className = 'status err';
+              s.textContent = 'Error: ' + e.message;
+            }
+          };
+
+          card.appendChild(deleteBtn);
+          grid.appendChild(card);
+        });
+      } catch (e) {
+        grid.innerHTML = '<div style="color:#ef4444;">Failed to load logo library.</div>';
+      }
+    }
+
+    // Upload logo
+    document.getElementById('logoUploadBtn').addEventListener('click', async () => {
+      const s = document.getElementById('logoStatus');
+      const inp = document.getElementById('logoUpload');
+      const f = inp.files && inp.files[0];
+      if (!f) {
+        s.style.display='block';
+        s.className='status err';
+        s.textContent='Please choose a file';
+        return;
+      }
+      s.style.display='block';
+      s.className='status info';
+      s.textContent='Uploading logo...';
+      try {
+        const fd = new FormData();
+        fd.append('file', f);
+        fd.append('name', f.name);
+        const r = await fetch(`${API_BASE}/upload-logo-to-library`, { method:'POST', body: fd });
+        const j = await r.json();
+        if (j.success) {
+          s.className='status ok';
+          s.textContent='Logo uploaded successfully.';
+          inp.value='';
+          loadLogos();
+        } else {
+          s.className='status err';
+          s.textContent = j.error || 'Upload failed';
+        }
+      } catch(e){
+        s.className='status err';
+        s.textContent = 'Error: '+e.message;
+      }
+    });
+
+    // Load logos on page load
+    loadLogos();
+  </script>
+</body>
+</html>

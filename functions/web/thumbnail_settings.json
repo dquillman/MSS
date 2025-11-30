@@ -1,0 +1,13 @@
+{
+  "selectedVariation": 1,
+  "template": "bold",
+  "logoUrl": "http://127.0.0.1:5000/logos/logo_1759621216.png",
+  "logoPosition": "bottom-left",
+  "thumbnailPrompt": "Topic: {{title}}\nHook: {{hook}}\nDescription: {{description}}\nKeywords: {{keywords}}\n\nYour favorite meme style is the \"Bold Contrast News Cut\" — a clean, high-impact, visually balanced look that you use for YouTube thumbnails and meme-style posts. It usually includes:\n\nA red-and-blue political color split (especially for MSS videos)\n\nA central visual metaphor (e.g., a symbol, object, or expressive hand)\n\nPhoto-realistic elements to add depth\n\nHigh contrast, clean composition, and optimized for small sizes (like YouTube thumbnails)",
+  "persistentText": "",
+  "bgColor": "#0b0f19",
+  "persistentColor": "#ffd700",
+  "titleColor": "#e8ebff",
+  "persistentSize": 72,
+  "titleSize": 96
+}
