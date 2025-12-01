@@ -37,7 +37,7 @@ analytics_manager = AnalyticsManager()
 publisher = MultiPlatformPublisher()
 platform_api = PlatformAPIManager()
 
-APP_VERSION = "5.7.2"
+APP_VERSION = "5.7.3"
 
 # Optional CSP Trusted Types configuration (normalised once at startup)
 _raw_csp_require_trusted = os.getenv('CSP_REQUIRE_TRUSTED_TYPES_FOR', '').strip()
@@ -126,7 +126,8 @@ def add_security_headers(response):
         ]
 
     if _csp_require_trusted == 'script':
-        csp_directives.append("require-trusted-types-for 'script'")
+        # csp_directives.append("require-trusted-types-for 'script'")
+        pass
 
     if _csp_trusted_types:
         csp_directives.append(f"trusted-types {_csp_trusted_types}")
@@ -5389,7 +5390,7 @@ print(f"[PLATFORM_API] Final status: platform_api = {platform_api}")
 
 def _get_user_from_session():
     """Helper to get user email from session"""
-    session_id = request.cookies.get('session_id')
+    session_id = request.cookies.get('__session')
     if not session_id:
         return None, jsonify({'success': False, 'error': 'Not authenticated'}), 401
 
