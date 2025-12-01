@@ -1,4 +1,5 @@
 from firebase_functions import https_fn
+# Force redeploy - timestamp update
 from web.api_server import app
 
 @https_fn.on_request(max_instances=10, region="us-central1")

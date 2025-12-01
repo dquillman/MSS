@@ -1044,6 +1044,50 @@ class PlatformAPIManager:
             logger.error(f"Error getting connected platforms list: {e}")
             return []
 
+    def check_recent_connection(self, user_email: str, platform: str, seconds: int = 30) -> bool:
+        """Check if platform was connected very recently (handling double-hits)"""
+        import time
+        
+        doc_id = f"{user_email}_{platform}"
+        print(f"[DEBUG] Checking recent connection for {doc_id}...")
+        
+        # Retry loop to handle Firestore write latency
+        for attempt in range(3):
+            try:
+                doc = self.db.collection('platform_connections').document(doc_id).get()
+                
+                if doc.exists:
+                    data = doc.to_dict()
+                    print(f"[DEBUG] Document exists. Status: {data.get('status')}, Connected At: {data.get('connected_at')}")
+                    if data.get('status') == 'active':
+                        connected_at = data.get('connected_at')
+                        if connected_at:
+                            # Handle Firestore timestamp or string
+                            if hasattr(connected_at, 'timestamp'):
+                                timestamp = connected_at.timestamp()
+                            else:
+                                # Try parsing string if needed, or assume it's recent if it exists?
+                                # For simplicity, if it's a server timestamp, it might be a datetime object
+                                timestamp = datetime.now().timestamp() # Fallback
+                                
+                            # If connected within last 'seconds'
+                            time_diff = datetime.now().timestamp() - timestamp
+                            print(f"[DEBUG] Time diff: {time_diff} seconds")
+                            if time_diff < seconds:
+                                return True
+                else:
+                    print(f"[DEBUG] Document {doc_id} does not exist (Attempt {attempt + 1}).")
+                    
+                # Wait before retrying if not found
+                if attempt < 2:
+                    time.sleep(1)
+                    
+            except Exception as e:
+                logger.error(f"Error checking recent connection: {e}")
+                return False
+                
+        return False
+
     def get_and_store_youtube_channel(self, user_email: str, analytics_manager) -> Dict[str, Any]:
         """
         Get YouTube channel info and store it in channel_accounts table

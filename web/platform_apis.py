@@ -186,6 +186,42 @@ class PlatformAPIManager:
             print(f"[YOUTUBE] Error getting channel info: {e}")
             return {'success': False, 'error': str(e)}
 
+    def get_and_store_youtube_channel(self, user_email: str, analytics_manager) -> Dict[str, Any]:
+        """Get YouTube channel info and store it in analytics"""
+        info = self.get_youtube_channel_info(user_email)
+        if not info.get('success'):
+            return info
+
+        try:
+            # Prepare channel data for storage
+            channel_data = {
+                'channel_id': info['channel_id'],
+                'channel_name': info['title'],
+                'channel_handle': info.get('custom_url', ''),
+                'channel_description': info.get('description', ''),
+                'thumbnail_url': info.get('thumbnail', ''),
+                'channel_custom_url': info.get('custom_url', ''),
+                'subscriber_count': info.get('subscribers', 0),
+                'video_count': info.get('video_count', 0),
+                'view_count': info.get('view_count', 0)
+            }
+
+            # Store in analytics
+            if analytics_manager:
+                account_id = analytics_manager.add_channel_account(user_email, 'youtube', channel_data)
+                return {
+                    'success': True,
+                    'channel_account_id': account_id,
+                    'channel_id': info['channel_id'],
+                    'title': info['title']
+                }
+            else:
+                return {'success': False, 'error': 'Analytics manager not available'}
+
+        except Exception as e:
+            print(f"[YOUTUBE] Error storing channel: {e}")
+            return {'success': False, 'error': str(e)}
+
     def get_youtube_video_stats(self, user_email: str, video_id: str) -> Dict[str, Any]:
         """Get statistics for a specific YouTube video"""
         if not GOOGLE_AVAILABLE:
@@ -966,6 +1002,10 @@ class PlatformAPIManager:
             logger.error(f"Error getting OAuth state: {e}")
             return None
 
+    def store_platform_credentials(self, user_email: str, platform: str, credentials: Dict[str, Any]):
+        """Public wrapper to store platform credentials"""
+        self._store_platform_credentials(user_email, platform, credentials)
+
     def _store_platform_credentials(self, user_email: str, platform: str, credentials: Dict[str, Any]):
         """Store platform OAuth credentials"""
         try:
@@ -1006,6 +1046,33 @@ class PlatformAPIManager:
         except Exception as e:
             logger.error(f"Error getting platform credentials: {e}")
             return None
+            
+    def check_recent_connection(self, user_email: str, platform: str, seconds: int = 30) -> bool:
+        """Check if platform was connected very recently (handling double-hits)"""
+        try:
+            doc_id = f"{user_email}_{platform}"
+            doc = self.db.collection('platform_connections').document(doc_id).get()
+            
+            if doc.exists:
+                data = doc.to_dict()
+                if data.get('status') == 'active':
+                    connected_at = data.get('connected_at')
+                    if connected_at:
+                        # Handle Firestore timestamp or string
+                        if hasattr(connected_at, 'timestamp'):
+                            timestamp = connected_at.timestamp()
+                        else:
+                            # Try parsing string if needed, or assume it's recent if it exists?
+                            # For simplicity, if it's a server timestamp, it might be a datetime object
+                            timestamp = datetime.now().timestamp() # Fallback
+                            
+                        # If connected within last 'seconds'
+                        if datetime.now().timestamp() - timestamp < seconds:
+                            return True
+            return False
+        except Exception as e:
+            logger.error(f"Error checking recent connection: {e}")
+            return False
 
     def is_platform_connected(self, user_email: str, platform: str) -> bool:
         """Check if platform is connected"""

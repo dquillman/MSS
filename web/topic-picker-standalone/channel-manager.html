@@ -465,11 +465,11 @@
                   Sync Videos
                 </button>
                 ${!channel.is_default ? `
-                  <button class="btn btn-small btn-success" onclick="setDefaultChannel(${channel.id})">
+                  <button class="btn btn-small btn-success" onclick="setDefaultChannel('${channel.id}')">
                     Set as Default
                   </button>
                 ` : ''}
-                <button class="btn btn-small btn-danger" onclick="removeChannel(${channel.id}, '${displayName.replace(/'/g, "\\'")}')">
+                <button class="btn btn-small btn-danger" onclick="removeChannel('${channel.id}', '${displayName.replace(/'/g, "\\'")}')">
                   Remove
                 </button>
               </div>

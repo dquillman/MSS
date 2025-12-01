@@ -67,7 +67,8 @@ def verify_id_token(id_token: str) -> Dict[str, Any]:
                 'created_at': firestore.SERVER_TIMESTAMP,
                 'subscription_tier': 'free',
                 'videos_this_month': 0,
-                'total_videos': 0
+                'total_videos': 0,
+                'username': email.split('@')[0]
             }
             user_ref.set(user_data)
             user_dict = user_data

@@ -7,10 +7,12 @@ import sys
 import stripe
 from web.analytics import AnalyticsManager
 from web.multi_platform import MultiPlatformPublisher
+from web.platform_apis import PlatformAPIManager
 from flask import Flask, request, jsonify, send_from_directory, redirect, url_for, session, make_response
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from web import firebase_db as database
+from firebase_admin import firestore
 from pydantic import ValidationError as PydanticValidationError
 
 # Configure logging
@@ -33,6 +35,9 @@ limiter = Limiter(
 # Initialize Managers
 analytics_manager = AnalyticsManager()
 publisher = MultiPlatformPublisher()
+platform_api = PlatformAPIManager()
+
+APP_VERSION = "5.7.2"
 
 # Optional CSP Trusted Types configuration (normalised once at startup)
 _raw_csp_require_trusted = os.getenv('CSP_REQUIRE_TRUSTED_TYPES_FOR', '').strip()
@@ -266,11 +271,6 @@ def favicon_silence():
     return Response(status=204)
 
 
-@app.route('/api/health')
-def health_check():
-    return jsonify({'status': 'ok'}), 200
-
-
 # -------------------- Auth API --------------------
 @app.route('/api/login', methods=['POST'])
 @limiter.limit("20 per minute")
@@ -294,15 +294,20 @@ def api_login():
             session_id = database.create_session(user['id'], remember_me=remember_me)
             
             resp = jsonify({'success': True, 'user': {'id': user['id'], 'email': user['email']}})
-            resp.set_cookie('__session', session_id, httponly=True, samesite='Lax', secure=False, path='/')
+            
+            # Determine secure flag based on environment
+            is_production = 'localhost' not in request.host and '127.0.0.1' not in request.host
+            samesite_mode = 'Lax' # Use Lax for same-domain (Firebase Hosting)
+            
+            print(f"[DEBUG] Login: Setting __session cookie. Secure={is_production}, SameSite={samesite_mode}, ID={session_id[:10]}...")
+            resp.set_cookie('__session', session_id, httponly=True, samesite=samesite_mode, secure=is_production, path='/')
             return resp
             
         # Legacy Login Fallback (or error)
         return jsonify({'success': False, 'error': 'Please use the new login form'}), 400
-
     except Exception as e:
         logger.error(f"[AUTH] Login error: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': f'An error occurred during login: {str(e)}'}), 500
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 
 
@@ -687,25 +692,27 @@ def preview_tts():
 @app.route('/api/logout', methods=['POST'])
 def api_logout():
     try:
-        sid = request.cookies.get('__session')
+        sid = request.cookies.get('session_id')
         if sid:
             database.delete_session(sid)
         resp = jsonify({'success': True})
-        resp.set_cookie('__session', '', expires=0, path='/', httponly=True, samesite='Lax')
+        resp.set_cookie('session_id', '', expires=0, path='/', httponly=True, samesite='Lax')
         return resp
     except Exception as e:
         logger.error(f"[AUTH] Logout error: {e}", exc_info=True)
         # Still return success to avoid revealing errors
         resp = jsonify({'success': True})
-        resp.set_cookie('__session', '', expires=0, path='/', httponly=True, samesite='Lax')
+        resp.set_cookie('session_id', '', expires=0, path='/', httponly=True, samesite='Lax')
         return resp
-
 
 @app.route('/api/me', methods=['GET'])
 def api_me():
     """Get current user info from session"""
     try:
         session_id = request.cookies.get('__session')
+        print(f"[DEBUG] api_me: Cookies received: {request.cookies.keys()}")
+        print(f"[DEBUG] api_me: __session cookie: {session_id[:10] if session_id else 'None'}")
+        
         if not session_id:
             return jsonify({'success': False, 'error': 'Not authenticated'}), 401
 
@@ -720,10 +727,10 @@ def api_me():
                 'id': user['id'],
                 'email': user['email'],
                 'username': user.get('username', user['email'].split('@')[0]),
-                'subscription_tier': user['subscription_tier'],
-                'videos_this_month': user['videos_this_month'],
-                'total_videos': user['total_videos'],
-                'created_at': user['created_at']
+                'subscription_tier': user.get('subscription_tier', 'free'),
+                'videos_this_month': user.get('videos_this_month', 0),
+                'total_videos': user.get('total_videos', 0),
+                'created_at': user.get('created_at')
             }
         })
     except Exception as e:
@@ -764,11 +771,11 @@ def api_signup():
         user_id = res['user_id']
         session_id = database.create_session(user_id, remember_me=remember_me)
         resp = jsonify({'success': True, 'user': {'id': user_id, 'email': email}})
-        resp.set_cookie('__session', session_id, httponly=True, samesite='Lax', secure=False, path='/')
+        resp.set_cookie('session_id', session_id, httponly=True, samesite='Lax', secure=False, path='/')
         return resp
     except Exception as e:
         logger.error(f"[AUTH] Signup error: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': f'An error occurred during signup: {str(e)}'}), 500
+        return jsonify({'success': False, 'error': 'An error occurred during signup'}), 500
 
 
 
@@ -888,6 +895,125 @@ def oauth_youtube_callback():
         logger.error(f"[OAUTH] Callback error: {e}", exc_info=True)
         return f"Error connecting channel: {str(e)}", 500
 
+
+
+
+
+
+
+
+@app.route('/api/youtube/sync-metrics', methods=['POST'])
+def youtube_sync_metrics():
+    """Sync YouTube videos and metrics to Firestore"""
+    try:
+        user_email, error_response, error_code = _get_user_from_session()
+        if error_response:
+            return error_response, error_code
+
+        # 1. Fetch videos from YouTube
+        # We need an instance of PlatformAPIManager. It's not global, so instantiate it.
+        from web.platform_apis import PlatformAPIManager
+        from datetime import datetime
+        
+        # platform_api is already initialized globally now, but let's use the global one if available
+        # or fall back to local instantiation if needed (though global should work)
+        global platform_api
+        if not platform_api:
+             platform_api = PlatformAPIManager()
+        
+        result = platform_api.get_youtube_channel_videos(user_email, max_results=50)
+        
+        if not result.get('success'):
+            return jsonify(result), 400
+            
+        videos = result.get('videos', [])
+        
+        # 2. Update Firestore 'videos' collection
+        synced_count = 0
+        updated_count = 0
+        
+        batch = database.get_db().batch()
+        batch_count = 0
+        
+        # Get existing videos to avoid duplicates
+        existing_docs = (database.get_db().collection('videos')
+                         .where('user_email', '==', user_email)
+                         .stream())
+                         
+        existing_map = {}
+        for d in existing_docs:
+            data = d.to_dict()
+            # Check for platform_video_id
+            pid = data.get('platform_video_id')
+            if pid:
+                existing_map[pid] = d.reference
+            
+        
+        for video in videos:
+            video_id = video['video_id']
+            
+            # Prepare data
+            published_at = datetime.fromisoformat(video['published_at'].replace('Z', '+00:00')) if video.get('published_at') else firestore.SERVER_TIMESTAMP
+            
+            base_data = {
+                'user_email': user_email,
+                'platform': 'youtube',
+                'platform_video_id': video_id,
+                'platform_url': f"https://www.youtube.com/watch?v={video_id}",
+                'title': video['title'],
+                'thumbnail_url': video.get('thumbnail', ''),
+                'views': int(video.get('views', 0)),
+                'likes': int(video.get('likes', 0)),
+                'comments': int(video.get('comments', 0)),
+                'last_synced_at': firestore.SERVER_TIMESTAMP,
+                'status': 'published',
+                # Calculate engagement rate
+                'engagement_rate': 0
+            }
+            if video_id in existing_map:
+                # Update existing
+                # Only update metrics and status, keep original creation data if possible
+                update_data = {
+                    'views': base_data['views'],
+                    'likes': base_data['likes'],
+                    'comments': base_data['comments'],
+                    'engagement_rate': base_data['engagement_rate'],
+                    'last_synced_at': firestore.SERVER_TIMESTAMP,
+                    'platform': 'youtube',
+                    'platform_video_id': video_id, # Ensure this is set
+                    'status': 'published'
+                }
+                batch.update(existing_map[video_id], update_data)
+                updated_count += 1
+            else:
+                # Create new
+                # Add creation fields
+                base_data['created_at'] = published_at # Use published time as creation time for synced videos
+                base_data['published_at'] = published_at
+                
+                new_ref = database.get_db().collection('videos').document()
+                batch.set(new_ref, base_data)
+                synced_count += 1
+                
+            batch_count += 1
+            if batch_count >= 400: # Commit batch every 400 items
+                batch.commit()
+                batch = database.get_db().batch()
+                batch_count = 0
+                
+        if batch_count > 0:
+            batch.commit()
+            
+        return jsonify({
+            'success': True,
+            'total': len(videos),
+            'synced': synced_count,
+            'updated': updated_count
+        })
+
+    except Exception as e:
+        logger.error(f"[SYNC] Error syncing YouTube videos: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/dashboard')
@@ -6711,132 +6837,6 @@ def youtube_video_stats(video_id):
     except Exception as e:
         logger.error(f"[AUTH] Login error: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
-
-@app.route('/api/youtube/sync-metrics', methods=['POST'])
-def youtube_sync_metrics():
-    """Sync all YouTube video metrics to analytics database"""
-    if not platform_api or not analytics_manager:
-        return jsonify({'success': False, 'error': 'Platform API or Analytics not available'}), 500
-
-    user_email, error_response, error_code = _get_user_from_session()
-    if error_response:
-        return error_response, error_code
-
-    try:
-        # First, get and store the YouTube channel info
-        channel_info = platform_api.get_and_store_youtube_channel(user_email, analytics_manager)
-
-        if not channel_info.get('success'):
-            return jsonify(channel_info), 500
-
-        channel_account_id = channel_info.get('channel_account_id')
-
-        # Get all videos from YouTube channel
-        print(f"[SYNC] Fetching videos for {user_email}...")
-        result = platform_api.get_youtube_channel_videos(user_email, max_results=50)
-        print(f"[SYNC] Result success: {result.get('success')}")
-        
-        if not result.get('success'):
-            print(f"[SYNC] Failed: {result.get('error')}")
-            return jsonify(result), 500
-
-        videos = result.get('videos', [])
-        print(f"[SYNC] Found {len(videos)} videos from API")
-        
-        synced_count = 0
-        updated_count = 0
-
-        for video in videos:
-            video_id_yt = video['video_id']
-
-            # Check if this video already exists in analytics by platform_video_id
-            # Check if this video already exists in analytics by platform_video_id
-            # Query published_videos collection
-            existing_pub_query = (analytics_manager.db.collection('published_videos')
-                                  .where('platform_video_id', '==', video_id_yt)
-                                  .where('platform', '==', 'youtube')
-                                  .limit(1)
-                                  .stream())
-            
-            existing_pub = None
-            for doc in existing_pub_query:
-                existing_pub = doc.to_dict()
-                existing_pub['id'] = doc.id
-                break
-            
-            if existing_pub:
-                # Update existing video metrics
-                # existing_pub['video_id'] is the ID in 'videos' collection
-                analytics_manager.record_video_metrics(existing_pub['video_id'], {
-                    'views': video['views'],
-                    'likes': video['likes'],
-                    'comments': video['comments'],
-                    'shares': 0,
-                    'watch_time_minutes': 0,
-                    'ctr': 0,
-                    'avg_view_duration': 0
-                }, 'youtube')
-                updated_count += 1
-            else:
-                # Create new video entry with channel_account_id
-                video_data = {
-                    'title': video['title'],
-                    'description': video['description'],
-                    'filename': f"youtube_{video_id_yt}.mp4",
-                    'topic_data': {},
-                    'channel_account_id': channel_account_id # Add directly here
-                }
-                video_id = analytics_manager.track_video_creation(user_email, video_data)
-
-                # Link video to channel account - already done in video_data if supported, 
-                # but track_video_creation might not save extra fields.
-                # Let's ensure it's saved.
-                analytics_manager.db.collection('videos').document(video_id).update({
-                    'channel_account_id': channel_account_id
-                })
-
-                # Mark as published on YouTube
-                analytics_manager.update_video_published(video_id, 'youtube')
-
-                # Record initial metrics
-                analytics_manager.record_video_metrics(video_id, {
-                    'views': video['views'],
-                    'likes': video['likes'],
-                    'comments': video['comments'],
-                    'shares': 0,
-                    'watch_time_minutes': 0,
-                    'ctr': 0,
-                    'avg_view_duration': 0
-                }, 'youtube')
-
-                # Record in multi-platform if available
-                if multi_platform:
-                    multi_platform.record_publication(
-                        user_email, video_id, 'youtube',
-                        video_id_yt, f"https://www.youtube.com/watch?v={video_id_yt}",
-                        video['title'], video['description']
-                    )
-
-                synced_count += 1
-
-        # Update last sync time for channel
-        if channel_account_id:
-            analytics_manager.update_channel_sync_time(channel_account_id)
-
-        return jsonify({
-            'success': True,
-            'synced': synced_count,
-            'updated': updated_count,
-            'total': len(videos),
-            'channel': channel_info.get('title'),
-            'message': f"Synced {synced_count} new videos, updated {updated_count} existing videos from {channel_info.get('title')}"
-        })
-
-    except Exception as e:
-        print(f"[YOUTUBE] Sync error: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/channels/list', methods=['GET'])
 def list_channels():

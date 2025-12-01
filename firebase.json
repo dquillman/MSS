@@ -44,6 +44,38 @@
       {
         "source": "/admin",
         "function": "api"
+      },
+      {
+        "source": "/health",
+        "function": "api"
+      },
+      {
+        "source": "/list-outputs",
+        "function": "api"
+      },
+      {
+        "source": "/delete-output",
+        "function": "api"
+      },
+      {
+        "source": "/youtube-categories",
+        "function": "api"
+      },
+      {
+        "source": "/get-**",
+        "function": "api"
+      },
+      {
+        "source": "/set-**",
+        "function": "api"
+      },
+      {
+        "source": "/save-**",
+        "function": "api"
+      },
+      {
+        "source": "/upload-**",
+        "function": "api"
       }
     ],
     "cleanUrls": true
