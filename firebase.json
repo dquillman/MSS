@@ -54,7 +54,7 @@
         "function": "api"
       },
       {
-        "source": "/delete-output",
+        "source": "/delete-**",
         "function": "api"
       },
       {

@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, Optional, List
 
 import firebase_admin
-from firebase_admin import credentials, firestore, auth
+from firebase_admin import credentials, firestore, auth, storage
 
 logger = logging.getLogger(__name__)
 
@@ -18,16 +18,20 @@ cred_path = Path(__file__).parent / "serviceAccountKey.json"
 if cred_path.exists():
     try:
         cred = credentials.Certificate(str(cred_path))
-        firebase_admin.initialize_app(cred)
-        logger.info("[FIREBASE] Initialized with serviceAccountKey.json")
+        firebase_admin.initialize_app(cred, options={
+            'storageBucket': 'mss-video-creator-app.firebasestorage.app'
+        })
+        logger.info("[FIREBASE] Initialized with serviceAccountKey.json and storage bucket")
     except ValueError:
         # App already initialized
         pass
 else:
     # Try default credentials (works on Cloud Run if configured)
     try:
-        firebase_admin.initialize_app()
-        logger.info("[FIREBASE] Initialized with default credentials")
+        firebase_admin.initialize_app(options={
+            'storageBucket': 'mss-video-creator-app.firebasestorage.app'
+        })
+        logger.info("[FIREBASE] Initialized with default credentials and storage bucket (UPDATED - ROUND 7 CHECK)")
     except ValueError:
         pass
     except Exception as e:
@@ -298,3 +302,267 @@ def get_user_videos(user_id: str, limit: int = 20) -> Iterable[Dict[str, Any]]:
 def init_db():
     # No schema migration needed for Firestore
     pass
+
+
+# --- Storage & Logos ---
+
+def upload_file(file_obj, destination_path: str, content_type: str = None) -> str:
+    """
+    Upload a file-like object to Firebase Storage.
+    Returns the public download URL.
+    """
+    try:
+        bucket = storage.bucket()
+        blob = bucket.blob(destination_path)
+        
+        # Reset file pointer just in case
+        file_obj.seek(0)
+        
+        blob.upload_from_file(file_obj, content_type=content_type)
+        blob.make_public()
+        
+        return blob.public_url
+    except Exception as e:
+        logger.error(f"Error uploading file to storage: {e}")
+        raise e
+
+def add_logo(user_id: str, name: str, url: str, filename: str) -> Dict[str, Any]:
+    """Add a logo to the user's library in Firestore."""
+    try:
+        logo_data = {
+            'name': name,
+            'url': url,
+            'filename': filename,
+            'active': False,
+            'uploadedAt': firestore.SERVER_TIMESTAMP
+        }
+        # Use a subcollection for user logos
+        doc_ref = get_db().collection('users').document(user_id).collection('logos').add(logo_data)
+        
+        logo_data['id'] = doc_ref[1].id
+        # Convert timestamp for immediate return
+        logo_data['uploadedAt'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        
+        return {"success": True, "logo": logo_data}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+def get_logos(user_id: str) -> List[Dict[str, Any]]:
+    """Get all logos for a user."""
+    try:
+        docs = (get_db().collection('users').document(user_id)
+                .collection('logos')
+                .order_by('uploadedAt', direction=firestore.Query.DESCENDING)
+                .stream())
+        
+        logos = []
+        for doc in docs:
+            d = doc.to_dict()
+            d['id'] = doc.id
+            # Convert timestamp
+            if d.get('uploadedAt'):
+                 # Handle both Firestore Timestamp and string (legacy)
+                ts = d['uploadedAt']
+                if hasattr(ts, 'isoformat'):
+                    d['uploadedAt'] = ts.isoformat()
+                else:
+                    d['uploadedAt'] = str(ts)
+            logos.append(d)
+        return logos
+    except Exception as e:
+        logger.error(f"Error getting logos: {e}")
+        return []
+
+def delete_logo(user_id: str, logo_id: str) -> Dict[str, Any]:
+    """Delete a logo from Firestore and Storage."""
+    try:
+        # Get logo to find filename for storage deletion
+        doc_ref = get_db().collection('users').document(user_id).collection('logos').document(logo_id)
+        doc = doc_ref.get()
+        
+        if not doc.exists:
+            return {"success": False, "error": "Logo not found"}
+            
+        data = doc.to_dict()
+        filename = data.get('filename')
+        
+        # Delete from Firestore
+        doc_ref.delete()
+        
+        # Delete from Storage (optional, but good practice)
+        if filename:
+            try:
+                bucket = storage.bucket()
+                blob = bucket.blob(f"logos/{filename}")
+                blob.delete()
+            except Exception as e:
+                logger.warning(f"Failed to delete logo from storage: {e}")
+                
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+def set_active_logo(user_id: str, logo_id: str) -> Dict[str, Any]:
+    """Set a logo as active and deactivate others."""
+    try:
+        # Deactivate all current active logos
+        # Ideally use a batch or transaction, but for now simple query is fine
+        docs = (get_db().collection('users').document(user_id)
+                .collection('logos')
+                .where('active', '==', True)
+                .stream())
+        
+        batch = get_db().batch()
+        
+        for doc in docs:
+            batch.update(doc.reference, {'active': False})
+            
+        # Activate new logo
+        if logo_id:
+            ref = get_db().collection('users').document(user_id).collection('logos').document(logo_id)
+            batch.update(ref, {'active': True})
+            
+        batch.commit()
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+# --- Avatars ---
+
+def save_avatar(user_id: str, data: Dict[str, Any], avatar_id: str = None) -> Dict[str, Any]:
+    """Save (create or update) an avatar in Firestore."""
+    try:
+        # Extract filename from URL if not provided (for deletion later)
+        if 'filename' not in data and 'image_url' in data:
+            # Try to extract from Firebase Storage URL
+            # Format: .../o/avatars%2Ffilename?alt=...
+            try:
+                from urllib.parse import unquote
+                url = data['image_url']
+                if '/o/' in url:
+                    path = unquote(url.split('/o/')[1].split('?')[0])
+                    if '/' in path:
+                        data['filename'] = path.split('/')[-1]
+            except Exception:
+                pass # Keep going if we can't extract
+
+        # Map frontend fields to DB fields if needed
+        # Frontend sends: name, type, image_url, video_url, position, scale, opacity, gender, voice
+        # DB expects: name, url (for image), video_url, filename, etc.
+        
+        db_data = {
+            'name': data.get('name'),
+            'type': data.get('type', 'image'),
+            'url': data.get('image_url'), # Main URL is image_url
+            'video_url': data.get('video_url'),
+            'position': data.get('position', 'bottom-right'),
+            'scale': int(data.get('scale', 25)),
+            'opacity': int(data.get('opacity', 100)),
+            'gender': data.get('gender', 'female'),
+            'voice': data.get('voice'),
+            'updatedAt': firestore.SERVER_TIMESTAMP
+        }
+        
+        if 'filename' in data:
+            db_data['filename'] = data['filename']
+
+        if avatar_id:
+            # Update
+            doc_ref = get_db().collection('users').document(user_id).collection('avatars').document(avatar_id)
+            doc_ref.set(db_data, merge=True)
+            db_data['id'] = avatar_id
+        else:
+            # Create
+            db_data['active'] = False # Default inactive
+            db_data['uploadedAt'] = firestore.SERVER_TIMESTAMP
+            doc_ref = get_db().collection('users').document(user_id).collection('avatars').add(db_data)
+            db_data['id'] = doc_ref[1].id
+            # Convert timestamp for return
+            db_data['uploadedAt'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+
+        # Convert timestamps for return (remove Sentinel objects)
+        if 'updatedAt' in db_data:
+            db_data['updatedAt'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+
+        return {"success": True, "avatar": db_data}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+def get_avatars(user_id: str) -> List[Dict[str, Any]]:
+    """Get all avatars for a user."""
+    try:
+        docs = (get_db().collection('users').document(user_id)
+                .collection('avatars')
+                .order_by('uploadedAt', direction=firestore.Query.DESCENDING)
+                .stream())
+        
+        avatars = []
+        for doc in docs:
+            d = doc.to_dict()
+            d['id'] = doc.id
+            d['image_url'] = d.get('url') # Frontend expects image_url
+            # Convert timestamp
+            if d.get('uploadedAt'):
+                ts = d['uploadedAt']
+                if hasattr(ts, 'isoformat'):
+                    d['uploadedAt'] = ts.isoformat()
+                else:
+                    d['uploadedAt'] = str(ts)
+            avatars.append(d)
+        return avatars
+    except Exception as e:
+        logger.error(f"Error getting avatars: {e}")
+        return []
+
+def delete_avatar(user_id: str, avatar_id: str) -> Dict[str, Any]:
+    """Delete an avatar from Firestore and Storage."""
+    try:
+        # Get avatar to find filename for storage deletion
+        doc_ref = get_db().collection('users').document(user_id).collection('avatars').document(avatar_id)
+        doc = doc_ref.get()
+        
+        if not doc.exists:
+            return {"success": False, "error": "Avatar not found"}
+            
+        data = doc.to_dict()
+        filename = data.get('filename')
+        
+        # Delete from Firestore
+        doc_ref.delete()
+        
+        # Delete from Storage
+        if filename:
+            try:
+                bucket = storage.bucket()
+                blob = bucket.blob(f"avatars/{filename}")
+                blob.delete()
+            except Exception as e:
+                logger.warning(f"Failed to delete avatar from storage: {e}")
+                
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+def set_active_avatar(user_id: str, avatar_id: str) -> Dict[str, Any]:
+    """Set an avatar as active and deactivate others."""
+    try:
+        # Deactivate all current active avatars
+        docs = (get_db().collection('users').document(user_id)
+                .collection('avatars')
+                .where('active', '==', True)
+                .stream())
+        
+        batch = get_db().batch()
+        
+        for doc in docs:
+            batch.update(doc.reference, {'active': False})
+            
+        # Activate new avatar
+        if avatar_id:
+            ref = get_db().collection('users').document(user_id).collection('avatars').document(avatar_id)
+            batch.update(ref, {'active': True})
+            
+        batch.commit()
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}

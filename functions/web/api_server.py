@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import uuid
 import logging
 from pathlib import Path
 import sys
@@ -37,7 +38,7 @@ analytics_manager = AnalyticsManager()
 publisher = MultiPlatformPublisher()
 platform_api = PlatformAPIManager()
 
-APP_VERSION = "5.7.3"
+APP_VERSION = "5.7.4"
 
 # Optional CSP Trusted Types configuration (normalised once at startup)
 _raw_csp_require_trusted = os.getenv('CSP_REQUIRE_TRUSTED_TYPES_FOR', '').strip()
@@ -1065,10 +1066,29 @@ def get_selected_topic():
         logger.error(f"[AUTH] Login error: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
+def _get_user_obj_from_session():
+    """Helper to get full user object from session"""
+    session_id = request.cookies.get('__session')
+    if not session_id:
+        return None, jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+    result = database.get_session(session_id)
+    if not result.get('success'):
+        return None, jsonify({'success': False, 'error': 'Invalid or expired session'}), 401
+
+    return result['user'], None, None
+
 @app.route('/upload-avatar-file', methods=['POST'])
 def upload_avatar_file():
     """Upload avatar image/video file"""
     try:
+        # Authenticate user
+        user, error_response, error_code = _get_user_obj_from_session()
+        if error_response:
+            return error_response, error_code
+        
+        user_id = user['id']
+
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'No file uploaded'}), 400
         
@@ -1093,25 +1113,52 @@ def upload_avatar_file():
         original_filename = file.filename
         safe_filename = Path(original_filename).stem
         ext = Path(original_filename).suffix or ('.png' if file.content_type.startswith('image/') else '.mp4')
-        unique = f"avatar_{int(time.time())}_{uuid.uuid4().hex[:8]}{ext}"
+        unique_filename = f"avatar_{int(time.time())}_{uuid.uuid4().hex[:8]}{ext}"
         
-        avatars_dir = Path(__file__).parent.parent / 'avatars'
-        avatars_dir.mkdir(exist_ok=True)
-        dest = avatars_dir / unique
+        # Upload to Firebase Storage
+        destination_path = f"avatars/{unique_filename}"
+        public_url = database.upload_file(file, destination_path, content_type=file.content_type)
         
-        # Save file
-        file.save(str(dest))
+        # NOTE: We do NOT create the Firestore record here anymore.
+        # The frontend will call /save-avatar with the URL and other metadata to create the record.
+        # This prevents duplicate or partial records.
         
-        # Verify file was saved
-        if not dest.exists() or dest.stat().st_size == 0:
-            return jsonify({'success': False, 'error': 'Failed to save file'}), 500
-        
-        # Return URL using current request origin
-        url = f"{request.scheme}://{request.host}/avatars/{dest.name}"
-        return jsonify({'success': True, 'url': url, 'filename': dest.name})
+        return jsonify({'success': True, 'url': public_url, 'filename': unique_filename})
+
     except Exception as e:
         import traceback
         traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/save-avatar', methods=['POST'])
+def save_avatar_endpoint():
+    """Save (create or update) avatar configuration"""
+    try:
+        # Authenticate user
+        user, error_response, error_code = _get_user_obj_from_session()
+        if error_response:
+            return error_response, error_code
+        
+        user_id = user['id']
+
+        data = request.get_json(force=True) or {}
+        avatar_id = data.get('id') # Optional, for updates
+
+        # Call database helper
+        logger.info(f"[AVATAR] Saving avatar for user {user_id}: {data}")
+        try:
+            result = database.save_avatar(user_id, data, avatar_id)
+        except Exception as e:
+            logger.error(f"[AVATAR] Database save error: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': f"Database error: {str(e)}"}), 500
+        
+        if result['success']:
+            return jsonify({'success': True, 'avatar': result['avatar']})
+        else:
+            logger.error(f"[AVATAR] Save failed: {result.get('error')}")
+            return jsonify({'success': False, 'error': result.get('error')}), 500
+    except Exception as e:
+        logger.error(f"[AVATAR] Endpoint error: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/<path:filename>')
@@ -1123,61 +1170,32 @@ def serve_frontend_file(filename):
         from flask import abort
         abort(404)
 
-    # Only serve static file types
-    if filename.endswith(('.css', '.js', '.svg', '.png', '.jpg', '.ico', '.html')):
-        try:
-            return send_from_directory('topic-picker-standalone', filename)
-        except (FileNotFoundError, PermissionError, OSError) as e:
-            logger.warning(f"Static file not found or inaccessible: {filename} - {e}")
-    from flask import abort
-    abort(404)
+    try:
+        payload = request.get_json(force=True) or {}
+        outdir = Path('out')
+        outdir.mkdir(exist_ok=True)
+        path = outdir / 'topic_selected.json'
+        # Write with UTF-8 and pretty print for debugging
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
+        return jsonify({'success': True, 'path': str(path)})
+    except Exception as e:
+        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 
 @app.route('/get-avatar-library', methods=['GET'])
 def get_avatar_library():
     try:
-        path = Path(__file__).parent.parent / 'avatar_library.json'
-        avatars_dir = Path(__file__).parent.parent / 'avatars'
-        avatars = []
-        if path.exists():
-            try:
-                raw = path.read_text(encoding='utf-8')
-                data = json.loads(raw or '{}') if raw is not None else {}
-                avatars = data.get('avatars', []) if isinstance(data, dict) else []
-            except Exception:
-                avatars = []
-        # Fallback: scan avatars directory if library is missing/empty
-        if (not avatars) and avatars_dir.exists():
-            allowed_ext = ('.png', '.jpg', '.jpeg', '.webp')
-            # Use request origin for URL generation (works in dev and production)
-            base_url = f"{request.scheme}://{request.host}"
-            for f in avatars_dir.iterdir():
-                if f.is_file() and f.suffix.lower() in allowed_ext:
-                    stem = f.stem
-                    avatars.append({
-                        'id': stem,
-                        'name': stem.replace('_', ' ').title(),
-                        'image_url': f"{base_url}/avatars/{f.name}",
-                        'active': False,
-                    })
-            # Sort newest first where possible
-            try:
-                avatars.sort(key=lambda a: (avatars_dir / (a.get('id', '') + '.png')).stat().st_mtime if (avatars_dir / (a.get('id', '') + '.png')).exists() else 0, reverse=True)
-            except Exception:
-                pass
+        # Authenticate user
+        user, error_response, error_code = _get_user_obj_from_session()
+        if error_response:
+            # For backward compatibility or public access, we might return empty or default
+            # But ideally we require auth. Let's return empty list if not auth for now to avoid breaking UI
+            return jsonify({'success': True, 'avatars': []})
         
-        # Fix hardcoded localhost URLs in loaded avatars to use current request origin
-        if avatars:
-            base_url = f"{request.scheme}://{request.host}"
-            for avatar in avatars:
-                if avatar.get('image_url'):
-                    # Replace hardcoded localhost/127.0.0.1 URLs with current origin
-                    old_url = avatar['image_url']
-                    if 'localhost:5000' in old_url or '127.0.0.1:5000' in old_url:
-                        # Extract just the filename and reconstruct URL
-                        filename = old_url.split('/')[-1]
-                        avatar['image_url'] = f"{base_url}/avatars/{filename}"
+        user_id = user['id']
         
+        avatars = database.get_avatars(user_id)
         return jsonify({'success': True, 'avatars': avatars})
     except Exception as e:
         # Still return 200 so UI can proceed
@@ -1188,125 +1206,54 @@ def get_avatar_library():
 def set_active_avatar():
     """Set an avatar as active"""
     try:
+        # Authenticate user
+        user, error_response, error_code = _get_user_obj_from_session()
+        if error_response:
+            return error_response, error_code
+        
+        user_id = user['id']
+
         data = request.get_json(force=True) or {}
         avatar_id = data.get('id')
 
         if not avatar_id:
             return jsonify({'success': False, 'error': 'No avatar ID provided'}), 400
 
-        library_path = Path(__file__).parent.parent / 'avatar_library.json'
-
-        # Load library
-        avatars = []
-        if library_path.exists():
-            try:
-                raw = library_path.read_text(encoding='utf-8')
-                library_data = json.loads(raw or '{}')
-                avatars = library_data.get('avatars', [])
-            except Exception:
-                avatars = []
-
-        # Set all to inactive, then activate the selected one
-        for avatar in avatars:
-            avatar['active'] = (avatar.get('id') == avatar_id)
-
-        # Save library
-        library_path.write_text(json.dumps({'avatars': avatars}, indent=2, ensure_ascii=False), encoding='utf-8')
-
-        return jsonify({'success': True})
-    except Exception as e:
-        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
-
-
-@app.route('/save-avatar', methods=['POST'])
-def save_avatar():
-    """Save or update an avatar"""
-    try:
-        data = request.get_json(force=True) or {}
-        avatar_id = data.get('id')
-
-        library_path = Path(__file__).parent.parent / 'avatar_library.json'
-
-        # Load library
-        avatars = []
-        if library_path.exists():
-            try:
-                raw = library_path.read_text(encoding='utf-8')
-                library_data = json.loads(raw or '{}')
-                avatars = library_data.get('avatars', [])
-            except Exception:
-                avatars = []
-
-        # Generate ID if new avatar
-        if not avatar_id:
-            avatar_id = f"avatar_{int(time.time())}"
-
-        # Create avatar object
-        avatar = {
-            'id': avatar_id,
-            'name': data.get('name', 'Unnamed Avatar'),
-            'type': data.get('type', 'image'),
-            'image_url': data.get('image_url', ''),
-            'video_url': data.get('video_url', ''),
-            'position': data.get('position', 'bottom-right'),
-            'scale': int(data.get('scale', 25)),
-            'opacity': int(data.get('opacity', 100)),
-            'gender': data.get('gender', 'female'),
-            'voice': data.get('voice', 'en-US-Neural2-F'),
-            'active': False
-        }
-
-        # Update or add avatar
-        existing_index = next((i for i, a in enumerate(avatars) if a.get('id') == avatar_id), None)
-        if existing_index is not None:
-            # Keep active status when updating
-            avatar['active'] = avatars[existing_index].get('active', False)
-            avatars[existing_index] = avatar
+        result = database.set_active_avatar(user_id, avatar_id)
+        
+        if result['success']:
+            return jsonify({'success': True})
         else:
-            avatars.append(avatar)
-
-        # Save library
-        library_path.write_text(json.dumps({'avatars': avatars}, indent=2, ensure_ascii=False), encoding='utf-8')
-
-        return jsonify({'success': True, 'id': avatar_id})
+            return jsonify({'success': False, 'error': result.get('error')}), 500
     except Exception as e:
-        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/delete-avatar', methods=['POST'])
 def delete_avatar():
     """Delete an avatar"""
     try:
+        # Authenticate user
+        user, error_response, error_code = _get_user_obj_from_session()
+        if error_response:
+            return error_response, error_code
+        
+        user_id = user['id']
+
         data = request.get_json(force=True) or {}
         avatar_id = data.get('id')
 
         if not avatar_id:
             return jsonify({'success': False, 'error': 'No avatar ID provided'}), 400
 
-        library_path = Path(__file__).parent.parent / 'avatar_library.json'
-
-        # Load library
-        avatars = []
-        if library_path.exists():
-            try:
-                raw = library_path.read_text(encoding='utf-8')
-                library_data = json.loads(raw or '{}')
-                avatars = library_data.get('avatars', [])
-            except Exception:
-                avatars = []
-
-        # Remove avatar
-        avatars = [a for a in avatars if a.get('id') != avatar_id]
-
-        # Save library
-        library_path.write_text(json.dumps({'avatars': avatars}, indent=2, ensure_ascii=False), encoding='utf-8')
-
-        return jsonify({'success': True})
+        result = database.delete_avatar(user_id, avatar_id)
+        
+        if result['success']:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'error': result.get('error')}), 500
     except Exception as e:
-        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/set-selected-topic', methods=['POST'])
@@ -5070,166 +5017,85 @@ def serve_logo_file(filename):
 @app.route('/api/logo-files', methods=['GET'])
 def api_logo_files():
     try:
-        dirs = [
-            Path(__file__).parent.parent / 'logos',
-            Path(__file__).parent / 'logos',
-            Path(__file__).parent / 'logos_migrated',
-        ]
-        seen = set()
-        items = []
-        for d in dirs:
-            if not d.exists():
-                continue
-            for ext in ('*.png', '*.jpg', '*.jpeg', '*.svg', '*.webp'):
-                for f in d.glob(ext):
-                    if f.name in seen:
-                        continue
-                    seen.add(f.name)
-                    try:
-                        items.append({
-                            'filename': f.name,
-                            'url': f"{request.scheme}://{request.host}/logos/{f.name}",
-                            'size': f.stat().st_size,
-                        })
-                    except Exception:
-                        pass
-        # Sort by mtime across possible dirs
-        def _mtime(name: str) -> float:
-            for d in dirs:
-                p = d / name
-                if p.exists():
-                    return p.stat().st_mtime
-            return 0.0
-        items.sort(key=lambda x: _mtime(x['filename']), reverse=True)
-        return jsonify({'success': True, 'logos': items})
+        # Get user from session
+        session_id = request.cookies.get('__session')
+        if not session_id:
+             return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+        
+        result = database.get_session(session_id)
+        if not result.get('success'):
+             return jsonify({'success': False, 'error': 'Invalid session'}), 401
+             
+        user_id = result['user']['id']
+        
+        logos = database.get_logos(user_id)
+        return jsonify({'success': True, 'logos': logos})
     except Exception as e:
-        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
+        logger.error(f"[LOGOS] Error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Failed to load logos'}), 500
 
 @app.route('/get-logo-library', methods=['GET'])
 def get_logo_library_route():
     try:
-        path = Path('logo_library.json')
-        dirs = [
-            Path(__file__).parent.parent / 'logos',
-            Path(__file__).parent / 'logos',
-            Path(__file__).parent / 'logos_migrated',
-        ]
-        if not path.exists():
-            return jsonify({'success': True, 'logos': []})
-
-        # Load library; tolerate empty/invalid content
-        try:
-            raw = path.read_text(encoding='utf-8')
-            data = json.loads(raw or '{}') if raw is not None else {}
-            raw_list = data.get('logos', []) if isinstance(data, dict) else []
-        except Exception:
-            raw_list = []
-
-        allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
-        uniq = {}
-        for item in raw_list:
-            try:
-                url = (item.get('url') or '').strip()
-                fname = (item.get('filename') or (url.split('/')[-1] if url else '')).strip()
-                fname = ''.join(ch for ch in Path(fname).name if ch in allowed)
-                if not fname:
-                    continue
-                exists = any((d / fname).exists() for d in dirs)
-                if not exists:
-                    continue
-                # Use current request origin instead of hardcoded localhost
-                base_url = f"{request.scheme}://{request.host}"
-                normalized_url = f"{base_url}/logos/{fname}"
-                name = (item.get('name') or '').strip() or fname
-                uniq[fname] = {
-                    'id': item.get('id') or fname,
-                    'name': name,
-                    'url': normalized_url,
-                    'filename': fname,
-                    'active': bool(item.get('active', False)),
-                }
-            except Exception:
-                continue
-
-        def _mtime(fname: str) -> float:
-            for d in dirs:
-                p = d / fname
-                if p.exists():
-                    try:
-                        return p.stat().st_mtime
-                    except Exception:
-                        return 0
-            return 0
-
-        cleaned = list(uniq.values())
-        cleaned.sort(key=lambda x: _mtime(x['filename']), reverse=True)
-        return jsonify({'success': True, 'logos': cleaned})
-    except Exception:
-        return jsonify({'success': True, 'logos': []})
+        # Get user from session
+        session_id = request.cookies.get('__session')
+        if not session_id:
+             return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+        
+        result = database.get_session(session_id)
+        if not result.get('success'):
+             return jsonify({'success': False, 'error': 'Invalid session'}), 401
+             
+        user_id = result['user']['id']
+        
+        logos = database.get_logos(user_id)
+        return jsonify({'success': True, 'logos': logos})
+    except Exception as e:
+        logger.error(f"[LOGOS] Error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Failed to load logos'}), 500
 
 @app.route('/set-active-logo', methods=['POST'])
 def set_active_logo():
     try:
-        data = request.get_json(force=True) or {}
-        logo_id = (data.get('id') or '').strip()
-        if not logo_id:
-            return jsonify({'success': False, 'error': 'No logo ID provided'}), 400
-        lib_path = Path('logo_library.json')
-        if not lib_path.exists():
-            return jsonify({'success': False, 'error': 'Logo library not found'}), 404
-        library = json.loads(lib_path.read_text(encoding='utf-8') or '{}')
-        logos = library.get('logos', []) if isinstance(library, dict) else []
-        for l in logos: l['active']=False
-        active_url=None; found=False
-        for l in logos:
-            if l.get('id') == logo_id:
-                l['active']=True
-                active_url=l.get('url')
-                found=True
-                break
-        if not found:
-            return jsonify({'success': False, 'error': 'Logo not found'}), 404
-        lib_path.write_text(json.dumps({'logos': logos}, indent=2), encoding='utf-8')
-        return jsonify({'success': True, 'logoUrl': active_url})
-    except Exception as e:
-        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
-
-@app.route('/delete-logo', methods=['POST'])
-def delete_logo():
-    try:
-        data = request.get_json(force=True) or {}
-        logo_id = (data.get('id') or '').strip()
-        if not logo_id:
-            return jsonify({'success': False, 'error': 'No logo ID provided'}), 400
-        lib_path = Path('logo_library.json')
-        if not lib_path.exists():
-            return jsonify({'success': False, 'error': 'Logo library not found'}), 404
-        library = json.loads(lib_path.read_text(encoding='utf-8') or '{}')
-        logos = library.get('logos', []) if isinstance(library, dict) else []
-        target = next((l for l in logos if l.get('id') == logo_id), None)
-        if not target:
-            return jsonify({'success': False, 'error': 'Logo not found'}), 404
-        fname = (target.get('filename') or '').strip()
-        if fname:
-            p = Path(__file__).parent.parent / 'logos' / Path(fname).name
-            try:
-                if p.exists(): p.unlink()
-            except Exception:
-                pass
-        logos = [l for l in logos if l.get('id') != logo_id]
-        lib_path.write_text(json.dumps({'logos': logos}, indent=2), encoding='utf-8')
+        data = request.get_json()
+        logo_id = data.get('id')
+        
+        # Get user from session
+        session_id = request.cookies.get('__session')
+        if not session_id:
+             return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+        
+        result = database.get_session(session_id)
+        if not result.get('success'):
+             return jsonify({'success': False, 'error': 'Invalid session'}), 401
+             
+        user_id = result['user']['id']
+        
+        result = database.set_active_logo(user_id, logo_id)
+        if not result['success']:
+             return jsonify({'success': False, 'error': result['error']}), 500
+             
         return jsonify({'success': True})
     except Exception as e:
-        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
+        logger.error(f"[SET-ACTIVE-LOGO] Error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Failed to set active logo'}), 500
 
 @app.route('/upload-logo-to-library', methods=['POST'])
 def upload_logo_to_library():
     """Upload logo file with security validation"""
     try:
-        from web.utils.file_validation import validate_image_file, sanitize_filename, MAX_LOGO_SIZE
+        from web.utils.file_validation import validate_image_file, sanitize_filename, MAX_LOGO_SIZE, FileUploadError
+        
+        # Get user from session
+        session_id = request.cookies.get('__session')
+        if not session_id:
+             return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+        
+        result = database.get_session(session_id)
+        if not result.get('success'):
+             return jsonify({'success': False, 'error': 'Invalid session'}), 401
+             
+        user_id = result['user']['id']
         
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'No file uploaded'}), 400
@@ -5247,36 +5113,19 @@ def upload_logo_to_library():
         safe_filename = sanitize_filename(original_filename)
         
         name = request.form.get('name', safe_filename)
-        logos_dir = Path(__file__).parent.parent / 'logos'
-        logos_dir.mkdir(exist_ok=True)
         ext = Path(safe_filename).suffix or '.png'
         unique = f"logo_{int(time.time())}_{uuid.uuid4().hex[:8]}{ext}"
-        dest = logos_dir / unique
         
-        # Save file
-        file.save(str(dest))
+        # Upload to Storage
+        storage_path = f"logos/{unique}"
+        public_url = database.upload_file(file, storage_path, content_type=file.content_type)
         
-        # Verify file was saved and is valid
-        if not dest.exists() or dest.stat().st_size == 0:
-            return jsonify({'success': False, 'error': 'Failed to save file'}), 500
-        
-        url = f"{request.scheme}://{request.host}/logos/{dest.name}"
-        lib_path = Path('logo_library.json')
-        library = {'logos': []}
-        if lib_path.exists():
-            try: library = json.loads(lib_path.read_text(encoding='utf-8') or '{}')
-            except Exception: library = {'logos': []}
-        entry = {
-            'id': str(int(time.time()*1000)),
-            'name': name,
-            'url': url,
-            'filename': dest.name,
-            'active': False,
-            'uploadedAt': time.strftime('%Y-%m-%d %H:%M:%S')
-        }
-        library.setdefault('logos', []).append(entry)
-        lib_path.write_text(json.dumps(library, indent=2), encoding='utf-8')
-        return jsonify({'success': True, 'url': url, 'logo': entry})
+        # Add to Firestore
+        result = database.add_logo(user_id, name, public_url, unique)
+        if not result['success']:
+             return jsonify({'success': False, 'error': result['error']}), 500
+             
+        return jsonify({'success': True, 'url': public_url, 'logo': result['logo']})
     except FileUploadError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
