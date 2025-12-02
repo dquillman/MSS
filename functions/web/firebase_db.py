@@ -566,3 +566,99 @@ def set_active_avatar(user_id: str, avatar_id: str) -> Dict[str, Any]:
         return {"success": True}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+# --- Video Management ---
+
+def upload_video(user_id: str, file_obj, filename: str) -> Dict[str, Any]:
+    """Upload a video to Firebase Storage."""
+    try:
+        bucket = storage.bucket()
+        blob_path = f"videos/{user_id}/{filename}"
+        blob = bucket.blob(blob_path)
+        
+        # Upload
+        blob.upload_from_file(file_obj, content_type='video/mp4')
+        blob.make_public()
+        
+        return {"success": True, "url": blob.public_url, "path": blob_path}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+def list_videos(user_id: str, limit: int = 10) -> Dict[str, Any]:
+    """List videos from Firebase Storage."""
+    try:
+        bucket = storage.bucket()
+        prefix = f"videos/{user_id}/"
+        blobs = bucket.list_blobs(prefix=prefix)
+        
+        files = []
+        for blob in blobs:
+            if blob.name.endswith('/'): continue # Skip directories
+            
+            # Format for frontend compatibility
+            # Frontend expects: path, mtime, size, ext
+            name = blob.name.split('/')[-1]
+            files.append({
+                'path': name, # Frontend treats this as filename
+                'mtime': blob.updated.timestamp() if blob.updated else 0,
+                'size': blob.size,
+                'ext': '.' + name.split('.')[-1] if '.' in name else '',
+                'url': blob.public_url
+            })
+            
+        # Sort by mtime desc
+        files.sort(key=lambda x: x['mtime'], reverse=True)
+        
+        return {"success": True, "files": files[:limit]}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+def delete_video(user_id: str, filename: str) -> Dict[str, Any]:
+    """Delete a video from Firebase Storage."""
+    try:
+        bucket = storage.bucket()
+        blob_path = f"videos/{user_id}/{filename}"
+        blob = bucket.blob(blob_path)
+        
+        if blob.exists():
+            blob.delete()
+            return {"success": True}
+        else:
+            return {"success": False, "error": "Video not found"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+def generate_signed_url(user_id: str, filename: str, content_type: str) -> Dict[str, Any]:
+    """Generate a Signed URL for uploading a file directly to GCS."""
+    try:
+        bucket = storage.bucket()
+        blob_path = f"videos/{user_id}/{filename}"
+        blob = bucket.blob(blob_path)
+        
+        # Generate Signed URL (PUT)
+        # Note: Requires 'iam.serviceAccounts.signBlob' permission on the service account
+        url = blob.generate_signed_url(
+            version="v4",
+            expiration=timedelta(minutes=15),
+            method="PUT",
+            content_type=content_type
+        )
+        
+        return {"success": True, "upload_url": url, "storage_path": blob_path}
+    except Exception as e:
+        logger.error(f"Error generating signed URL: {e}")
+        return {"success": False, "error": str(e)}
+
+def finalize_video_upload(path: str) -> Dict[str, Any]:
+    """Make the uploaded blob public and return its URL."""
+    try:
+        bucket = storage.bucket()
+        blob = bucket.blob(path)
+        
+        if not blob.exists():
+             return {"success": False, "error": "File not found in storage"}
+        
+        blob.make_public()
+        return {"success": True, "url": blob.public_url}
+    except Exception as e:
+        logger.error(f"Error finalizing upload: {e}")
+        return {"success": False, "error": str(e)}

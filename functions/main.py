@@ -1,8 +1,13 @@
 from firebase_functions import https_fn
-# Force redeploy - timestamp update
-from web.api_server import app
 
-@https_fn.on_request(max_instances=10, region="us-central1")
+@https_fn.on_request(max_instances=10, region="us-central1", memory=1024)
 def api(req: https_fn.Request) -> https_fn.Response:
-    with app.request_context(req.environ):
-        return app.full_dispatch_request()
+    try:
+        # Lazy import to catch import-time errors
+        from web.api_server import app
+        
+        with app.request_context(req.environ):
+            return app.full_dispatch_request()
+    except Exception as e:
+        import traceback
+        return https_fn.Response(f"CRITICAL FUNCTION ERROR: {str(e)}\n{traceback.format_exc()}", status=500)

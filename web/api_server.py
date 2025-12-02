@@ -12,6 +12,8 @@ from web.platform_apis import PlatformAPIManager
 from flask import Flask, request, jsonify, send_from_directory, redirect, url_for, session, make_response
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from werkzeug.utils import secure_filename
+from werkzeug.exceptions import HTTPException
 from web import firebase_db as database
 from firebase_admin import firestore
 from pydantic import ValidationError as PydanticValidationError
@@ -38,7 +40,7 @@ analytics_manager = AnalyticsManager()
 publisher = MultiPlatformPublisher()
 platform_api = PlatformAPIManager()
 
-APP_VERSION = "5.7.4"
+APP_VERSION = "5.7.6"
 
 # Optional CSP Trusted Types configuration (normalised once at startup)
 _raw_csp_require_trusted = os.getenv('CSP_REQUIRE_TRUSTED_TYPES_FOR', '').strip()
@@ -55,6 +57,16 @@ elif _csp_require_trusted == 'none':
 
 _raw_csp_trusted_types = os.getenv('CSP_TRUSTED_TYPES', '').strip()
 _csp_trusted_types = _raw_csp_trusted_types.strip("'\"") if _raw_csp_trusted_types else ''
+
+# Global Error Handler
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Global error handler to return JSON instead of HTML"""
+    logger.error(f"[SERVER] Unhandled exception: {e}", exc_info=True)
+    # Pass through HTTP errors
+    if isinstance(e, HTTPException):
+        return e
+    return jsonify({'success': False, 'error': str(e), 'type': type(e).__name__}), 500
 
 # Security: HTTPS Enforcement (production only)
 @app.before_request
@@ -2040,53 +2052,17 @@ def cleanup_outputs():
         return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 
-@app.route('/list-outputs', methods=['GET'])
-def list_outputs():
-    """List files in an output directory.
-
-    Query params:
-      - dir: directory to list (default 'out')
-      - limit: max number of files (default 100)
-      - min_mb: only include files of at least this size (MB)
-    """
-    try:
-        base = request.args.get('dir', 'out')
-        limit = int(request.args.get('limit', 100))
-        min_mb = request.args.get('min_mb', None)
-        min_bytes = int(float(min_mb) * 1024 * 1024) if min_mb is not None else 0
-
-        root = Path(base)
-        if not root.exists():
-            return jsonify({'success': False, 'error': f'Directory not found: {base}'}), 400
-
-        items = []
-        for p in root.rglob('*'):
-            if p.is_file():
-                try:
-                    # skip items under any ".trash" folder
-                    if any(part == '.trash' for part in p.parts):
-                        continue
-                    size = p.stat().st_size
-                    if size < min_bytes:
-                        continue
-                    rel = p.relative_to(root).as_posix()
-                    items.append({
-                        'path': rel,
-                        'size': size,
-                        'mtime': int(p.stat().st_mtime),
-                        'ext': p.suffix.lower(),
-                    })
-                except Exception:
-                    continue
-
-        # Sort by mtime desc and limit
-        items.sort(key=lambda x: x['mtime'], reverse=True)
-        items = items[:limit]
-
-        return jsonify({'success': True, 'dir': base, 'count': len(items), 'files': items})
-    except Exception as e:
-        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
+# [REMOVED] Conflicting list_outputs handler replaced by api_list_outputs at end of file
+# @app.route('/list-outputs', methods=['GET'])
+# def list_outputs():
+#     """List files in an output directory.
+# 
+#     Query params:
+#       - dir: directory to list (default 'out')
+#       - limit: max number of files (default 100)
+#       - min_mb: only include files of at least this size (MB)
+#     """
+#     return jsonify({'success': False, 'error': 'Use /list-outputs endpoint with Firebase Storage'}), 410
 
 @app.route('/api/generate-description', methods=['POST'])
 def generate_description():
@@ -5699,62 +5675,11 @@ def optimize_video():
         logger.error(f"[AUTH] Login error: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
-@app.route('/api/upload/video', methods=['POST'])
-def upload_video():
-    """Upload video file to out/ directory with security validation"""
-    user_email, error_response, error_code = _get_user_from_session()
-    if error_response:
-        return error_response, error_code
+# [REMOVED] Duplicate upload_video route. Use upload_video_endpoint instead.
+# @app.route('/api/upload/video', methods=['POST'])
+# def upload_video():
+#     return jsonify({'error': 'Use new endpoint'}), 410
 
-    try:
-        from web.utils.file_validation import validate_video_file, sanitize_filename, MAX_VIDEO_SIZE
-        
-        if 'video' not in request.files:
-            return jsonify({'success': False, 'error': 'No video file provided'}), 400
-
-        video_file = request.files['video']
-
-        if video_file.filename == '':
-            return jsonify({'success': False, 'error': 'No file selected'}), 400
-
-        # Security: Validate video file
-        try:
-            validation = validate_video_file(video_file, max_size=MAX_VIDEO_SIZE)
-        except FileUploadError as e:
-            return jsonify({'success': False, 'error': str(e)}), 400
-
-        # Security: Sanitize filename
-        original_filename = video_file.filename
-        safe_filename = sanitize_filename(original_filename)
-        
-        # Generate unique filename
-        timestamp = int(time.time())
-        name_base = Path(safe_filename).stem
-        file_ext = Path(safe_filename).suffix or '.mp4'
-        unique_filename = f"{name_base}_{timestamp}_{uuid.uuid4().hex[:8]}{file_ext}"
-        
-        video_path = os.path.join('out', unique_filename)
-
-        # Save the file
-        video_file.save(video_path)
-
-        # Verify file was saved
-        if not os.path.exists(video_path) or os.path.getsize(video_path) == 0:
-            return jsonify({'success': False, 'error': 'Failed to save file'}), 500
-
-        logger.info(f"[UPLOAD] Video uploaded: {video_path}")
-
-        return jsonify({
-            'success': True,
-            'video_path': unique_filename,
-            'message': 'Video uploaded successfully'
-        })
-
-    except FileUploadError as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
-    except Exception as e:
-        logger.error(f"[UPLOAD-VIDEO] Error: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': 'Upload failed'}), 500
 
 @app.route('/api/upload/thumbnail', methods=['POST'])
 def upload_thumbnail():
@@ -6811,6 +6736,159 @@ def proxy_image():
     except Exception as e:
         print(f"[PROXY-IMAGE] Error proxying image: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+
+# --- Video Management Endpoints ---
+
+@app.route('/api/upload/video', methods=['POST'])
+def upload_video_endpoint():
+    """Upload a video file"""
+    try:
+        # Authenticate user
+        user, error_response, error_code = _get_user_obj_from_session()
+        if error_response:
+            return error_response, error_code
+        
+        user_id = user['id']
+
+        if 'video' not in request.files:
+            return jsonify({'success': False, 'error': 'No video file provided'}), 400
+        
+        file = request.files['video']
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'No selected file'}), 400
+            
+        # Secure filename
+        filename = secure_filename(file.filename)
+        
+        # Upload using database helper
+        result = database.upload_video(user_id, file, filename)
+        
+        if result['success']:
+            return jsonify({
+                'success': True, 
+                'video_path': result['path'], # Frontend expects path (filename)
+                'url': result['url']
+            })
+        else:
+            return jsonify({'success': False, 'error': result.get('error')}), 500
+            
+    except Exception as e:
+        logger.error(f"[VIDEO] Upload error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/upload/video/start', methods=['POST'])
+def upload_video_start():
+    """Generate Signed URL for direct upload"""
+    try:
+        user, error_response, error_code = _get_user_obj_from_session()
+        if error_response:
+            return error_response, error_code
+        
+        data = request.get_json()
+        filename = secure_filename(data.get('filename', ''))
+        content_type = data.get('contentType', 'video/mp4')
+        
+        if not filename:
+            return jsonify({'success': False, 'error': 'Filename required'}), 400
+            
+        # Add timestamp to filename to prevent collisions
+        import time
+        timestamp = int(time.time())
+        filename = f"{timestamp}_{filename}"
+            
+        result = database.generate_signed_url(user['id'], filename, content_type)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 500
+            
+    except Exception as e:
+        logger.error(f"[VIDEO] Start upload error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/upload/video/finish', methods=['POST'])
+def upload_video_finish():
+    """Finalize upload (make public)"""
+    try:
+        user, error_response, error_code = _get_user_obj_from_session()
+        if error_response:
+            return error_response, error_code
+            
+        data = request.get_json()
+        storage_path = data.get('storage_path')
+        
+        if not storage_path:
+            return jsonify({'success': False, 'error': 'Storage path required'}), 400
+            
+        # Security check: Ensure path belongs to user
+        if f"videos/{user['id']}/" not in storage_path:
+             return jsonify({'success': False, 'error': 'Unauthorized path'}), 403
+            
+        result = database.finalize_video_upload(storage_path)
+        
+        if result['success']:
+            # Return format expected by frontend
+            return jsonify({
+                'success': True,
+                'video_path': storage_path.split('/')[-1],
+                'url': result['url']
+            })
+        else:
+            return jsonify(result), 500
+            
+    except Exception as e:
+        logger.error(f"[VIDEO] Finish upload error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/list-outputs', methods=['GET'])
+def list_outputs():
+    """List generated videos (outputs)"""
+    try:
+        logger.info("[VIDEO] list_outputs called (v2 - Firebase Storage)")
+        # Authenticate user
+        user, error_response, error_code = _get_user_obj_from_session()
+        if error_response:
+            return error_response, error_code
+        
+        user_id = user['id']
+        
+        limit = int(request.args.get('limit', 10))
+        
+        result = database.list_videos(user_id, limit)
+        
+        if result['success']:
+            return jsonify({'success': True, 'files': result['files']})
+        else:
+            return jsonify({'success': False, 'error': result.get('error')}), 500
+            
+    except Exception as e:
+        logger.error(f"[VIDEO] List error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/video/delete/<path:filename>', methods=['DELETE'])
+def delete_video_endpoint(filename):
+    """Delete a video"""
+    try:
+        # Authenticate user
+        user, error_response, error_code = _get_user_obj_from_session()
+        if error_response:
+            return error_response, error_code
+        
+        user_id = user['id']
+        
+        result = database.delete_video(user_id, filename)
+        
+        if result['success']:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'error': result.get('error')}), 500
+            
+    except Exception as e:
+        logger.error(f"[VIDEO] Delete error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 if __name__ == '__main__':

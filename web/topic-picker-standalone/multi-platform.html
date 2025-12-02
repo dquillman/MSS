@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -235,41 +236,51 @@
       .platform-grid {
         grid-template-columns: 1fr;
       }
+
       .platform-card {
         padding: 16px;
       }
+
       .card {
         padding: 16px;
       }
+
       .card h1 {
         font-size: 24px;
       }
-      .card > div[style*="display:flex"] {
+
+      .card>div[style*="display:flex"] {
         flex-direction: column;
         gap: 10px;
       }
+
       .btn {
         width: 100%;
         padding: 12px;
         font-size: 14px;
       }
+
       .form-section {
         padding: 16px;
       }
     }
+
     @media (max-width: 480px) {
       .platform-card {
         padding: 12px;
       }
+
       .card {
         padding: 12px;
       }
+
       .card h1 {
         font-size: 20px;
       }
     }
   </style>
 </head>
+
 <body>
   <div id="loadingBar" class="loading-bar"></div>
 
@@ -277,19 +288,24 @@
   <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
     <h1 style="margin:0;">Multi-Platform Publisher</h1>
     <div style="display:flex; gap:10px; flex-wrap:wrap;">
-      <button class="btn" onclick="window.location.href='workflow.html'" style="background:#22c55e; border-color:#22c55e;">📋 Workflow</button>
-      <button class="btn" onclick="window.location.href='/dashboard'" style="background:#3b82f6; border-color:#3b82f6;">Dashboard</button>
-      <button class="btn" onclick="window.location.href='studio.html'" style="background:#22c55e; border-color:#22c55e;">Studio</button>
+      <button class="btn" onclick="window.location.href='workflow.html'"
+        style="background:#22c55e; border-color:#22c55e;">📋 Workflow</button>
+      <button class="btn" onclick="window.location.href='/dashboard'"
+        style="background:#3b82f6; border-color:#3b82f6;">Dashboard</button>
+      <button class="btn" onclick="window.location.href='studio.html'"
+        style="background:#22c55e; border-color:#22c55e;">Studio</button>
     </div>
   </div>
 
   <!-- Info Banner -->
-  <div class="card" style="background:linear-gradient(135deg, rgba(139,92,246,0.1), rgba(17,24,39,0.5)); border-color:#8b5cf6;">
+  <div class="card"
+    style="background:linear-gradient(135deg, rgba(139,92,246,0.1), rgba(17,24,39,0.5)); border-color:#8b5cf6;">
     <div style="display:flex; align-items:start; gap:16px;">
       <div style="font-size:32px;">🚀</div>
       <div>
         <h3 style="margin:0 0 8px 0;">Publish to Multiple Platforms</h3>
-        <p style="margin:0; color:#A8B3CF; font-size:14px;">Automatically optimize and publish your videos to YouTube, TikTok, Instagram Reels, and more. Save time by managing all your content from one place.</p>
+        <p style="margin:0; color:#A8B3CF; font-size:14px;">Automatically optimize and publish your videos to YouTube,
+          TikTok, Instagram Reels, and more. Save time by managing all your content from one place.</p>
       </div>
     </div>
   </div>
@@ -332,7 +348,8 @@
       <div class="form-section">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
           <h3 style="margin:0;">3. Video Details</h3>
-          <button class="btn" onclick="autoFillVideoDetails()" type="button" style="background:#22c55e; border-color:#22c55e; padding:8px 16px;">✨ Auto-Fill Details</button>
+          <button class="btn" onclick="autoFillVideoDetails()" type="button"
+            style="background:#22c55e; border-color:#22c55e; padding:8px 16px;">✨ Auto-Fill Details</button>
         </div>
         <div class="form-group">
           <label>Title</label>
@@ -351,22 +368,28 @@
           <label>Schedule Publishing (Optional)</label>
           <div style="display:flex; gap:8px; align-items:center;">
             <input type="datetime-local" id="scheduledTime" style="flex:1;">
-            <button class="btn" onclick="setOptimalTime()" type="button" style="background:#22c55e; border-color:#22c55e; padding:8px 12px; font-size:12px; white-space:nowrap;">📅 Tomorrow 10 AM</button>
+            <button class="btn" onclick="setOptimalTime()" type="button"
+              style="background:#22c55e; border-color:#22c55e; padding:8px 12px; font-size:12px; white-space:nowrap;">📅
+              Tomorrow 10 AM</button>
           </div>
-          <div class="hint">Leave empty to publish immediately. For best engagement, research suggests 10 AM on weekdays.</div>
+          <div class="hint">Leave empty to publish immediately. For best engagement, research suggests 10 AM on
+            weekdays.</div>
         </div>
       </div>
 
       <!-- Thumbnail Info -->
-      <div id="thumbnailInfo" style="padding:12px; background:rgba(139,92,246,0.1); border:1px solid #8b5cf6; border-radius:8px; margin-bottom:20px; display:none;">
+      <div id="thumbnailInfo"
+        style="padding:12px; background:rgba(139,92,246,0.1); border:1px solid #8b5cf6; border-radius:8px; margin-bottom:20px; display:none;">
         <div style="font-size:14px; color:#a78bfa; font-weight:600; margin-bottom:4px;">📷 Thumbnail Set</div>
         <div style="font-size:12px; color:#A8B3CF;">A custom thumbnail will be uploaded with this video</div>
       </div>
 
       <!-- Action Buttons -->
       <div style="display:flex; gap:12px;">
-        <button class="btn" onclick="publishNow()" style="background:#22c55e; border-color:#22c55e;">Publish Now</button>
-        <button class="btn" onclick="addToQueue()" style="background:#8b5cf6; border-color:#8b5cf6;">Add to Queue</button>
+        <button class="btn" onclick="publishNow()" style="background:#22c55e; border-color:#22c55e;">Publish
+          Now</button>
+        <button class="btn" onclick="addToQueue()" style="background:#8b5cf6; border-color:#8b5cf6;">Add to
+          Queue</button>
         <button class="btn" onclick="clearForm()" style="background:#64748b; border-color:#64748b;">Clear</button>
       </div>
       <div id="publishStatus" style="margin-top:16px;"></div>
@@ -376,11 +399,14 @@
   <!-- Queue Tab -->
   <div id="queueTab" class="tab-content">
     <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+      <div
+        style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
         <h2 style="margin:0;">Publishing Queue</h2>
         <div style="display:flex; gap:10px;">
-          <button class="btn" onclick="loadQueue()" style="background:#22c55e; border-color:#22c55e;">🔄 Refresh</button>
-          <button class="btn" onclick="clearCompleted()" style="background:#ef4444; border-color:#ef4444;">🗑️ Clear Completed</button>
+          <button class="btn" onclick="loadQueue()" style="background:#22c55e; border-color:#22c55e;">🔄
+            Refresh</button>
+          <button class="btn" onclick="clearCompleted()" style="background:#ef4444; border-color:#ef4444;">🗑️ Clear
+            Completed</button>
         </div>
       </div>
       <div id="queueContainer">
@@ -510,7 +536,7 @@
       const height = 700;
       const left = (screen.width - width) / 2;
       const top = (screen.height - height) / 2;
-      
+
       let url = '';
       if (platform === 'youtube') {
         url = `${API_BASE}/api/oauth/youtube/authorize`;
@@ -1215,16 +1241,40 @@ Stay informed with comprehensive coverage of ${title.toLowerCase()}.
       statusDiv.innerHTML = '<span style="color:#3b82f6;">⏳ Uploading video...</span>';
 
       try {
-        const formData = new FormData();
-        formData.append('video', file);
-
-        const res = await fetch(`${API_BASE}/api/upload/video`, {
+        // Step 1: Get Signed URL
+        statusDiv.innerHTML = '<span style="color:#3b82f6;">⏳ Preparing upload...</span>';
+        const startRes = await fetch(`${API_BASE}/api/upload/video/start`, {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: formData
+          body: JSON.stringify({ filename: file.name, contentType: file.type })
         });
 
-        const data = await res.json();
+        const startData = await startRes.json();
+        if (!startData.success) throw new Error(startData.error || 'Failed to start upload');
+
+        // Step 2: Upload directly to GCS
+        statusDiv.innerHTML = '<span style="color:#3b82f6;">⏳ Uploading to storage (0%)...</span>';
+
+        // Use XMLHttpRequest for progress tracking if desired, but fetch is simpler
+        const uploadRes = await fetch(startData.upload_url, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type },
+          body: file
+        });
+
+        if (!uploadRes.ok) throw new Error(`Storage upload failed: ${uploadRes.statusText}`);
+
+        // Step 3: Finalize
+        statusDiv.innerHTML = '<span style="color:#3b82f6;">⏳ Finalizing...</span>';
+        const finishRes = await fetch(`${API_BASE}/api/upload/video/finish`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ storage_path: startData.storage_path })
+        });
+
+        const data = await finishRes.json();
 
         if (data.success) {
           statusDiv.innerHTML = '<span style="color:#22c55e;">✓ Video uploaded successfully!</span>';
@@ -1558,4 +1608,5 @@ Stay informed with comprehensive coverage of ${title.toLowerCase()}.
     });
   </script>
 </body>
+
 </html>
