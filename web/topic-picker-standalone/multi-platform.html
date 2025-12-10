@@ -1,279 +1,303 @@
-border: 1px solid #8b5cf6;
-border-radius: 10px;
-padding: 20px;
-margin-bottom: 16px;
-transition: all 0.3s;
-}
+<!DOCTYPE html>
+<html lang="en">
 
-.platform-card:hover {
-transform: translateY(-2px);
-box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);
-}
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multi-Platform Publisher - MSS Studio</title>
+  <link rel="icon" href="favicon.jpg">
+  <link rel="stylesheet" href="studio.css">
+  <link rel="stylesheet" href="premium_theme.css">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="version.js" defer></script>
+  <style>
+    .platform-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid #8b5cf6;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 16px;
+      transition: all 0.3s;
+    }
 
-.platform-card.disabled {
-opacity: 0.5;
-border-color: #64748b;
-}
+    .platform-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);
+    }
 
-.platform-grid {
-display: grid;
-grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-gap: 16px;
-}
+    .platform-card.disabled {
+      opacity: 0.5;
+      border-color: #64748b;
+    }
 
-.platform-icon {
-font-size: 32px;
-margin-bottom: 12px;
-}
+    .platform-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
 
-.platform-name {
-font-size: 18px;
-font-weight: 700;
-color: #E8EBFF;
-margin-bottom: 8px;
-}
+    .platform-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+    }
 
-.platform-specs {
-font-size: 12px;
-color: #A8B3CF;
-margin-bottom: 12px;
-}
+    .platform-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #E8EBFF;
+      margin-bottom: 8px;
+    }
 
-.platform-checkbox {
-display: flex;
-align-items: center;
-gap: 8px;
-margin-top: 12px;
-}
+    .platform-specs {
+      font-size: 12px;
+      color: #A8B3CF;
+      margin-bottom: 12px;
+    }
 
-.platform-checkbox input[type="checkbox"] {
-width: 20px;
-height: 20px;
-cursor: pointer;
-}
+    .platform-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+    }
 
-.queue-item {
-background: #1a202c;
-border: 1px solid #2a3550;
-border-radius: 8px;
-padding: 16px;
-margin-bottom: 12px;
-transition: all 0.2s;
-}
+    .platform-checkbox input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
 
-.queue-item:hover {
-border-color: #3b82f6;
-}
+    .queue-item {
+      background: #1a202c;
+      border: 1px solid #2a3550;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+      transition: all 0.2s;
+    }
 
-.queue-item.pending {
-border-left: 4px solid #3b82f6;
-}
+    .queue-item:hover {
+      border-color: #3b82f6;
+    }
 
-.queue-item.processing {
-border-left: 4px solid #f59e0b;
-}
+    .queue-item.pending {
+      border-left: 4px solid #3b82f6;
+    }
 
-.queue-item.completed {
-border-left: 4px solid #22c55e;
-}
+    .queue-item.processing {
+      border-left: 4px solid #f59e0b;
+    }
 
-.queue-item.failed {
-border-left: 4px solid #ef4444;
-}
+    .queue-item.completed {
+      border-left: 4px solid #22c55e;
+    }
 
-.status-badge {
-padding: 4px 12px;
-border-radius: 12px;
-font-size: 11px;
-font-weight: 600;
-text-transform: uppercase;
-}
+    .queue-item.failed {
+      border-left: 4px solid #ef4444;
+    }
 
-.status-pending {
-background: rgba(59, 130, 246, 0.2);
-color: #3b82f6;
-}
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
 
-.status-processing {
-background: rgba(251, 191, 36, 0.2);
-color: #f59e0b;
-}
+    .status-pending {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3b82f6;
+    }
 
-.status-completed {
-background: rgba(34, 197, 94, 0.2);
-color: #22c55e;
-}
+    .status-processing {
+      background: rgba(251, 191, 36, 0.2);
+      color: #f59e0b;
+    }
 
-.status-failed {
-background: rgba(239, 68, 68, 0.2);
-color: #ef4444;
-}
+    .status-completed {
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+    }
 
-.tab-nav {
-display: flex;
-gap: 10px;
-margin-bottom: 20px;
-border-bottom: 2px solid #2a3550;
-}
+    .status-failed {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
 
-.tab-button {
-padding: 12px 24px;
-background: transparent;
-border: none;
-color: #A8B3CF;
-font-weight: 600;
-cursor: pointer;
-border-bottom: 3px solid transparent;
-margin-bottom: -2px;
-transition: all 0.2s;
-}
+    .tab-nav {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #2a3550;
+    }
 
-.tab-button:hover {
-color: #E8EBFF;
-}
+    .tab-button {
+      padding: 12px 24px;
+      background: transparent;
+      border: none;
+      color: #A8B3CF;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
+    }
 
-.tab-button.active {
-color: #8b5cf6;
-border-bottom-color: #8b5cf6;
-}
+    .tab-button:hover {
+      color: #E8EBFF;
+    }
 
-.tab-content {
-display: none;
-}
+    .tab-button.active {
+      color: #8b5cf6;
+      border-bottom-color: #8b5cf6;
+    }
 
-.tab-content.active {
-display: block;
-}
+    .tab-content {
+      display: none;
+    }
 
-.empty-state {
-text-align: center;
-padding: 60px 20px;
-color: #A8B3CF;
-}
+    .tab-content.active {
+      display: block;
+    }
 
-.empty-state-icon {
-font-size: 48px;
-margin-bottom: 16px;
-opacity: 0.5;
-}
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #A8B3CF;
+    }
 
-.form-section {
-background: #1a202c;
-border: 1px solid #2a3550;
-border-radius: 8px;
-padding: 20px;
-margin-bottom: 20px;
-}
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
 
-.form-group {
-margin-bottom: 16px;
-}
+    .form-section {
+      background: #1a202c;
+      border: 1px solid #2a3550;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
 
-.form-group label {
-display: block;
-margin-bottom: 8px;
-color: #A8B3CF;
-font-weight: 600;
-font-size: 14px;
-}
+    .form-group {
+      margin-bottom: 16px;
+    }
 
-.form-group input,
-.form-group textarea,
-.form-group select {
-width: 100%;
-padding: 10px;
-background: #0f1419;
-border: 1px solid #2a3550;
-border-radius: 6px;
-color: #E8EBFF;
-font-family: inherit;
-}
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      color: #A8B3CF;
+      font-weight: 600;
+      font-size: 14px;
+    }
 
-.form-group textarea {
-min-height: 100px;
-resize: vertical;
-}
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 10px;
+      background: #0f1419;
+      border: 1px solid #2a3550;
+      border-radius: 6px;
+      color: #E8EBFF;
+      font-family: inherit;
+    }
 
-.hint {
-font-size: 12px;
-color: #64748b;
-margin-top: 4px;
-}
+    .form-group textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
 
-.video-select {
-background: #1a202c;
-border: 1px solid #2a3550;
-border-radius: 8px;
-padding: 12px;
-margin-bottom: 12px;
-cursor: pointer;
-transition: all 0.2s;
-}
+    .hint {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 4px;
+    }
 
-.video-select:hover {
-border-color: #8b5cf6;
-background: rgba(139, 92, 246, 0.05);
-}
+    .video-select {
+      background: #1a202c;
+      border: 1px solid #2a3550;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
 
-.video-select.selected {
-border-color: #8b5cf6;
-background: rgba(139, 92, 246, 0.1);
-}
+    .video-select:hover {
+      border-color: #8b5cf6;
+      background: rgba(139, 92, 246, 0.05);
+    }
 
-@media (max-width: 768px) {
-.platform-grid {
-grid-template-columns: 1fr;
-}
+    .video-select.selected {
+      border-color: #8b5cf6;
+      background: rgba(139, 92, 246, 0.1);
+    }
 
-.platform-card {
-padding: 16px;
-}
+    @media (max-width: 768px) {
+      .platform-grid {
+        grid-template-columns: 1fr;
+      }
 
-.card {
-padding: 16px;
-}
+      .platform-card {
+        padding: 16px;
+      }
 
-.card h1 {
-font-size: 24px;
-}
+      .card {
+        padding: 16px;
+      }
 
-.card>div[style*="display:flex"] {
-flex-direction: column;
-gap: 10px;
-}
+      .card h1 {
+        font-size: 24px;
+      }
 
-.btn {
-width: 100%;
-padding: 12px;
-font-size: 14px;
-}
+      .card>div[style*="display:flex"] {
+        flex-direction: column;
+        gap: 10px;
+      }
 
-.form-section {
-padding: 16px;
-}
-}
+      .btn {
+        width: 100%;
+        padding: 12px;
+        font-size: 14px;
+      }
 
-@media (max-width: 480px) {
-.platform-card {
-padding: 12px;
-}
+      .form-section {
+        padding: 16px;
+      }
+    }
 
-.card {
-padding: 12px;
-}
+    @media (max-width: 480px) {
+      .platform-card {
+        padding: 12px;
+      }
 
-.card h1 {
-font-size: 20px;
-}
-}
-</style>
+      .card {
+        padding: 12px;
+      }
+
+      .card h1 {
+        font-size: 20px;
+      }
+    }
+
+    /* Fix for vertical layout in premium mode */
+    body.premium-mode {
+      display: block !important;
+      height: auto !important;
+      overflow: auto !important;
+    }
+  </style>
 </head>
 
-<body>
+<body class="premium-mode">
   <div id="loadingBar" class="loading-bar"></div>
 
   <!-- Header -->
-  <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+  <!-- Header -->
+  <div class="card"
+    style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom: 20px;">
     <h1 style="margin:0;">Multi-Platform Publisher</h1>
     <div style="display:flex; gap:10px; flex-wrap:wrap;">
       <button class="btn" onclick="window.location.href='workflow.html'"
@@ -287,7 +311,7 @@ font-size: 20px;
 
   <!-- Info Banner -->
   <div class="card"
-    style="background:linear-gradient(135deg, rgba(139,92,246,0.1), rgba(17,24,39,0.5)); border-color:#8b5cf6;">
+    style="background:linear-gradient(135deg, rgba(139,92,246,0.1), rgba(17,24,39,0.5)); border-color:#8b5cf6; margin-bottom: 20px;">
     <div style="display:flex; align-items:start; gap:16px;">
       <div style="font-size:32px;">🚀</div>
       <div>
@@ -1370,7 +1394,7 @@ Stay informed with comprehensive coverage of ${title.toLowerCase()}.
           return `
             <div class="video-select" data-filename="${video.path}" data-title="${videoTitle.replace(/"/g, '&quot;')}">
               <div style="display:flex; gap:12px; align-items:center;">
-                <video src="${API_BASE}/out/${video.path}" style="width:120px; height:68px; object-fit:cover; border-radius:6px; background:#000;" onclick="event.stopPropagation(); selectVideo('${video.path}', '${videoTitle.replace(/'/g, "\\'")}');"></video>
+                <video src="${video.url || `${API_BASE}/out/${video.path}`}" style="width:120px; height:68px; object-fit:cover; border-radius:6px; background:#000;" onclick="event.stopPropagation(); selectVideo('${video.path}', '${videoTitle.replace(/'/g, "\\'")}');"></video>
                 <div style="flex:1;" onclick="selectVideo('${video.path}', '${videoTitle.replace(/'/g, "\\'")}');">
                   <div style="font-weight:600; margin-bottom:4px;">${videoTitle}</div>
                   <div style="font-size:12px; color:#A8B3CF;">${date} • ${sizeMB} MB</div>

@@ -8,6 +8,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Topic Picker</title>
+  <meta name="google-site-verification" content="googlee191b020ebb6cfb0" />
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <style>
     body {
@@ -125,7 +126,7 @@
     function testAPI() {
       (async () => {
         try {
-          const r = await fetch('http://127.0.0.1:5000/health', { cache: 'no-store' });
+          const r = await fetch('/health', { cache: 'no-store' });
           const j = await r.json();
           alert('API health ok: v' + (j.version || '?'));
         } catch (e) { alert('API health failed: ' + (e && e.message || e)); }
@@ -270,6 +271,14 @@
     }
 
   </script>
+  <footer
+    style="margin-top: 40px; padding: 20px; text-align: center; color: #64748b; font-size: 14px; border-top: 1px solid #1e293b;">
+    <p>&copy; 2025 Many Sources Say. All rights reserved.</p>
+    <div style="margin-top: 10px;">
+      <a href="privacy.html" style="color: #64748b; text-decoration: none; margin: 0 10px;">Privacy Policy</a>
+      <a href="terms.html" style="color: #64748b; text-decoration: none; margin: 0 10px;">Terms of Service</a>
+    </div>
+  </footer>
 </body>
 
 </html>

@@ -1,0 +1,5 @@
+# Proxy API requests to Firebase Cloud Functions
+/api/*  https://us-central1-mss-video-creator-app.cloudfunctions.net/api/:splat  200
+
+# SPA Catch-all (for history mode routing)
+/*  /index.html  200

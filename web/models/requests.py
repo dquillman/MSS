@@ -52,3 +52,23 @@ class PlatformPublishRequest(BaseModel):
     tags: Optional[List[str]] = Field(None, max_items=50, description="Video tags")
     scheduled_time: Optional[str] = Field(None, description="Scheduled publish time (ISO format)")
     thumbnail_path: Optional[str] = Field(None, description="Thumbnail file path")
+
+
+class YouTubeUploadRequest(BaseModel):
+    """Request model for YouTube upload"""
+    video_filename: str = Field(..., min_length=1, description="Video filename in out/ directory")
+    title: str = Field(..., min_length=1, max_length=100, description="Video title (max 100 chars)")
+    description: Optional[str] = Field(None, max_length=5000, description="Video description")
+    tags: Optional[List[str]] = Field(None, max_items=500, description="Video tags")
+    category_id: Optional[str] = Field("22", description="YouTube category ID")
+    privacy: Optional[str] = Field("public", description="Privacy status (public, private, unlisted)")
+    publish_at: Optional[str] = Field(None, description="Scheduled publish time (ISO format)")
+
+
+class TikTokUploadRequest(BaseModel):
+    """Request model for TikTok upload"""
+    video_filename: str = Field(..., min_length=1, description="Video filename in out/ directory")
+    title: str = Field(..., min_length=1, max_length=150, description="Video title (max 150 chars)") # TikTok limit approx 150-2200 depending on region, keeping safe
+    description: Optional[str] = Field(None, description="Video description")
+    privacy_level: Optional[str] = Field("PUBLIC_TO_EVERYONE", description="Privacy level")
+

@@ -1,0 +1,83 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "us-central1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "venv",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log"
+      ]
+    }
+  ],
+  "hosting": {
+    "public": "web/topic-picker-standalone",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "function": "api"
+      },
+      {
+        "source": "/auth",
+        "function": "api"
+      },
+      {
+        "source": "/login",
+        "function": "api"
+      },
+      {
+        "source": "/signup",
+        "function": "api"
+      },
+      {
+        "source": "/admin",
+        "function": "api"
+      },
+      {
+        "source": "/health",
+        "function": "api"
+      },
+      {
+        "source": "/list-outputs",
+        "function": "api"
+      },
+      {
+        "source": "/delete-**",
+        "function": "api"
+      },
+      {
+        "source": "/youtube-categories",
+        "function": "api"
+      },
+      {
+        "source": "/get-**",
+        "function": "api"
+      },
+      {
+        "source": "/set-**",
+        "function": "api"
+      },
+      {
+        "source": "/save-**",
+        "function": "api"
+      },
+      {
+        "source": "/upload-**",
+        "function": "api"
+      }
+    ],
+    "cleanUrls": false
+  }
+}

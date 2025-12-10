@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -36,9 +37,17 @@
     }
 
     @keyframes gradientShift {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
+      0% {
+        background-position: 0% 50%;
+      }
+
+      50% {
+        background-position: 100% 50%;
+      }
+
+      100% {
+        background-position: 0% 50%;
+      }
     }
 
     /* Floating particles effect */
@@ -58,8 +67,15 @@
     }
 
     @keyframes particleFloat {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-20px); }
+
+      0%,
+      100% {
+        transform: translateY(0);
+      }
+
+      50% {
+        transform: translateY(-20px);
+      }
     }
 
     .hero-content {
@@ -80,8 +96,15 @@
     }
 
     @keyframes logoGlow {
-      0%, 100% { filter: drop-shadow(0 0 20px rgba(59, 130, 246, 0.5)); }
-      50% { filter: drop-shadow(0 0 40px rgba(139, 92, 246, 0.8)); }
+
+      0%,
+      100% {
+        filter: drop-shadow(0 0 20px rgba(59, 130, 246, 0.5));
+      }
+
+      50% {
+        filter: drop-shadow(0 0 40px rgba(139, 92, 246, 0.8));
+      }
     }
 
     .tagline {
@@ -345,13 +368,15 @@
     }
   </style>
 </head>
+
 <body>
   <!-- Hero Section -->
   <div class="hero">
     <div class="hero-content">
       <div class="logo">MSS</div>
       <h1 class="tagline">Many Sources Say</h1>
-      <p class="subtitle">Transform your ideas into professional AI-powered videos with avatars, logos, and automated workflows. Create unlimited content without limits.</p>
+      <p class="subtitle">Transform your ideas into professional AI-powered videos with avatars, logos, and automated
+        workflows. Create unlimited content without limits.</p>
       <div class="cta-buttons">
         <button id="launchStudioBtn" class="btn btn-primary">🎬 Launch Studio</button>
         <a href="/pricing" class="btn btn-secondary">💰 View Pricing</a>
@@ -368,13 +393,15 @@
         <div class="feature-card">
           <span class="feature-icon">🎙️</span>
           <h3 class="feature-title">AI Voice & Avatars</h3>
-          <p class="feature-description">Professional text-to-speech with customizable AI avatars that speak your script naturally.</p>
+          <p class="feature-description">Professional text-to-speech with customizable AI avatars that speak your script
+            naturally.</p>
         </div>
 
         <div class="feature-card">
           <span class="feature-icon">🎨</span>
           <h3 class="feature-title">Logo & Branding</h3>
-          <p class="feature-description">Add your logo anywhere on videos with customizable positioning and sizing options.</p>
+          <p class="feature-description">Add your logo anywhere on videos with customizable positioning and sizing
+            options.</p>
         </div>
 
         <div class="feature-card">
@@ -386,7 +413,8 @@
         <div class="feature-card">
           <span class="feature-icon">😂</span>
           <h3 class="feature-title">Thumbnail Library</h3>
-          <p class="feature-description">Create viral thumbnails with templates, AI backgrounds, and batch generation tools.</p>
+          <p class="feature-description">Create viral thumbnails with templates, AI backgrounds, and batch generation
+            tools.</p>
         </div>
 
         <div class="feature-card">
@@ -467,6 +495,11 @@
     <div class="cta-buttons">
       <button id="getStartedBtn" class="btn btn-primary">🚀 Get Started Now</button>
     </div>
+    <div style="margin-top: 40px; font-size: 14px; color: #64748b;">
+      <a href="privacy.html" style="color: #64748b; text-decoration: none; margin: 0 10px;">Privacy Policy</a>
+      <a href="terms.html" style="color: #64748b; text-decoration: none; margin: 0 10px;">Terms of Service</a>
+      <p style="margin-top: 10px;">&copy; 2025 Many Sources Say. All rights reserved.</p>
+    </div>
   </div>
 
   <script>
@@ -512,4 +545,5 @@
     checkAuth();
   </script>
 </body>
+
 </html>

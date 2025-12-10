@@ -1,5 +1,7 @@
 {
-  "projects": {},
+  "projects": {
+    "default": "mss-video-creator-app"
+  },
   "targets": {},
   "etags": {}
 }

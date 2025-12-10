@@ -112,6 +112,22 @@ def create_user(email: str, password: str, username: Optional[str] = None) -> Di
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+def update_user_subscription(user_id: str, tier: str, stripe_customer_id: str = None, subscription_status: str = 'active') -> Dict[str, Any]:
+    """Update user's subscription tier and details."""
+    try:
+        data = {
+            'subscription_tier': tier,
+            'subscription_status': subscription_status,
+            'subscription_updated_at': firestore.SERVER_TIMESTAMP
+        }
+        if stripe_customer_id:
+            data['stripe_customer_id'] = stripe_customer_id
+            
+        get_db().collection('users').document(user_id).update(data)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 def create_session(user_id: str, duration_days: int = 7, remember_me: bool = False) -> str:
     """
     Create a Firebase Session Cookie.
@@ -204,7 +220,7 @@ def get_usage_stats(user_id: str) -> Optional[Dict[str, Any]]:
 
 USAGE_LIMITS: Dict[str, Optional[int]] = {
     "free": 3,
-    "starter": 10,
+    "starter": 30,
     "pro": None,
     "agency": None,
     "lifetime": None,
