@@ -1,4 +1,8 @@
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 import json
 import time
 import uuid
@@ -40,7 +44,7 @@ analytics_manager = AnalyticsManager()
 publisher = MultiPlatformPublisher()
 platform_api = PlatformAPIManager()
 
-APP_VERSION = "5.7.6"
+APP_VERSION = "5.7.8"
 
 # Optional CSP Trusted Types configuration (normalised once at startup)
 _raw_csp_require_trusted = os.getenv('CSP_REQUIRE_TRUSTED_TYPES_FOR', '').strip()
@@ -111,13 +115,14 @@ def add_security_headers(response):
         # Production (Cloud Run): same origin only, allow Google Fonts and Firebase
         csp_directives = [
             "default-src 'self'",
-            "connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com",
+            "connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.gstatic.com https://cdn.jsdelivr.net",
             "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://www.gstatic.com https://apis.google.com",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "img-src 'self' data: https:",
             "font-src 'self' data: https://fonts.gstatic.com",
-            "frame-src 'self' https://accounts.google.com",
+            "frame-src 'self' https://accounts.google.com https://mss-video-creator-app.firebaseapp.com",
+            "media-src 'self' https://storage.googleapis.com",
             "object-src 'none'",
             "base-uri 'self'",
             "form-action 'self'",
@@ -126,13 +131,14 @@ def add_security_headers(response):
         # Development (Local): allow external resources (CDN, etc.)
         csp_directives = [
             "default-src 'self'",
-            "connect-src 'self' http://localhost:5000 http://localhost:3000 http://127.0.0.1:5000 http://127.0.0.1:3000 ws://localhost:* wss://localhost:* https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com",
+            "connect-src 'self' http://localhost:5000 http://localhost:3000 http://127.0.0.1:5000 http://127.0.0.1:3000 ws://localhost:* wss://localhost:* https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.gstatic.com https://cdn.jsdelivr.net",
             "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://www.gstatic.com https://apis.google.com",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
             "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
             "img-src 'self' data: https: http://localhost:5000 http://127.0.0.1:5000",
-            "font-src 'self' data: https://fonts.gstatic.com",
-            "frame-src 'self' https://accounts.google.com",
+            "font-src 'self' data: https:",
+            "frame-src 'self' https://accounts.google.com https://mss-video-creator-app.firebaseapp.com",
+            "media-src 'self' https://storage.googleapis.com",
             "object-src 'none'",
             "base-uri 'self'",
             "form-action 'self'",
@@ -205,6 +211,27 @@ def serve_topics():
 def serve_pricing():
     """Serve Pricing page"""
     return send_from_directory('topic-picker-standalone', 'pricing.html')
+
+@app.route('/set-selected-topic', methods=['POST'])
+def set_selected_topic():
+    """Save selected topic to session"""
+    try:
+        data = request.get_json()
+        session['selected_topic'] = data
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error setting topic: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/get-selected-topic', methods=['GET'])
+def get_selected_topic():
+    """Get selected topic from session"""
+    try:
+        topic = session.get('selected_topic')
+        return jsonify({'success': True, 'topic': topic})
+    except Exception as e:
+        logger.error(f"Error getting topic: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/payment-success')
 def serve_payment_success():
@@ -279,10 +306,67 @@ def serve_reset():
 
 
 # Quiet favicon requests to avoid 404 noise
+# Generic HTML handler to catch all remaining .html files
+@app.route('/<path:filename>.html')
+def serve_html_generic(filename):
+    """Serve any .html file from topic-picker-standalone"""
+    if '..' in filename or filename.startswith('/'):
+        from flask import abort
+        abort(404)
+    return serve_static_from_webapp(f"{filename}.html")
+
+@app.route('/out/<path:filename>')
+def serve_output_file(filename):
+    """Serve generated video files from the 'out' directory."""
+    try:
+        out_dir = Path(__file__).parent / 'out'
+        return send_from_directory(str(out_dir), filename)
+    except Exception as e:
+        logger.error(f"Error serving output file {filename}: {e}")
+        return jsonify({'error': 'File not found'}), 404
+
+# Quiet favicon requests to avoid 404 noise (browser default)
 @app.route('/favicon.ico')
 def favicon_silence():
-    from flask import Response
-    return Response(status=204)
+    # Attempt to serve real icon if exists, else 204
+    try:
+         return send_from_directory('topic-picker-standalone', 'favicon.ico')
+    except:
+         from flask import Response
+         return Response(status=204)
+
+# Static file helpers using absolute paths to avoid CWD issues
+def serve_static_from_webapp(filename):
+    try:
+        topic_picker_dir = Path(__file__).parent / 'topic-picker-standalone'
+        return send_from_directory(str(topic_picker_dir), filename)
+    except Exception as e:
+        logger.error(f"[STATIC] Error serving {filename}: {e}")
+        return jsonify({'error': 'File not found'}), 404
+
+@app.route('/version.js')
+def serve_version_js():
+    return serve_static_from_webapp('version.js')
+
+@app.route('/firebase-config.js')
+def serve_firebase_config():
+    return serve_static_from_webapp('firebase-config.js')
+
+@app.route('/studio.css')
+def serve_studio_css():
+    return serve_static_from_webapp('studio.css')
+
+@app.route('/premium_theme.css')
+def serve_premium_theme_css():
+    return serve_static_from_webapp('premium_theme.css')
+
+@app.route('/favicon.jpg')
+def serve_favicon_jpg():
+    return serve_static_from_webapp('favicon.jpg')
+
+@app.route('/googlee191b020ebb6cfb0.html')
+def serve_google_verification():
+    return serve_static_from_webapp('googlee191b020ebb6cfb0.html')
 
 
 # -------------------- Auth API --------------------
@@ -318,10 +402,49 @@ def api_login():
             return resp
             
         # Legacy Login Fallback (or error)
-        return jsonify({'success': False, 'error': 'Please use the new login form'}), 400
+        # Security: Validate with Pydantic model for email/password login
+        from web.models.requests import LoginRequest
+        try:
+            req = LoginRequest(**data)
+            # Proceed with legacy login (e.g., getting user by email/password from DB)
+            # [TODO] Implement actual legacy auth or removal if not needed. 
+            # For now, we just validate the input structure if they aren't using ID Token.
+            # If we don't actually support legacy login anymore, we should just error out.
+            # Assuming 'verify_password' logic existed or we just return error:
+            return jsonify({'success': False, 'error': 'Please use Google Sign-In'}), 400
+        except PydanticValidationError as e:
+            return jsonify({'success': False, 'error': 'Invalid input', 'details': e.errors()}), 400
     except Exception as e:
         logger.error(f"[AUTH] Login error: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
+
+@app.route('/api/me', methods=['GET'])
+def api_me():
+    """Get current user session status"""
+    user, error, code = _get_user_obj_from_session()
+    if error:
+        return error, code
+    
+    # Return limited public info
+    return jsonify({
+        'success': True,
+        'user': {
+            'id': user['id'],
+            'email': user['email'],
+            'username': user.get('username'),
+            'subscription_tier': user.get('subscription_tier', 'free'),
+            'videos_this_month': user.get('usage', {}).get('videos_this_month', 0),
+            'total_videos': user.get('usage', {}).get('total_videos', 0),
+            'created_at': user.get('created_at') 
+        }
+    })
+
+@app.route('/api/logout', methods=['POST'])
+def api_logout():
+    """Logout user by clearing session cookie"""
+    resp = jsonify({'success': True})
+    resp.set_cookie('__session', '', expires=0, path='/')
+    return resp
 
 
 
@@ -703,53 +826,8 @@ def preview_tts():
         return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 
-@app.route('/api/logout', methods=['POST'])
-def api_logout():
-    try:
-        sid = request.cookies.get('session_id')
-        if sid:
-            database.delete_session(sid)
-        resp = jsonify({'success': True})
-        resp.set_cookie('session_id', '', expires=0, path='/', httponly=True, samesite='Lax')
-        return resp
-    except Exception as e:
-        logger.error(f"[AUTH] Logout error: {e}", exc_info=True)
-        # Still return success to avoid revealing errors
-        resp = jsonify({'success': True})
-        resp.set_cookie('session_id', '', expires=0, path='/', httponly=True, samesite='Lax')
-        return resp
 
-@app.route('/api/me', methods=['GET'])
-def api_me():
-    """Get current user info from session"""
-    try:
-        session_id = request.cookies.get('__session')
-        print(f"[DEBUG] api_me: Cookies received: {request.cookies.keys()}")
-        print(f"[DEBUG] api_me: __session cookie: {session_id[:10] if session_id else 'None'}")
-        
-        if not session_id:
-            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
 
-        result = database.get_session(session_id)
-        if not result.get('success'):
-            return jsonify({'success': False, 'error': 'Invalid or expired session'}), 401
-
-        user = result['user']
-        return jsonify({
-            'success': True,
-            'user': {
-                'id': user['id'],
-                'email': user['email'],
-                'username': user.get('username', user['email'].split('@')[0]),
-                'subscription_tier': user.get('subscription_tier', 'free'),
-                'videos_this_month': user.get('videos_this_month', 0),
-                'total_videos': user.get('total_videos', 0),
-                'created_at': user.get('created_at')
-            }
-        })
-    except Exception as e:
-        logger.error(f"[AUTH] Get user error: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': 'An error occurred'}), 500
 
 
 @app.route('/api/signup', methods=['POST'])
@@ -1052,31 +1130,31 @@ def serve_workflow():
 @app.route('/healthz', methods=['GET'])
 def _health():
     """Health check endpoint for Cloud Run"""
+    from pathlib import Path
+    import firebase_admin
+    import os
+    
+    cred_path = Path(__file__).parent / "serviceAccountKey.json"
+    
+    try:
+        app = firebase_admin.get_app()
+        cred_type = type(app.credential).__name__
+    except:
+        cred_type = "None"
+
     return jsonify({
         'status': 'ok',
         'service': 'MSS API',
         'version': APP_VERSION,
-        'endpoints': [
-            '/studio', '/topics', '/post-process-video',
-            '/get-avatar-library', '/get-logo-library', '/api/logo-files',
-            '/api/usage', '/youtube-categories', '/out/<file>', '/logos/<file>'
-        ]
+        'debug_info': {
+            'cwd': os.getcwd(),
+            'key_path': str(cred_path),
+            'key_exists': cred_path.exists(),
+            'cred_type': cred_type
+        }
     }), 200
 
-@app.route('/get-selected-topic', methods=['GET'])
-def get_selected_topic():
-    """Return the most recently saved topic (out/topic_selected.json) if available."""
-    try:
-        outdir = Path('out')
-        path = outdir / 'topic_selected.json'
-        if path.exists():
-            data = json.loads(path.read_text(encoding='utf-8'))
-            return jsonify({'success': True, 'topic': data})
-        else:
-            return jsonify({'success': False, 'error': 'No topic saved yet'}), 404
-    except Exception as e:
-        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
+
 
 def _get_user_obj_from_session():
     """Helper to get full user object from session"""
@@ -1268,20 +1346,7 @@ def delete_avatar():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@app.route('/set-selected-topic', methods=['POST'])
-def set_selected_topic():
-    """Persist a selected topic to out/topic_selected.json for reuse across tools."""
-    try:
-        payload = request.get_json(force=True) or {}
-        outdir = Path('out')
-        outdir.mkdir(exist_ok=True)
-        path = outdir / 'topic_selected.json'
-        # Write with UTF-8 and pretty print for debugging
-        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
-        return jsonify({'success': True, 'path': str(path)})
-    except Exception as e:
-        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
+
 
 
 @app.route('/api/generate-seo', methods=['POST'])
@@ -4778,14 +4843,7 @@ def get_latest_output():
         }), 500
 
 
-@app.route('/out/<path:filename>', methods=['GET'])
-def serve_output_file(filename):
-    """Serve files from the output directory"""
-    try:
-        outdir = Path("out").absolute()
-        return send_from_directory(outdir, filename)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 404
+
 
 
 @app.route('/avatars/<path:filename>', methods=['GET'])
@@ -4873,6 +4931,18 @@ def api_health():
     Query params:
     - deep=1 to attempt a quick Chromium launch test.
     """
+    # DEBUG INJECTION
+    from pathlib import Path
+    import firebase_admin
+    import os
+    cred_path = Path(__file__).parent / "serviceAccountKey.json"
+    try:
+        app = firebase_admin.get_app()
+        cred_type = type(app.credential).__name__
+    except:
+        cred_type = "None"
+    # END DEBUG INJECTION
+
     try:
         import shutil
         import imageio_ffmpeg
@@ -4918,6 +4988,13 @@ def api_health():
 
         return jsonify({
             'success': True,
+            'version': APP_VERSION,
+            'debug_info': {
+                'cwd': os.getcwd(),
+                'key_path': str(cred_path),
+                'key_exists': cred_path.exists(),
+                'cred_type': cred_type
+            },
             'ffmpeg': {'available': ffmpeg_ok, 'path': ffmpeg_path},
             'ffprobe': {'available': ffprobe_ok, 'path': ffprobe_path},
             'playwright': {
@@ -4931,19 +5008,7 @@ def api_health():
         return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 
-@app.route('/api/usage', methods=['GET'])
-def api_usage():
-    try:
-        usage = {
-            'videos_this_month': 0,
-            'monthly_limit': 999,
-            'videos_remaining': 999,
-            'at_limit': False,
-            'tier': 'dev'
-        }
-        return jsonify({'success': True, 'usage': usage})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 200
+
 
 
 @app.route('/youtube-categories', methods=['GET'])
@@ -5778,7 +5843,7 @@ def delete_video_file(filename):
 
 @app.route('/api/platforms/queue', methods=['POST'])
 def queue_publication():
-    """Add video to publishing queue"""
+    """Add video to publishing queue with validation"""
     if not multi_platform:
         return jsonify({'success': False, 'error': 'Multi-platform publisher not available'}), 500
 
@@ -5786,26 +5851,29 @@ def queue_publication():
     if error_response:
         return error_response, error_code
 
-    data = request.get_json()
-    video_filename = data.get('video_filename')
-    platforms = data.get('platforms', [])
-    title = data.get('title', '')
-    description = data.get('description', '')
-    tags = data.get('tags', [])
-    scheduled_time = data.get('scheduled_time')
-    thumbnail_path = data.get('thumbnail_path')
-
-    if not video_filename or not platforms:
-        return jsonify({'success': False, 'error': 'video_filename and platforms required'}), 400
-
     try:
+        # Security: Validate input
+        from web.models.requests import PlatformPublishRequest
+        try:
+            req = PlatformPublishRequest(**request.get_json() or {})
+        except PydanticValidationError as e:
+            return jsonify({'success': False, 'error': 'Invalid input', 'details': e.errors()}), 400
+
+        video_filename = req.video_filename
+        platforms = req.platforms
+        title = req.title
+        description = req.description or ''
+        tags = req.tags or []
+        scheduled_time = req.scheduled_time
+        thumbnail_path = req.thumbnail_path
+
         queue_id = multi_platform.queue_publication(
             user_email, video_filename, platforms, title, description, tags, scheduled_time, thumbnail_path
         )
         return jsonify({'success': True, 'queue_id': queue_id})
     except Exception as e:
-        logger.error(f"[AUTH] Login error: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
+        logger.error(f"[QUEUE] Error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': f'An error occurred: {str(e)}'}), 500
 
 @app.route('/api/platforms/queue', methods=['GET'])
 def get_publishing_queue():
@@ -6437,23 +6505,27 @@ def upload_youtube():
     if error_response:
         return error_response, error_code
 
-    data = request.get_json()
-    video_filename = data.get('video_filename')
-    title = data.get('title')
-    description = data.get('description', '')
-    tags = data.get('tags', [])
-    category_id = data.get('category_id', '22')
-    privacy = data.get('privacy', 'public')
+    # Security: Validate input
+    from web.models.requests import YouTubeUploadRequest
+    try:
+        req = YouTubeUploadRequest(**request.get_json() or {})
+    except PydanticValidationError as e:
+        return jsonify({'success': False, 'error': 'Invalid input', 'details': e.errors()}), 400
 
-    if not video_filename or not title:
-        return jsonify({'success': False, 'error': 'video_filename and title required'}), 400
-
+    video_filename = req.video_filename
+    title = req.title
+    description = req.description or ''
+    tags = req.tags or []
+    category_id = req.category_id
+    privacy = req.privacy
+    publish_at = req.publish_at
     # Construct video path
     video_path = os.path.join('out', video_filename)
 
     try:
         result = platform_api.upload_to_youtube(
-            user_email, video_path, title, description, tags, category_id, privacy
+            user_email, video_path, title, description, tags, category_id, privacy,
+            publish_at=publish_at
         )
 
         # Track in analytics if successful
@@ -6495,14 +6567,19 @@ def upload_tiktok():
     if error_response:
         return error_response, error_code
 
-    data = request.get_json()
-    video_filename = data.get('video_filename')
-    title = data.get('title')
-    description = data.get('description', '')
-    privacy_level = data.get('privacy_level', 'PUBLIC_TO_EVERYONE')
+    # Security: Validate input
+    from web.models.requests import TikTokUploadRequest
+    try:
+        req = TikTokUploadRequest(**request.get_json() or {})
+    except PydanticValidationError as e:
+        return jsonify({'success': False, 'error': 'Invalid input', 'details': e.errors()}), 400
 
-    if not video_filename or not title:
-        return jsonify({'success': False, 'error': 'video_filename and title required'}), 400
+    video_filename = req.video_filename
+    title = req.title
+    description = req.description or ''
+    privacy_level = req.privacy_level
+
+
 
     video_path = os.path.join('out', video_filename)
 
@@ -6889,6 +6966,151 @@ def delete_video_endpoint(filename):
     except Exception as e:
         logger.error(f"[VIDEO] Delete error: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/video/rename', methods=['POST'])
+def rename_video_endpoint():
+    """Rename a video (via metadata)"""
+    try:
+        # Authenticate user
+        user, error_response, error_code = _get_user_obj_from_session()
+        if error_response:
+            return error_response, error_code
+        
+        user_id = user['id']
+        
+        data = request.get_json()
+        filename = data.get('filename')
+        new_title = data.get('new_title')
+        
+        if not filename or not new_title:
+            return jsonify({'success': False, 'error': 'Filename and new_title required'}), 400
+            
+        result = database.rename_video(user_id, filename, new_title)
+        
+        if result['success']:
+            return jsonify({'success': True, 'title': result['title']})
+        else:
+            logger.error(f"[VIDEO] Rename failed for {filename}: {result.get('error')}")
+            return jsonify({'success': False, 'error': result.get('error')}), 500
+            
+    except Exception as e:
+        logger.error(f"[VIDEO] Rename error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ===========================================
+# STRIPE PAYMENT & USAGE API
+# ===========================================
+
+@app.route('/api/usage', methods=['GET'])
+def api_usage():
+    """Get usage stats for the current user."""
+    user, error_response, error_code = _get_user_obj_from_session()
+    if error_response:
+         return error_response, error_code
+    
+    user_id = user['id']
+    
+    try:
+        # Check permissions and get stats (resets monthly if needed)
+        result = database.can_create_video(user_id)
+        stats = result.get('stats', {})
+        
+        # Calculate remaining
+        tier = stats.get('subscription_tier', 'free')
+        limit = database.USAGE_LIMITS.get(tier, 0)
+        used = stats.get('videos_this_month', 0)
+        
+        if limit is None:
+            remaining = 999999 # Unlimited
+            limit_display = 'Unlimited'
+        else:
+            remaining = max(0, limit - used)
+            limit_display = limit
+
+        usage_data = {
+            'videos_this_month': used,
+            'monthly_limit': limit_display,
+            'videos_remaining': remaining,
+            'at_limit': not result['allowed'] if limit is not None else False,
+            'tier': tier
+        }
+        return jsonify({'success': True, 'usage': usage_data})
+    except Exception as e:
+        logger.error(f"[USAGE] Error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/stripe/create-checkout-session', methods=['POST'])
+def create_checkout_session():
+    """Create a Stripe Checkout Session."""
+    user_email, error_response, error_code = _get_user_from_session()
+    if error_response:
+        return error_response, error_code
+
+    try:
+        data = request.get_json()
+        plan = data.get('plan')
+        
+        price_id = STRIPE_PRICES.get(plan)
+        if not price_id:
+             return jsonify({'success': False, 'error': 'Invalid plan selected'}), 400
+
+        # Get user ID for metadata
+        user_obj, err, code = _get_user_obj_from_session()
+        if err: return err, code
+        user_id = user_obj['id']
+
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price': price_id,
+                'quantity': 1,
+            }],
+            mode='payment' if plan == 'lifetime' else 'subscription',
+            success_url=request.host_url + 'dashboard?payment_success=true&session_id={CHECKOUT_SESSION_ID}',
+            cancel_url=request.host_url + 'pricing?canceled=true',
+            client_reference_id=user_id,
+            customer_email=user_email,
+            metadata={
+                'user_id': user_id,
+                'plan': plan
+            }
+        )
+        return jsonify({'success': True, 'url': checkout_session.url})
+    except Exception as e:
+        logger.error(f"[STRIPE] Error creating session: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/stripe/webhook', methods=['POST'])
+def stripe_webhook():
+    payload = request.get_data()
+    sig_header = request.headers.get('Stripe-Signature')
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, STRIPE_WEBHOOK_SECRET
+        )
+    except ValueError as e:
+        return 'Invalid payload', 400
+    except stripe.error.SignatureVerificationError as e:
+        return 'Invalid signature', 400
+
+    # Handle the event
+    if event['type'] == 'checkout.session.completed':
+        session = event['data']['object']
+        
+        # Fulfill the purchase...
+        user_id = session.get('client_reference_id')
+        customer_id = session.get('customer')
+        
+        # Get plan from metadata
+        plan = session.get('metadata', {}).get('plan')
+        
+        if user_id and plan:
+            print(f"[STRIPE] Fulfilling subscription for user {user_id}: {plan}")
+            database.update_user_subscription(user_id, plan, customer_id)
+            
+    return jsonify({'success': True})
 
 
 if __name__ == '__main__':

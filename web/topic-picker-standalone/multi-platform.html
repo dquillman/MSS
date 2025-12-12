@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="studio.css">
   <link rel="stylesheet" href="premium_theme.css">
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
-  <script src="version.js" defer></script>
+  <script src="version.js?v=578" defer></script>
   <style>
     .platform-card {
       background: rgba(255, 255, 255, 0.05);
@@ -1392,17 +1392,19 @@ Stay informed with comprehensive coverage of ${title.toLowerCase()}.
           videoTitle = videoTitle.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
           return `
-            <div class="video-select" data-filename="${video.path}" data-title="${videoTitle.replace(/"/g, '&quot;')}">
+            <div class="video-select" data-filename="${video.path}" data-title="${(video.title || videoTitle).replace(/"/g, '&quot;')}">
               <div style="display:flex; gap:12px; align-items:center;">
-                <video src="${video.url || `${API_BASE}/out/${video.path}`}" style="width:120px; height:68px; object-fit:cover; border-radius:6px; background:#000;" onclick="event.stopPropagation(); selectVideo('${video.path}', '${videoTitle.replace(/'/g, "\\'")}');"></video>
-                <div style="flex:1;" onclick="selectVideo('${video.path}', '${videoTitle.replace(/'/g, "\\'")}');">
-                  <div style="font-weight:600; margin-bottom:4px;">${videoTitle}</div>
+                <video src="${video.url || `${API_BASE}/out/${video.path}`}" style="width:120px; height:68px; object-fit:cover; border-radius:6px; background:#000;" onclick="event.stopPropagation(); selectVideo('${video.path}', '${(video.title || videoTitle).replace(/'/g, "\\'")}')"></video>
+                <div style="flex:1;" onclick="selectVideo('${video.path}', '${(video.title || videoTitle).replace(/'/g, "\\'")}')">
+                  <div style="font-weight:600; margin-bottom:4px;">${video.title || videoTitle}</div>
                   <div style="font-size:12px; color:#A8B3CF;">${date} • ${sizeMB} MB</div>
+                  <div style="font-size:11px; color:#64748b; margin-top:2px;" title="${video.path}">${video.path.substring(0, 30)}${video.path.length > 30 ? '...' : ''}</div>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
                   <input type="file" id="thumb_${video.path.replace(/[^a-zA-Z0-9]/g, '_')}" accept="image/*" style="display:none;" onchange="handleVideoThumbnail('${video.path}', this)">
                   <div id="thumb_buttons_${video.path.replace(/[^a-zA-Z0-9]/g, '_')}" style="display:flex; gap:4px;">
-                    <button class="btn" onclick="event.stopPropagation(); document.getElementById('thumb_${video.path.replace(/[^a-zA-Z0-9]/g, '_')}').click();" style="background:#8b5cf6; border-color:#8b5cf6; padding:4px 12px; font-size:12px; white-space:nowrap;">📷 Add Thumbnail</button>
+                     <button class="btn" onclick="event.stopPropagation(); renameVideo('${video.path}', '${(video.title || videoTitle).replace(/'/g, "\\'")}')" style="background:#8b5cf6; border-color:#8b5cf6; padding:4px 8px; font-size:12px;" title="Rename">✏️</button>
+                    <button class="btn" onclick="event.stopPropagation(); document.getElementById('thumb_${video.path.replace(/[^a-zA-Z0-9]/g, '_')}').click();" style="background:#3b82f6; border-color:#3b82f6; padding:4px 12px; font-size:12px; white-space:nowrap;">📷 Thumb</button>
                     <button class="btn" onclick="event.stopPropagation(); deleteVideo('${video.path}');" style="background:#ef4444; border-color:#ef4444; padding:4px 8px; font-size:12px;">🗑️</button>
                   </div>
                   <div id="thumb_preview_${video.path.replace(/[^a-zA-Z0-9]/g, '_')}" style="font-size:11px; color:#22c55e;"></div>
@@ -1411,13 +1413,40 @@ Stay informed with comprehensive coverage of ${title.toLowerCase()}.
             </div>
           `;
         }).join('');
-
-
       } catch (error) {
         console.error('Error loading videos:', error);
         container.innerHTML = `<div style="text-align:center; padding:20px; color:#ef4444;">Error loading videos</div>`;
       }
     }
+
+    // Rename video
+    async function renameVideo(filename, currentTitle) {
+      const newTitle = prompt('Enter new name for this video:', currentTitle);
+      if (!newTitle || newTitle === currentTitle) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/video/rename`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ filename: filename, new_title: newTitle })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          await loadRecentVideos(); // Refresh list to show new name
+        } else {
+          alert('Failed to rename: ' + (data.error || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Error renaming video:', error);
+        alert('Error renaming video: ' + error.message);
+      }
+    }
+
+
+
 
     async function selectVideo(filename, title) {
       selectedVideo = filename;

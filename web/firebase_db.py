@@ -15,27 +15,34 @@ logger = logging.getLogger(__name__)
 # Initialize Firebase
 # Try to find service account key
 cred_path = Path(__file__).parent / "serviceAccountKey.json"
+print(f"CRITICAL DEBUG: Looking for key at {cred_path}", flush=True)
 if cred_path.exists():
     try:
+        print("CRITICAL DEBUG: Key FILE FOUND. Initializing...", flush=True)
         cred = credentials.Certificate(str(cred_path))
         firebase_admin.initialize_app(cred, options={
             'storageBucket': 'mss-video-creator-app.firebasestorage.app'
         })
         logger.info("[FIREBASE] Initialized with serviceAccountKey.json and storage bucket")
+        print("CRITICAL DEBUG: SUCCESS - Initialized with serviceAccountKey.json", flush=True)
     except ValueError:
         # App already initialized
+        print("CRITICAL DEBUG: ValueError (Already initialized?)", flush=True)
         pass
 else:
+    print("CRITICAL DEBUG: Key FILE NOT FOUND. Using Default Creds.", flush=True)
     # Try default credentials (works on Cloud Run if configured)
     try:
         firebase_admin.initialize_app(options={
             'storageBucket': 'mss-video-creator-app.firebasestorage.app'
         })
-        logger.info("[FIREBASE] Initialized with default credentials and storage bucket (UPDATED - ROUND 7 CHECK)")
+        logger.info("[FIREBASE] Initialized with default credentials and storage bucket")
+        print("CRITICAL DEBUG: WARN - Initialized with DEFAULT credentials", flush=True)
     except ValueError:
         pass
     except Exception as e:
         logger.warning(f"[FIREBASE] Failed to initialize: {e}. DB operations may fail.")
+        print(f"CRITICAL DEBUG: FAIL - {e}", flush=True)
 
 def get_db():
     """Return Firestore client."""
@@ -614,8 +621,15 @@ def list_videos(user_id: str, limit: int = 10) -> Dict[str, Any]:
             # Format for frontend compatibility
             # Frontend expects: path, mtime, size, ext
             name = blob.name.split('/')[-1]
+            
+            # Get metadata (title)
+            title = name
+            if blob.metadata and 'title' in blob.metadata:
+                title = blob.metadata['title']
+                
             files.append({
-                'path': name, # Frontend treats this as filename
+                'path': name, # Physical filename
+                'title': title, # Display name
                 'mtime': blob.updated.timestamp() if blob.updated else 0,
                 'size': blob.size,
                 'ext': '.' + name.split('.')[-1] if '.' in name else '',
@@ -626,6 +640,33 @@ def list_videos(user_id: str, limit: int = 10) -> Dict[str, Any]:
         files.sort(key=lambda x: x['mtime'], reverse=True)
         
         return {"success": True, "files": files[:limit]}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+def rename_video(user_id: str, filename: str, new_title: str) -> Dict[str, Any]:
+    """
+    Rename a video by updating its metadata 'title' field.
+    This does NOT change the filename or URL.
+    """
+    try:
+        bucket = storage.bucket()
+        blob_path = f"videos/{user_id}/{filename}"
+        logger.info(f"[RENAME] Attempting to rename blob at: {blob_path} to {new_title}")
+        blob = bucket.blob(blob_path)
+        
+        if not blob.exists():
+            logger.error(f"[RENAME] Blob not found at: {blob_path}")
+            return {"success": False, "error": f"Video not found at {blob_path}"}
+            
+        # Update metadata
+        # We must fetch existing metadata first to preserve other fields?
+        # bucket.blob() creates a clean object, need to reload or just set?
+        # set_metadata merges/overwrites.
+        
+        blob.metadata = {'title': new_title}
+        blob.patch()
+        
+        return {"success": True, "title": new_title}
     except Exception as e:
         return {"success": False, "error": str(e)}
 

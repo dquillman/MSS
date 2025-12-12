@@ -1,3 +1,4 @@
+# Cloud Function Entry Point - Force Rebuild 2025-12-11 17:01
 from firebase_functions import https_fn
 
 @https_fn.on_request(max_instances=10, region="us-central1", memory=1024)

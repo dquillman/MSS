@@ -2,6 +2,14 @@
   "projects": {
     "default": "mss-video-creator-app"
   },
-  "targets": {},
+  "targets": {
+    "mss-video-creator-app": {
+      "hosting": {
+        "clean": [
+          "mss-clean-deploy"
+        ]
+      }
+    }
+  },
   "etags": {}
 }

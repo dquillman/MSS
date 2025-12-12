@@ -44,7 +44,7 @@ analytics_manager = AnalyticsManager()
 publisher = MultiPlatformPublisher()
 platform_api = PlatformAPIManager()
 
-APP_VERSION = "5.7.7"
+APP_VERSION = "5.7.8"
 
 # Optional CSP Trusted Types configuration (normalised once at startup)
 _raw_csp_require_trusted = os.getenv('CSP_REQUIRE_TRUSTED_TYPES_FOR', '').strip()
@@ -1130,15 +1130,28 @@ def serve_workflow():
 @app.route('/healthz', methods=['GET'])
 def _health():
     """Health check endpoint for Cloud Run"""
+    from pathlib import Path
+    import firebase_admin
+    import os
+    
+    cred_path = Path(__file__).parent / "serviceAccountKey.json"
+    
+    try:
+        app = firebase_admin.get_app()
+        cred_type = type(app.credential).__name__
+    except:
+        cred_type = "None"
+
     return jsonify({
         'status': 'ok',
         'service': 'MSS API',
         'version': APP_VERSION,
-        'endpoints': [
-            '/studio', '/topics', '/post-process-video',
-            '/get-avatar-library', '/get-logo-library', '/api/logo-files',
-            '/api/usage', '/youtube-categories', '/out/<file>', '/logos/<file>'
-        ]
+        'debug_info': {
+            'cwd': os.getcwd(),
+            'key_path': str(cred_path),
+            'key_exists': cred_path.exists(),
+            'cred_type': cred_type
+        }
     }), 200
 
 
@@ -4918,6 +4931,18 @@ def api_health():
     Query params:
     - deep=1 to attempt a quick Chromium launch test.
     """
+    # DEBUG INJECTION
+    from pathlib import Path
+    import firebase_admin
+    import os
+    cred_path = Path(__file__).parent / "serviceAccountKey.json"
+    try:
+        app = firebase_admin.get_app()
+        cred_type = type(app.credential).__name__
+    except:
+        cred_type = "None"
+    # END DEBUG INJECTION
+
     try:
         import shutil
         import imageio_ffmpeg
@@ -4963,6 +4988,13 @@ def api_health():
 
         return jsonify({
             'success': True,
+            'version': APP_VERSION,
+            'debug_info': {
+                'cwd': os.getcwd(),
+                'key_path': str(cred_path),
+                'key_exists': cred_path.exists(),
+                'cred_type': cred_type
+            },
             'ffmpeg': {'available': ffmpeg_ok, 'path': ffmpeg_path},
             'ffprobe': {'available': ffprobe_ok, 'path': ffprobe_path},
             'playwright': {
@@ -6933,6 +6965,36 @@ def delete_video_endpoint(filename):
             
     except Exception as e:
         logger.error(f"[VIDEO] Delete error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/video/rename', methods=['POST'])
+def rename_video_endpoint():
+    """Rename a video (via metadata)"""
+    try:
+        # Authenticate user
+        user, error_response, error_code = _get_user_obj_from_session()
+        if error_response:
+            return error_response, error_code
+        
+        user_id = user['id']
+        
+        data = request.get_json()
+        filename = data.get('filename')
+        new_title = data.get('new_title')
+        
+        if not filename or not new_title:
+            return jsonify({'success': False, 'error': 'Filename and new_title required'}), 400
+            
+        result = database.rename_video(user_id, filename, new_title)
+        
+        if result['success']:
+            return jsonify({'success': True, 'title': result['title']})
+        else:
+            logger.error(f"[VIDEO] Rename failed for {filename}: {result.get('error')}")
+            return jsonify({'success': False, 'error': result.get('error')}), 500
+            
+    except Exception as e:
+        logger.error(f"[VIDEO] Rename error: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
